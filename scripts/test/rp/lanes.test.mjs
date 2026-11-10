@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, certification, certifyAt, check, commitAll, frontier, git, lane, later, pipeline, read, land, remove, revise, root, rp, thread, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, certification, certifyAt, check, commitAll, frontier, git, ignore, lane, later, pipeline, read, land, remove, revise, root, rp, thread, useRepo, write, writeFile } from "./fixture.mjs";
 
 const SPEC_LANES = [lane("spec-producer", "a"), lane("spec-producer", "b"), lane("reviewer", "security")];
 const candidate = (id, folder = "1-spec", name = "spec.md") => `${folder}/lanes/${id}/${name}`;
@@ -124,7 +124,7 @@ describe("production lanes", () => {
   it("land in their own worktrees from one tip and merge into the pipeline branch, and it back into them, without conflict", () => {
     pipeline(0, { lanes: SPEC_LANES });
     const tip = commitAll("lanes woken");
-    writeFile(".git/info/exclude", ".wt-*/\n");
+    ignore(".wt-*/");
     for (const id of ["a", "b"]) {
       const worktree = `${root}/.wt-${id}`;
       git(root, "worktree", "add", "--quiet", "-b", `demo-spec-${id}`, worktree, tip);

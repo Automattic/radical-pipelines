@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { NOTES, P, PIPELINE, REVIEW, TO_SPEC, abs, apply, commitAll, commitIn, conventions, lane, laneWorktree, pipeline, remove, rp, run, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
+import { NOTES, P, PIPELINE, REVIEW, TO_SPEC, abs, apply, commitAll, commitIn, lane, laneWorktree, pipeline, remove, rp, run, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 // What `rp validate` prints for `role` on the pipeline folder in `worktree`, with `options`, as its lines.
 const validate = (role, options = [], worktree = abs("")) => rp("validate", `${worktree}/${PIPELINE}`, "--role", role, ...options).trimEnd().split("\n");
@@ -40,7 +40,7 @@ describe("rp validate", () => {
     assert.deepEqual([out.status, out.stderr], [1, "rp: cannot read .pipelines/demo/threads/9-implementer-spec-producer-spec.md: missing\n"]);
   });
 
-  it("applies neither check that reads run-config.md: a thread awaiting an undeclared review lane, and an undeclared lane's candidate", () => {
+  it("applies neither check that reads run-config.json: a thread awaiting an undeclared review lane, and an undeclared lane's candidate", () => {
     pipeline(0);
     write("1-spec/lanes/zz/spec.md", "# Candidate\n");
     thread({ n: 1, ...REVIEW("gone"), messages: [["reviewer-gone", "abc1234"], ["implementer", "abc1234"]] });
@@ -65,7 +65,6 @@ describe("rp validate", () => {
     });
 
   it("reports a production lane's candidate in the lane's worktree", () => {
-    conventions();
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
     const wt = laneWorktree("demo-spec-a");

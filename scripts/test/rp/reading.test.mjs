@@ -57,7 +57,7 @@ describe("reading a pipeline", () => {
     ["a file where a lane folder belongs", () => writeFile(P("1-spec/lanes/a"), "x\n"), /1-spec\/lanes\/a: a file where a folder belongs/],
     ["a folder where the spec belongs", () => { remove(SPEC); writeFile(P(`${SPEC}/x.md`), "x\n"); }, /1-spec\/spec.md: a folder where a pipeline file belongs/],
     ["a folder where a thread belongs", () => writeFile(P("threads/1-x.md/y"), "x\n"), /threads\/1-x.md: a folder where a pipeline file belongs/],
-    ["a folder where run-config.md belongs", () => { remove("run-config.md"); writeFile(P("run-config.md/x"), "x\n"); }, /run-config.md: a folder where a pipeline file belongs/],
+    ["a folder where run-config.json belongs", () => { remove("run-config.json"); writeFile(P("run-config.json/x"), "x\n"); }, /run-config\.json: a folder where a pipeline file belongs/],
   ];
   for (const [what, make, message] of wrongKinds)
     for (const ref of [false, true])
@@ -127,7 +127,7 @@ describe("command line", () => {
     ["a missing option value", ["check", ".pipelines/demo", "--ref"], /--ref expects a value/],
     ["a second positional argument", ["check", ".pipelines/demo", "extra"], /unexpected argument: extra/],
     ["a missing positional argument", ["check"], /^rp: check: missing <pipeline folder>\nusage: node rp\.mjs check <pipeline folder> \[--ref <commit>\] \[--json\]$/m],
-    ["a path inside a pipeline folder", ["check", ".pipelines/demo/1-spec"], /1-spec\/run-config.md: pipeline of an earlier format/],
+    ["a path inside a pipeline folder", ["check", ".pipelines/demo/1-spec"], /cannot read \.pipelines\/demo\/1-spec\/run-config\.json: missing/],
     ["a folder without parent", ["check", ".pipelines"], /a pipeline folder is <pipelines folder root>\/<pipeline slug>: \.pipelines/],
   ];
   for (const [what, [command, ...args], message] of errors)

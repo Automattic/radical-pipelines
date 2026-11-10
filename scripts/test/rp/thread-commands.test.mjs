@@ -8,7 +8,7 @@ import { describe, it } from "node:test";
 import { parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import {
   P, PIPELINE, REVIEW, RP, TO_OWNER, TO_SPEC,
-  abs, apply, check, commitAll, commitIn, conventions, frontier, git, landRole, laneWorktree, pipeline, plan, read, remove, root, thread, useRepo, wakeOf, write, writeFile,
+  abs, apply, check, commitAll, commitIn, frontier, git, landRole, laneWorktree, pipeline, plan, read, remove, root, thread, useRepo, wakeOf, write, writeFile,
 } from "./fixture.mjs";
 
 const head = (at = root) => git(at, "rev-parse", "HEAD").trim();
@@ -239,7 +239,6 @@ describe("rp thread", () => {
     });
 
     it("no approval in the pipeline from a review thread closed approved in a lane whose turn has not landed", () => {
-      conventions();
       pipeline(3);
       apply();
       const wt = laneWorktree("demo-review-default");
@@ -265,7 +264,6 @@ describe("rp thread", () => {
     // What the next step's plan names to fix or repair.
     const rejects = () => plan().filter((line) => /^(?:frontier INVALID|fix|repair) /.test(line));
     function reviewable() {
-      conventions();
       pipeline(3);
       writeFile("src/app.js", "export const a = 2;\n");
       commitAll("code");
@@ -313,8 +311,7 @@ describe("rp thread", () => {
   });
 
   describe("in each seat, from the file grammar alone", () => {
-    it("a review lane's tree, with no run-config.md and no threads folder: the reviewer opens, escalates, and closes its threads", () => {
-      conventions();
+    it("a review lane's tree, with no run-config.json and no threads folder: the reviewer opens, escalates, and closes its threads", () => {
       pipeline(3);
       apply();
       const wt = laneWorktree("demo-review-default");

@@ -272,17 +272,6 @@ export function frontmatterOf(bytes) {
   return { values, body, present: true };
 }
 
-// A frontmatter holding JSON: run-config.md's. Its fields, or Invalid.
-function jsonFrontmatterOf(bytes) {
-  const { text, error } = splitFrontmatter(bytes);
-  if (error) invalid(error);
-  if (text === null) invalid("no frontmatter");
-  let data;
-  try { data = JSON.parse(text); } catch (parseError) { invalid(`frontmatter is not valid JSON: ${parseError.message}`); }
-  if (data === null || typeof data !== "object" || Array.isArray(data)) invalid("frontmatter must be a JSON object");
-  return data;
-}
-
 function onlyKeys(keys, allowed) {
   for (const key of keys) if (!allowed.includes(key)) invalid(`unexpected frontmatter key: ${key}`);
 }
@@ -314,6 +303,8 @@ function hashWorktree(root, folder, paths) {
 
 // --- pipeline files -------------------------------------------------------------
 
+// The run configuration, and the file beside it that overrides it on one clone, which Git never holds.
+const CONFIG = "run-config.json", LOCAL_CONFIG = "run-config.local.json";
 const INTENT = "0-intent/intent.md";
 // The phases with an artifact, in order: its path, the token a thread names it by, the noun a commit names it by, its
 // owner, and its upstream artifacts.
@@ -331,9 +322,10 @@ const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
 const LATER_INPUT = /^0-intent\/(?:constraint|proposal|failure)-[1-9]\d*\.md$/;
 const THREAD = /^threads\/[^/]+\.md$/;
 
-// What a pipeline-relative path is: run-config, the intent, a later input, an artifact, a lane candidate, a thread, or nothing.
+// What a pipeline-relative path is: the run configuration, the intent, a later input, an artifact, a lane candidate, a
+// thread, or nothing.
 export function kindOf(rel) {
-  if (rel === "run-config.md") return { kind: "config" };
+  if (rel === CONFIG) return { kind: "config" };
   if (rel === INTENT) return { kind: "intent" };
   if (LATER_INPUT.test(rel)) return { kind: "later" };
   if (THREAD.test(rel)) return { kind: "thread" };
@@ -444,38 +436,28 @@ async function readCommit(root, commit, folder, reads = null) {
 
 // --- parsing ----------------------------------------------------------------------
 
-// The pipeline format this script reads and writes: the `format` of `run-config.md`.
-export const FORMAT = 7;
-// The format a pipeline was written under: the integer `format` in run-config.md's JSON frontmatter, else `earlier`
-// (no run-config.md, no frontmatter, unreadable frontmatter, or no integer `format`). Nothing else is read.
-export function formatOf(bytes) {
-  if (!bytes) return "earlier";
-  const { text } = splitFrontmatter(bytes);
-  try { const format = JSON.parse(text ?? "null")?.format; return Number.isInteger(format) ? format : "earlier"; }
-  catch { return "earlier"; }
-}
-// Stops unless a pipeline is of the current format; `path` names its run-config.md.
-function requireFormat(bytes, path) {
-  const format = formatOf(bytes);
-  if (format === "earlier" || format < FORMAT) fail(`${path}: pipeline of an earlier format; it is not continued`);
-  if (format > FORMAT) fail(`${path}: pipeline of a newer format ${format}; update the skill`);
-}
-
-// The data `.rp.md` and `run-config.md` share. Each check names what is malformed through `malformed(reason)`, which
-// throws; `at` names the entry, as `<key>.<name>…`.
+// The data of a JSON file `rp` reads: the run configuration, run-config.local.json, a certification, and the step
+// record. Each check names what is malformed through `malformed(reason)`, which throws; `at` names the entry, as
+// `<key>.<name>…`, or is empty for the whole file.
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const entryName = (at, name) => `${at}.${/^[a-z0-9][a-z0-9-]*$/.test(name) ? name : JSON.stringify(name)}`;
 // A JSON object, holding only `keys` when given.
 function objectAt(value, at, malformed, keys = null) {
-  if (!isObject(value)) malformed(`${at}: must be a JSON object`);
-  if (keys) for (const key of Object.keys(value)) if (!keys.includes(key)) malformed(`${at}: unexpected key: ${key}`);
+  const where = at ? `${at}: ` : "";
+  if (!isObject(value)) malformed(`${where}must be a JSON object`);
+  if (keys) for (const key of Object.keys(value)) if (!keys.includes(key)) malformed(`${where}unexpected key: ${key}`);
   return value;
 }
-// A text: a string, or a list of strings that are its lines, holding more than whitespace. The string it reads as.
+// A file holding one JSON object, holding only `keys`: its data.
+function jsonObjectOf(bytes, malformed, keys) {
+  let data;
+  try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }
+  return objectAt(data, "", malformed, keys);
+}
+// A text: a string holding more than whitespace, its lines separated by newlines.
 function textAt(value, at, malformed) {
-  const lines = typeof value === "string" ? [value] : Array.isArray(value) && value.every((line) => typeof line === "string") ? value : null;
-  if (!lines?.some((line) => /\S/.test(line))) malformed(`${at}: must be a text: a non-empty string, or a list of strings that are its lines`);
-  return lines.join("\n");
+  if (typeof value !== "string" || !/\S/.test(value)) malformed(`${at}: must be a text, a string holding more than whitespace`);
+  return value;
 }
 // A model name, as the project or the owner writes it.
 function modelAt(value, at, malformed) {
@@ -486,9 +468,9 @@ function modelAt(value, at, malformed) {
 // The profiles a role is an instance of.
 export const PROFILES = ["spec-producer", "design-doc-producer", "implementer", "reviewer"];
 const MODELS = ["model", "subagents"];
-// The agents of `.rp.md` and of `run-config.md`: by profile, its model, its subagent model, and its lanes, by lane id, each
-// with its brief, model, and subagent model; every member optional. Each brief is read as its string.
-export function parseAgents(value, malformed) {
+// The agents of a run: by profile, its model, its subagent model, and its lanes, by lane id, each holding those of
+// `laneKeys`, its brief, model, and subagent model, it has; every member optional.
+export function parseAgents(value, malformed, laneKeys = ["brief", ...MODELS]) {
   const agents = {};
   for (const [profile, entry] of Object.entries(objectAt(value, "agents", malformed, PROFILES))) {
     const at = `agents.${profile}`;
@@ -501,7 +483,7 @@ export function parseAgents(value, malformed) {
     for (const [id, lane] of Object.entries(entry.lanes)) {
       const laneAt = entryName(`${at}.lanes`, id);
       if (!LANE_ID.test(id)) malformed(`${laneAt}: a lane id must match ${LANE_ID.source}`);
-      objectAt(lane, laneAt, malformed, ["brief", ...MODELS]);
+      objectAt(lane, laneAt, malformed, laneKeys);
       parsed.lanes[id] = {};
       if ("brief" in lane) parsed.lanes[id].brief = textAt(lane.brief, `${laneAt}.brief`, malformed);
       for (const key of MODELS) if (key in lane) parsed.lanes[id][key] = modelAt(lane[key], `${laneAt}.${key}`, malformed);
@@ -509,17 +491,106 @@ export function parseAgents(value, malformed) {
   }
   return agents;
 }
+// The lanes of a run's agents, each `{ profile, id, ...members }`.
+const lanesOf = (agents) => Object.entries(agents).flatMap(([profile, entry]) => Object.entries(entry.lanes ?? {}).map(([id, lane]) => ({ profile, id, ...lane })));
 
-// run-config.md: format, target phase, base, and the run's agents, in the schema of `.rp.md`'s. Its body is ignored.
-export function parseConfig(bytes) {
-  const data = jsonFrontmatterOf(bytes);
-  onlyKeys(Object.keys(data), ["format", "target-phase", "base", "agents"]);
+// The facts a placeholder may name, each valued for a role and its turn.
+export const VOCABULARY = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base"];
+// A placeholder: a name in single braces, in a guardrail's, a resource's, or the commit format's text, or a lane's brief.
+const PLACEHOLDER = /(?<!\{)\{([a-z][a-z0-9-]*)\}(?!\})/g;
+const VARIABLE = /^[a-z][a-z0-9-]*$/;
+// What a guardrail and a resource hold as their text.
+const CARRIED = [["guardrails", "rule"], ["resources", "resource"]];
+// The conventions the run configuration records, which run-config.local.json overrides by name.
+const CONVENTIONS = ["worktree-folder-root", "landing-commit", "commit-format", ...CARRIED.map(([key]) => key), "variables"];
+
+// The conventions `data` holds, each one it holds: the worktree folder root, the landing commit template, the commit
+// format, the guardrails and resources by name, each with its text and profiles, and the variables by name, each with
+// its template.
+function conventionsOf(data, malformed) {
+  const conventions = {};
+  if ("worktree-folder-root" in data) {
+    const folder = data["worktree-folder-root"];
+    if (typeof folder !== "string" || !folder.trim()) malformed("worktree-folder-root: must be a folder, a non-empty string");
+    conventions.worktreeFolderRoot = folder;
+  }
+  if ("landing-commit" in data) {
+    const template = data["landing-commit"];
+    if (typeof template !== "string" || !template.trim()) malformed("landing-commit: must be a template, a non-empty string");
+    const names = [...template.matchAll(PLACEHOLDER)].map(([, name]) => name);
+    const other = names.find((name) => name !== "subject");
+    if (other) malformed(`landing-commit: {${other}} names no part of a landing commit: {subject}`);
+    if (!names.length) malformed("landing-commit: must hold {subject}");
+    conventions.landingCommit = template;
+  }
+  if ("commit-format" in data) conventions.commitFormat = textAt(data["commit-format"], "commit-format", malformed);
+  for (const [key, field] of CARRIED) {
+    if (!(key in data)) continue;
+    conventions[key] = {};
+    for (const [name, entry] of Object.entries(objectAt(data[key], key, malformed))) {
+      const at = entryName(key, name);
+      objectAt(entry, at, malformed, [field, "profiles"]);
+      const text = textAt(entry[field], `${at}.${field}`, malformed);
+      if (!Array.isArray(entry.profiles) || !entry.profiles.length) malformed(`${at}.profiles: must be a non-empty list of profiles`);
+      const other = entry.profiles.find((profile) => !PROFILES.includes(profile));
+      if (other !== undefined) malformed(`${at}.profiles: ${JSON.stringify(other)} is no profile: ${PROFILES.join(", ")}`);
+      conventions[key][name] = { text, profiles: entry.profiles };
+    }
+  }
+  if ("variables" in data) {
+    conventions.variables = {};
+    for (const [name, template] of Object.entries(objectAt(data.variables, "variables", malformed))) {
+      const at = entryName("variables", name);
+      if (!VARIABLE.test(name)) malformed(`${at}: a variable name must match ${VARIABLE.source}`);
+      if (VOCABULARY.includes(name)) malformed(`${at}: a vocabulary fact is not declared: ${VOCABULARY.join(", ")}`);
+      if (typeof template !== "string" || !template.trim()) malformed(`${at}: must be a template, a non-empty string`);
+      for (const [placeholder, fact] of template.matchAll(PLACEHOLDER))
+        if (!VOCABULARY.includes(fact)) malformed(`${at}: ${placeholder} names no vocabulary fact: ${VOCABULARY.join(", ")}`);
+      conventions.variables[name] = template;
+    }
+  }
+  return conventions;
+}
+
+// run-config.json: the target phase, the base, and the worktree folder root, each required; every other convention it
+// records, the run's agents, and the owner's directions, each optional. Nothing reads the directions.
+export function parseConfig(bytes, malformed) {
+  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base", ...CONVENTIONS, "agents", "owner-directions"]);
+  for (const key of ["target-phase", "base", "worktree-folder-root"]) if (!(key in data)) malformed(`${key}: missing`);
   const targetPhase = data["target-phase"];
-  if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) invalid("target-phase must be an integer from 1 to 4");
-  if (typeof data.base !== "string" || !data.base.trim()) invalid("base must be a branch name");
-  const agents = "agents" in data ? parseAgents(data.agents, invalid) : {};
-  const lanes = Object.entries(agents).flatMap(([profile, entry]) => Object.entries(entry.lanes ?? {}).map(([id, lane]) => ({ profile, id, ...lane })));
-  return { targetPhase, base: data.base, agents, lanes };
+  if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) malformed("target-phase: must be an integer from 1 to 4");
+  if (typeof data.base !== "string" || !data.base.trim()) malformed("base: must be a revision, a non-empty string");
+  const directions = data["owner-directions"] ?? [];
+  if (!Array.isArray(directions) || !directions.every((direction) => typeof direction === "string")) malformed("owner-directions: must be a list of strings");
+  const agents = "agents" in data ? parseAgents(data.agents, malformed) : {};
+  return { targetPhase, base: data.base, agents, lanes: lanesOf(agents), landingCommit: null, commitFormat: null, guardrails: {}, resources: {}, variables: {},
+    ...conventionsOf(data, malformed) };
+}
+
+// run-config.local.json, over the run configuration `config`: the conventions it overrides, and in `agents` the models
+// and subagent models it pins, for a profile or for a lane `config` declares; each key optional.
+export function parseLocal(bytes, config, malformed) {
+  const data = jsonObjectOf(bytes, malformed, [...CONVENTIONS, "agents"]);
+  const local = conventionsOf(data, malformed);
+  if (!("agents" in data)) return local;
+  local.agents = parseAgents(data.agents, malformed, MODELS);
+  for (const [profile, entry] of Object.entries(local.agents))
+    for (const id of Object.keys(entry.lanes ?? {}))
+      if (!config.agents[profile]?.lanes?.[id]) malformed(`${entryName(`agents.${profile}.lanes`, id)}: a lane ${CONFIG} does not declare`);
+  return local;
+}
+
+// The run `next` and `land` take: the run configuration `config` with run-config.local.json's `local` over it by name.
+// Each of its worktree folder root, landing commit, and commit format replaces the committed one; each guardrail,
+// resource, and variable replaces the committed one of its name or is added; each model and subagent model replaces
+// the committed one of its profile or lane.
+function runViewOf(config, local) {
+  const agents = structuredClone(config.agents);
+  for (const [profile, { lanes = {}, ...models }] of Object.entries(local.agents ?? {})) {
+    agents[profile] = { ...agents[profile], ...models };
+    for (const [id, pins] of Object.entries(lanes)) Object.assign(agents[profile].lanes[id], pins);
+  }
+  return { ...config, ...local, ...Object.fromEntries(["guardrails", "resources", "variables"].map((key) => [key, { ...config[key], ...local[key] }])), agents, lanes: lanesOf(agents) };
 }
 
 // A role's models in the run: its lane's model and subagent model, else its profile's; null where neither names one.
@@ -540,11 +611,8 @@ export function reviewLanes(config) {
 // approval `reviewed`, the full hash of its approved commit. One that is malformed stops the command, naming `path`.
 function parseCertification(bytes, path, approval) {
   const malformed = (reason) => fail(`${path}: ${reason}`);
-  let data;
-  try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }
-  if (data === null || typeof data !== "object" || Array.isArray(data)) malformed("must be a JSON object");
   const keys = approval ? ["inputs", "reviewed"] : ["inputs"];
-  for (const key of Object.keys(data)) if (!keys.includes(key)) malformed(`unexpected key: ${key}`);
+  const data = jsonObjectOf(bytes, malformed, keys);
   for (const key of keys) if (!Object.hasOwn(data, key)) malformed(`missing ${key}`);
   if (!Array.isArray(data.inputs)) malformed("inputs must be a list");
   const inputs = new Map();
@@ -641,17 +709,17 @@ export function parseThread(name, contents) {
 
 // The intent's origins: the issue it addresses, the branch it starts from, the pipeline it re-attempts.
 const ORIGIN_KEYS = ["issue", "starts-from", "re-attempts"];
-// The frontmatter keys a pipeline file other than run-config.md and a thread (§ THREAD_KEYS) carries: none on the
-// spec, the design doc, and candidates.
+// The frontmatter keys a pipeline file other than the run configuration and a thread (§ THREAD_KEYS) carries: none on
+// the spec, the design doc, and candidates.
 function frontmatterKeys(kind) {
   if (kind.kind === "intent") return ORIGIN_KEYS;
   if (kind.kind === "later") return ["target", "origin"];
   return kind.phase === IMPLEMENTATION ? ["status"] : [];
 }
 
-// A pipeline file other than run-config.md, or Invalid. The file grammar, every check that reads the file alone, parses
-// it; given the run configuration `config`, so do the two checks that read it: an `open` thread awaiting a review lane
-// it does not declare, and a candidate of a production lane it does not declare.
+// A pipeline file other than the run configuration, or Invalid. The file grammar, every check that reads the file alone,
+// parses it; given the run configuration `config`, so do the two checks that read it: an `open` thread awaiting a review
+// lane it does not declare, and a candidate of a production lane it does not declare.
 function parseFile(path, kind, bytes, config = null) {
   if (kind.kind === "thread") {
     const thread = { path, kind: "thread", ...parseThread(path.slice("threads/".length), bytes), reviewed: null };
@@ -695,16 +763,19 @@ function parseFiles(pipeline, where, config, certified) {
   return state;
 }
 
-// A pipeline, parsed and certified. A missing or invalid run-config.md, or a missing intent, stops the command.
+// A pipeline, parsed and certified. A missing or malformed run configuration, or a missing intent, stops the command.
 export function readState(pipeline, where) {
   const { files } = pipeline;
-  requireFormat(files.get("run-config.md"), `${where}/run-config.md`);
-  if (!files.has(INTENT)) fail(`cannot read ${where}/${INTENT}: missing`);
-  const config = parseOrFail(`${where}/run-config.md`, () => parseConfig(files.get("run-config.md")));
+  for (const path of [CONFIG, INTENT]) if (!files.has(path)) fail(`cannot read ${where}/${path}: missing`);
+  const config = parseConfig(files.get(CONFIG), (reason) => fail(`${where}/${CONFIG}: ${reason}`));
   return parseFiles(pipeline, where, config, true);
 }
-function parseOrFail(path, parse) {
-  try { return parse(); } catch (error) { if (error instanceof Invalid) fail(`${path}: ${error.message}`); throw error; }
+
+// Stops when Git tracks the pipeline folder's run-config.local.json: when the tree of `commit` holds it, or, reading the
+// working tree, the index or the tip's tree does. `where` names the pipeline folder.
+function requireUntracked(root, folder, commit, where) {
+  const holds = (name) => { try { execFileSync("git", ["cat-file", "-e", name], { cwd: root, stdio: "ignore" }); return true; } catch { return false; } };
+  if ((commit ? [commit] : ["", "HEAD"]).some((tree) => holds(`${tree}:${folder}/${LOCAL_CONFIG}`))) fail(`${where}/${LOCAL_CONFIG}: tracked by Git`);
 }
 
 // --- state ------------------------------------------------------------------------
@@ -760,7 +831,7 @@ function approvalOf(state, lane) {
   return { approved: !stale.length && !codeChanged, ...(stale.length ? { stale } : {}), ...(codeChanged ? { codeChanged } : {}) };
 }
 
-// The base: the merge-base of the tip with `run-config.md`'s base, the latest base the tip holds.
+// The base: the merge-base of the tip with the run configuration's base, the latest base the tip holds.
 export function baseOf(root, base, tip) {
   const baseCommit = requireCommit(root, base, "base");
   return gitText(root, ["merge-base", baseCommit, tip]) || fail(`no merge-base between ${base} and ${tip}`);
@@ -862,11 +933,13 @@ export function frontier(state) {
 const frontierText = (entry) => `${[entry.action, entry.target, entry.lane].filter(Boolean).join(" ")}${entry.reason ? `: ${entry.reason}` : ""}`;
 
 // A pipeline as `check` reads it, from the working tree or the commit `ref`: its files, its state, the tip, the base at
-// target phase 4, and the frontier.
+// target phase 4, and the frontier. A run-config.local.json Git tracks there stops it first.
 async function inspect(root, folder, pipelinesRoot, ref) {
   const tip = ref ? requireCommit(root, ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
+  const where = ref ? `${ref}:${folder}` : folder;
+  requireUntracked(root, folder, ref ? tip : null, where);
   const pipeline = ref ? await readCommit(root, tip, folder) : readWorktree(root, folder);
-  const state = readState(pipeline, ref ? `${ref}:${folder}` : folder);
+  const state = readState(pipeline, where);
   const base = state.config.targetPhase === REVIEW_PHASE ? baseOf(root, state.config.base, tip) : null;
   const judged = new Map();
   state.codeChanged = (approved) => {
@@ -928,57 +1001,34 @@ async function certificationOf(root, folder, config, subject, at, reviewed = nul
 
 // --- pipelines --------------------------------------------------------------------
 
-// The first format whose intent names its origins in its frontmatter.
-const ORIGINS_IN_FRONTMATTER = 7;
-// The origins an intent of a pipeline of `format` names. From ORIGINS_IN_FRONTMATTER, those of its frontmatter, each as
-// `<key> <value>` in the order written; before, the values of the `origin:` lines that open its body. Nothing is
+// The origins an intent names: those of its frontmatter, each as `<key> <value>`, in the order written. Nothing is
 // validated: an intent whose frontmatter cannot be read has none.
-export function originsOf(bytes, format) {
-  if (format === "earlier" || format < ORIGINS_IN_FRONTMATTER) {
-    const origins = [];
-    for (const line of splitFrontmatter(bytes).body.toString("utf8").split("\n")) {
-      const match = line.replace(/\r$/, "").match(/^origin:[\t ]*(.*\S)[\t ]*$/);
-      if (!match) break;
-      origins.push(match[1]);
-    }
-    return origins;
-  }
+export function originsOf(bytes) {
   try { return [...frontmatterOf(bytes).values].filter(([key]) => ORIGIN_KEYS.includes(key)).map(([key, value]) => `${key} ${value}`); }
   catch (error) { if (error instanceof Invalid) return []; throw error; }
 }
 
-// A pipeline folder is a folder of the pipelines folder root that holds a pipeline file of some format: a phase folder
-// `<n>-<name>/`, directly or, in an earlier format, under `base/`; or `run-config.md`, or an earlier format's
-// `prompt.md`. Any other content of the root, such as a project's pipeline tooling, is not a pipeline.
-const isPhaseFolder = ([name, entry]) => entry.mode === "040000" && /^\d+-[^/]+$/.test(name);
+// A pipeline folder is a folder of the pipelines folder root that holds the run configuration. Any other content of the
+// root, such as a project's pipeline tooling, is not a pipeline.
 async function pipelineFoldersIn(root, entries) {
   const folders = entries.filter((entry) => entry.mode === "040000");
   const trees = await readTrees(root, folders.map((folder) => folder.oid));
-  const bases = await readTrees(root, folders.map((folder) => trees.get(folder.oid).get("base")).filter((entry) => entry?.mode === "040000").map((entry) => entry.oid));
-  return folders.filter((folder) => {
-    const tree = trees.get(folder.oid), base = tree.get("base");
-    return [...tree].some(isPhaseFolder) || ["run-config.md", "prompt.md"].some((name) => tree.has(name)) || (base?.mode === "040000" && [...bases.get(base.oid)].some(isPhaseFolder));
-  });
+  return folders.filter((folder) => trees.get(folder.oid).has(CONFIG));
 }
 
-// What discovery reads of a pipeline folder tree: its format and its intent's origins. A pipeline of the
-// current format without an intent is malformed and stops the command; any other file or key is never read.
+// What discovery reads of a pipeline folder tree: its intent's origins. A pipeline without a regular intent stops the
+// command; any other file or key is never read.
 async function discoverFolders(root, folders, where) {
   const trees = await readTrees(root, folders.map((folder) => folder.tree));
   const intentFolders = await readTrees(root, [...trees.values()].map((entries) => entries.get("0-intent")).filter((entry) => entry?.mode === "040000").map((entry) => entry.oid));
-  const regular = (entry) => REGULAR.includes(entry?.mode) ? entry.oid : null;
-  const oids = folders.map(({ tree }) => {
-    const entries = trees.get(tree), intentFolder = entries.get("0-intent");
-    return { config: regular(entries.get("run-config.md")), intent: intentFolder?.mode === "040000" ? regular(intentFolders.get(intentFolder.oid).get("intent.md")) : null };
+  const intents = folders.map((folder) => {
+    const intentFolder = trees.get(folder.tree).get("0-intent");
+    const intent = intentFolder?.mode === "040000" ? intentFolders.get(intentFolder.oid).get("intent.md") : null;
+    return REGULAR.includes(intent?.mode) ? intent.oid : fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
   });
-  const wanted = [...new Set(oids.flatMap(({ config, intent }) => [config, intent]).filter(Boolean))];
+  const wanted = [...new Set(intents)];
   const blobs = new Map((await readObjects(root, wanted)).map((content, i) => [wanted[i], content]));
-  return folders.map((folder, i) => {
-    const format = formatOf(oids[i].config && blobs.get(oids[i].config));
-    const intent = oids[i].intent && blobs.get(oids[i].intent);
-    if (!intent && format === FORMAT) fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
-    return { ...folder, format, origins: intent ? originsOf(intent, format) : [] };
-  });
+  return folders.map((folder, i) => ({ ...folder, origins: originsOf(blobs.get(intents[i])) }));
 }
 
 // Every live pipeline folder at a branch tip, and every merged one in the base branch's tree, optionally filtered by issue.
@@ -1015,10 +1065,10 @@ async function cmdPipelines(args) {
   const merged = baseFolders.map((entry) => ({ state: "merged", ref: args.base, commit: baseCommit, folder: `${pipelinesRoot}/${entry.name}`, tree: entry.oid }));
   const pipelines = await discoverFolders(root, [...live, ...merged], (pipeline) => `${pipeline.ref}:${pipeline.folder}`);
   const result = pipelines.filter((pipeline) => args.issue === null || pipeline.origins.includes(`issue ${args.issue}`))
-    .map(({ state, format, ref, commit, folder, origins }) => ({ state, format, ref, commit, folder, origins }))
+    .map(({ state, ref, commit, folder, origins }) => ({ state, ref, commit, folder, origins }))
     .sort((a, b) => a.folder.localeCompare(b.folder) || a.state.localeCompare(b.state) || a.ref.localeCompare(b.ref));
   if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.format} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
+  if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
 }
 
 // --- review lanes -------------------------------------------------------------------
@@ -1089,100 +1139,11 @@ function unlandedOf(root, tip, laneTip) {
 
 // --- conventions --------------------------------------------------------------------
 
-// The facts a placeholder may name, each valued for a role and its turn.
-export const VOCABULARY = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base"];
-// A placeholder: a name in single braces, in a guardrail's, a resource's, or the commit format's text, or a lane's brief.
-const PLACEHOLDER = /(?<!\{)\{([a-z][a-z0-9-]*)\}(?!\})/g;
-const VARIABLE = /^[a-z][a-z0-9-]*$/;
-// What a guardrail and a resource hold as their text.
-const CARRIED = [["guardrails", "rule"], ["resources", "resource"]];
-
-// The conventions version this script reads: the `conventions` of `.rp.md`.
-export const CONVENTIONS = 7;
-
-// The conventions data of `.rp.md`'s JSON frontmatter or, with `local`, of `.rp.local.md`'s, which may have none and
-// holds no `conventions`: the worktree folder root, required in `.rp.md`, the landing commit template, the commit format,
-// the guardrails and resources by name, each with its text and profiles, the agents, and the variables by name, each
-// with its template. Whatever is malformed goes to `malformed(reason)`.
-export function parseConventions(bytes, local, malformed) {
-  const { text, error } = splitFrontmatter(bytes);
-  if (error) malformed(error);
-  if (text === null) return local ? {} : malformed("no frontmatter: the conventions data is a JSON object between --- lines");
-  let data;
-  try { data = JSON.parse(text); } catch (parseError) { malformed(`frontmatter is not valid JSON: ${parseError.message}`); }
-  objectAt(data, "frontmatter", malformed, [...(local ? [] : ["conventions"]), "worktree-folder-root", "landing-commit", "commit-format", ...CARRIED.map(([key]) => key), "agents", "variables"]);
-  if (!local && data.conventions !== CONVENTIONS) malformed(`conventions: ${JSON.stringify(data.conventions ?? null)} is not the current version, ${CONVENTIONS}`);
-  const conventions = {};
-  if (!local && !("worktree-folder-root" in data)) malformed("worktree-folder-root: missing: the folder holding one worktree per branch");
-  if ("worktree-folder-root" in data) {
-    const folder = data["worktree-folder-root"];
-    if (typeof folder !== "string" || !folder.trim()) malformed("worktree-folder-root: must be a folder, a non-empty string");
-    conventions.worktreeFolderRoot = folder;
-  }
-  if ("landing-commit" in data) {
-    const template = data["landing-commit"];
-    if (typeof template !== "string" || !template.trim()) malformed("landing-commit: must be a template, a non-empty string");
-    const names = [...template.matchAll(PLACEHOLDER)].map(([, name]) => name);
-    const other = names.find((name) => name !== "subject");
-    if (other) malformed(`landing-commit: {${other}} names no part of a landing commit: {subject}`);
-    if (!names.length) malformed("landing-commit: must hold {subject}");
-    conventions.landingCommit = template;
-  }
-  if ("commit-format" in data) conventions.commitFormat = textAt(data["commit-format"], "commit-format", malformed);
-  for (const [key, field] of CARRIED) {
-    if (!(key in data)) continue;
-    conventions[key] = {};
-    for (const [name, entry] of Object.entries(objectAt(data[key], key, malformed))) {
-      const at = entryName(key, name);
-      objectAt(entry, at, malformed, [field, "profiles"]);
-      const text = textAt(entry[field], `${at}.${field}`, malformed);
-      if (!Array.isArray(entry.profiles) || !entry.profiles.length) malformed(`${at}.profiles: must be a non-empty list of profiles`);
-      const other = entry.profiles.find((profile) => !PROFILES.includes(profile));
-      if (other !== undefined) malformed(`${at}.profiles: ${JSON.stringify(other)} is no profile: ${PROFILES.join(", ")}`);
-      conventions[key][name] = { text, profiles: entry.profiles };
-    }
-  }
-  if ("agents" in data) conventions.agents = parseAgents(data.agents, malformed);
-  if ("variables" in data) {
-    conventions.variables = {};
-    for (const [name, template] of Object.entries(objectAt(data.variables, "variables", malformed))) {
-      const at = entryName("variables", name);
-      if (!VARIABLE.test(name)) malformed(`${at}: a variable name must match ${VARIABLE.source}`);
-      if (VOCABULARY.includes(name)) malformed(`${at}: a vocabulary fact is not declared: ${VOCABULARY.join(", ")}`);
-      if (typeof template !== "string" || !template.trim()) malformed(`${at}: must be a template, a non-empty string`);
-      for (const [placeholder, fact] of template.matchAll(PLACEHOLDER))
-        if (!VOCABULARY.includes(fact)) malformed(`${at}: ${placeholder} names no vocabulary fact: ${VOCABULARY.join(", ")}`);
-      conventions.variables[name] = template;
-    }
-  }
-  return conventions;
-}
-
-// The conventions of the main checkout's `.rp.md`, with each entry its `.rp.local.md` names replacing or adding the
-// committed one by name. Both files are validated whole; either malformed, or `.rp.md` missing, stops.
-function readConventions(main) {
-  const read = (name) => {
-    const path = join(main, name);
-    let stat;
-    try { stat = statSync(path); } catch (error) { if (error.code === "ENOENT") return null; throw error; }
-    if (!stat.isFile()) fail(`cannot read ${path}: not a regular file`);
-    return parseConventions(readFileSync(path), name === ".rp.local.md", (reason) => fail(`${path}: ${reason}`));
-  };
-  const committed = read(".rp.md") ?? fail(`cannot read ${join(main, ".rp.md")}: missing`);
-  const local = read(".rp.local.md") ?? {};
-  return {
-    worktreeFolderRoot: local.worktreeFolderRoot ?? committed.worktreeFolderRoot,
-    landingCommit: local.landingCommit ?? committed.landingCommit ?? null,
-    commitFormat: local.commitFormat ?? committed.commitFormat ?? null,
-    ...Object.fromEntries([...CARRIED.map(([key]) => key), "variables"].map((key) => [key, { ...committed[key], ...local[key] }])),
-  };
-}
-
-// The guardrails or resources a profile's assignment carries, each as `### <name>` over `- <field>: <text>`, with the
-// text's later lines indented under its first and its placeholders expanded by `expand`.
-function carriedOf(conventions, key, profile, expand) {
+// The guardrails or resources of the run `run` a profile's assignment carries, each as `### <name>` over
+// `- <field>: <text>`, with the text's later lines indented under its first and its placeholders expanded by `expand`.
+function carriedOf(run, key, profile, expand) {
   const field = CARRIED.find(([name]) => name === key)[1];
-  return Object.entries(conventions[key]).filter(([, entry]) => entry.profiles.includes(profile))
+  return Object.entries(run[key]).filter(([, entry]) => entry.profiles.includes(profile))
     .map(([name, entry]) => `### ${name}\n\n- ${field}: ${expand(entry.text).split("\n").map((line, i) => i && line ? `  ${line}` : line).join("\n")}`);
 }
 
@@ -1330,27 +1291,27 @@ function changedSince(root, folder, tip, input, pinned) {
 // `rp/<profile>.md` in the role's private git directory, and on a review lane's later turn the diff it reads beside it.
 // `tip` is the turn commit, and `change` a reviewer's change. Everything is read and checked before anything is returned.
 function assignmentOf(ctx, wake, tip, change) {
-  const { root, folder, pipelinesRoot, state, conventions } = ctx;
+  const { root, folder, pipelinesRoot, state, run } = ctx;
   const { role, turn, worktree, branch, gitDir } = wake;
   const at = (path) => join(worktree, folder, path);
 
   // The carried texts, expanded for the role. Its base is the Base: the merge-base of its turn commit with `base`.
   const vocabulary = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, base: baseOf(root, state.config.base, tip) };
-  const variables = Object.fromEntries(Object.entries(conventions.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => vocabulary[fact])]));
+  const variables = Object.fromEntries(Object.entries(run.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => vocabulary[fact])]));
   const keeps = {};
   const expand = (key) => (text) => expandText(text, { ...vocabulary, ...variables }, keeps[key] ??= new Set());
-  const laneEntry = role.lane ? state.config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
+  const laneEntry = role.lane ? run.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
   const carried = {
-    guardrails: carriedOf(conventions, "guardrails", role.profile, expand("guardrails")),
-    resources: carriedOf(conventions, "resources", role.profile, expand("resources")),
-    "commit-format": conventions.commitFormat === null ? "An imperative subject line." : expand("commit-format")(conventions.commitFormat),
+    guardrails: carriedOf(run, "guardrails", role.profile, expand("guardrails")),
+    resources: carriedOf(run, "resources", role.profile, expand("resources")),
+    "commit-format": run.commitFormat === null ? "An imperative subject line." : expand("commit-format")(run.commitFormat),
     brief: laneEntry?.brief ? expand("brief")(laneEntry.brief) : "",
   };
   // A reviewer's repair request carries the commit format alone; every other assignment, every carried text.
   const artifact = artifactOf(role);
   const repair = !artifact && turn.malformed.length > 0;
   const carries = repair ? ["commit-format"] : Object.keys(carried);
-  const models = modelsOf(state.config, role.profile, role.lane);
+  const models = modelsOf(run, role.profile, role.lane);
   const laterInputs = [...state.docs.values()].filter((doc) => doc.kind === "later" && (!artifact || doc.targets.includes(artifact.phase.artifact))).map((doc) => at(doc.path));
   const values = {
     ...vocabulary, ...carried,
@@ -1435,9 +1396,9 @@ function writeRecord(root, record) {
 
 // --- landing ------------------------------------------------------------------------
 
-// The message of a commit `rp land` makes: its subject in the conventions' landing commit template, or the subject alone.
-const landingMessage = (conventions, subject) => conventions.landingCommit === null ? subject
-  : conventions.landingCommit.replace(PLACEHOLDER, (placeholder, name) => name === "subject" ? subject : placeholder);
+// The message of a commit `rp land` makes: its subject in the run's landing commit template, or the subject alone.
+const landingMessage = (run, subject) => run.landingCommit === null ? subject
+  : run.landingCommit.replace(PLACEHOLDER, (placeholder, name) => name === "subject" ? subject : placeholder);
 // What a commit names a certified file by.
 const nounOf = (subject) => subject.kind === "thread" ? `review lane ${parseRole(subject.opener).lane} approval`
   : subject.kind === "candidate" ? `${subject.phase.noun} lane ${subject.lane} candidate` : subject.phase.noun;
@@ -1479,7 +1440,7 @@ function commitFiles(root, parent, files, message) {
 // change `since` are picked one by one, and none of the commits that built the change. A role in the pipeline worktree
 // brings nothing: its commits after its turn commit `since` are on the tip already.
 function bringOf(ctx, role, branchTip, since) {
-  const { root, folder, tip, conventions } = ctx;
+  const { root, folder, tip, run } = ctx;
   if (!role.lane) return { landed: tip, changed: changedFiles(root, folder, since, tip) };
   const unlanded = new Set(unlandedOf(root, tip, branchTip));
   if (!unlanded.size) return { landed: tip, changed: new Set() };
@@ -1494,29 +1455,40 @@ function bringOf(ctx, role, branchTip, since) {
   }
   const { tree, conflicts } = mergeTree(root, tip, branchTip);
   if (conflicts.length) return { conflicts };
-  const message = landingMessage(conventions, `Merge ${artifactOf(role).phase.noun} lane ${role.lane}`);
+  const message = landingMessage(run, `Merge ${artifactOf(role).phase.noun} lane ${role.lane}`);
   return { landed: gitText(root, ["commit-tree", tree, "-p", tip, "-p", branchTip, "-m", message]), changed: changedFiles(root, folder, gitText(root, ["merge-base", tip, branchTip]), branchTip) };
 }
 // The pipeline as the pipeline branch would hold it after `bring`, and the files it brings that `rp check` would reject
 // there, as INVALID entries.
 async function landingOf(ctx, bring) {
+  const where = `${bring.landed}:${ctx.folder}`;
+  requireUntracked(ctx.root, ctx.folder, bring.landed, where);
   const pipeline = await readCommit(ctx.root, bring.landed, ctx.folder);
-  const state = readState(pipeline, `${bring.landed}:${ctx.folder}`);
+  const state = readState(pipeline, where);
   return { pipeline, state, rejected: state.invalid.filter((entry) => bring.changed.has(entry.path)).map(({ path, reason }) => ({ action: "INVALID", target: path, reason })) };
 }
 
 // --- next and land ------------------------------------------------------------------
 
 // What `next` and `land` read: the pipeline worktree `root`, its pipeline branch, the pipeline as `check` reads it from
-// the working tree, the main checkout's conventions, and the step record.
+// the working tree, the run they take (§ runViewOf), the main checkout's root, against which a relative worktree folder
+// root resolves, and the step record.
 async function contextOf(args, command) {
   const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
   const { folder, pipelinesRoot } = pipelineFolder(rel, command);
   const main = worktreesOf(root)[0].path ?? fail(`${command}: the repository has no main checkout`);
-  const conventions = readConventions(main);
   const pipelineBranch = pipelineBranchOf(root, command);
   const record = readRecord(root);
-  return { root, folder, pipelinesRoot, main: realpathSync(main), conventions, pipelineBranch, record, ...await inspect(root, folder, pipelinesRoot, null) };
+  const inspected = await inspect(root, folder, pipelinesRoot, null);
+  const run = runViewOf(inspected.state.config, readLocal(root, folder, inspected.state.config));
+  return { root, folder, pipelinesRoot, main: realpathSync(main), run, pipelineBranch, record, ...inspected };
+}
+// The pipeline worktree's run-config.local.json, parsed over the run configuration `config`; none when it is absent.
+function readLocal(root, folder, config) {
+  const path = `${folder}/${LOCAL_CONFIG}`, stat = lstatOf(join(root, path));
+  if (!stat) return {};
+  if (!stat.isFile()) fail(`cannot read ${path}: not a regular file`);
+  return parseLocal(readFileSync(join(root, path)), config, (reason) => fail(`${path}: ${reason}`));
 }
 // A worktree's private git directory, where its assignments and Prepared files sit.
 const gitDirOf = (worktree) => realpathSync(gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-dir"]));
@@ -1533,7 +1505,7 @@ function newGitDirOf(root, path, reserved) {
 // The step's plan (README.md § `next`): a lane's turn that ended without landing, to land first; or the worktrees,
 // branches, terminations, assignments, and woken roles the frontier dispatches, a lane under repair's beside them.
 async function planOf(ctx) {
-  const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, conventions, main } = ctx;
+  const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, run, main } = ctx;
   const plan = { land: [], fix: [], terminate: [], removals: [], branches: [], creations: [], wakes: [], started: [] };
   const worktrees = worktreesOf(root);
   const worktreeOf = (branch) => { const path = worktrees.find((each) => each.branch === branch)?.path; return path ? realpathSync(path) : null; };
@@ -1568,15 +1540,15 @@ async function planOf(ctx) {
       else if (laneTip !== tip) plan.branches.push({ branch, action: "move", target: tip, worktree, from: laneTip });
     }
     if (worktree) return { worktree, branch, gitDir: gitDirOf(worktree) };
-    const path = join(resolve(main, conventions.worktreeFolderRoot), branch), gitDir = newGitDirOf(root, path, reserved);
+    const path = join(resolve(main, run.worktreeFolderRoot), branch), gitDir = newGitDirOf(root, path, reserved);
     plan.creations.push({ role, branch, path, gitDir });
     return { worktree: path, branch, gitDir };
   };
   const wake = async (role, turn, rejected = null) => {
     const place = await seat(role, Boolean(rejected));
     const repair = !artifactOf(role) && turn.malformed.length > 0;
-    plan.wakes.push({ role, turn, rejected, ...place, assignment: join(place.gitDir, "rp", `${role.profile}.md`), model: modelsOf(state.config, role.profile, role.lane).model,
-      resources: repair ? [] : Object.entries(conventions.resources).filter(([, entry]) => entry.profiles.includes(role.profile)).map(([name]) => name), fresh: turn.mode === "Consolidate" });
+    plan.wakes.push({ role, turn, rejected, ...place, assignment: join(place.gitDir, "rp", `${role.profile}.md`), model: modelsOf(run, role.profile, role.lane).model,
+      resources: repair ? [] : Object.entries(run.resources).filter(([, entry]) => entry.profiles.includes(role.profile)).map(([name]) => name), fresh: turn.mode === "Consolidate" });
   };
 
   if (entries[0].action !== "escalate")
@@ -1677,7 +1649,7 @@ async function cmdNext(args) {
 // branch moves, so a stop lands nothing.
 async function cmdLand(args) {
   const ctx = await contextOf(args, "land");
-  const { root, folder, pipelinesRoot, tip, record, conventions } = ctx;
+  const { root, folder, pipelinesRoot, tip, record, run } = ctx;
   const name = args.role ?? misused("land", "--role <role> is required");
   const turn = record.turns[name] ?? fail(`land: no turn of ${name} is recorded: rp next --apply records each role it wakes`);
   const { profile, lane } = parseRole(name);
@@ -1704,7 +1676,7 @@ async function cmdLand(args) {
   const files = [...certified, ...uncertified.map((subject) => [subject, null])].map(([subject, bytes]) => [`${folder}/${certificationPath(subject.path)}`, bytes]);
   const subject = [certified.length && `certify ${certified.map(([each]) => nounOf(each)).join(" and ")}`,
     uncertified.length && `remove the certification of ${uncertified.map(nounOf).join(" and ")}`].filter(Boolean).join(", and ");
-  const landed = files.length ? commitFiles(root, bring.landed, files, landingMessage(conventions, `${subject[0].toUpperCase()}${subject.slice(1)}`)) : bring.landed;
+  const landed = files.length ? commitFiles(root, bring.landed, files, landingMessage(run, `${subject[0].toUpperCase()}${subject.slice(1)}`)) : bring.landed;
   // The pipeline as `rp check` will read it after the landing, read before the branch moves: the phases complete then
   // that were not when the step was applied and no earlier landing of it reported.
   const after = await inspect(root, folder, pipelinesRoot, landed);

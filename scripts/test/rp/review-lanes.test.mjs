@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 
 import {
   NOTES, P, PIPELINE, REVIEW, TO_SPEC,
-  abs, apply, certification, check, commitAll, commitIn, conventions, git, land, landRole, lane, laneWorktree, later, pipeline, read, revise, root, rp, thread, useRepo, withFrontmatter, write, writeFile,
+  abs, apply, certification, check, commitAll, commitIn, git, ignore, land, landRole, lane, laneWorktree, later, pipeline, read, revise, root, rp, thread, useRepo, withFrontmatter, write, writeFile,
 } from "./fixture.mjs";
 
 const LANES = [lane("reviewer", "a"), lane("reviewer", "a-b")];
@@ -26,11 +26,11 @@ const answered = (n, id) => thread({ n, ...REVIEW(id), messages: [[`reviewer-${i
 // each awaiting its reviewer.
 function scenario() {
   git(root, "checkout", "--quiet", "main");
-  writeFile(".pipelines/other/0-intent/intent.md", "origin: issue 1\n");
+  writeFile(".pipelines/other/run-config.json", '{"target-phase": 4, "base": "main", "worktree-folder-root": ".worktrees"}\n');
+  writeFile(".pipelines/other/0-intent/intent.md", "---\nissue: 1\n---\n");
   commitAll("another pipeline");
   git(root, "checkout", "--quiet", "demo");
   git(root, "merge", "--quiet", "--no-edit", "main");
-  conventions();
   pipeline(3, { lanes: LANES });
   writeFile("src/app.js", "export const a = 2;\n");
   write("0-intent/constraint-1.md", later(NOTES));
@@ -78,20 +78,20 @@ describe("review lanes", () => {
       assert.equal(patchId(git(root, "diff", base, change)), patchId(netChange(tip)));
     });
 
-    // A pipelines folder root holding tooling and pipelines of every format in the base, and tooling the pipeline branch
-    // changed, with the pipeline worktree's copy of the tooling differing from its HEAD.
+    // A pipelines folder root holding, in the base, tooling, folders without run-config.json, and another pipeline, and
+    // tooling the pipeline branch changed, with the pipeline worktree's copy of the tooling differing from its HEAD.
     function tooling() {
       git(root, "checkout", "--quiet", "main");
       const files = {
         ".pipelines/bin/env.mjs": "base env\n", ".pipelines/bin/node_modules/agent-browser/SKILL.md": "skill\n", ".pipelines/README.md": "root notes\n",
         ".pipelines/v0/prompt.md": "v0\n", ".pipelines/v1/0-prompt/prompt.md": "v1\n", ".pipelines/v3/base/0-intent/intent.md": "v3\n",
-        ".pipelines/v3-spec/1-spec/spec.md": "spec only\n", ".pipelines/v5/run-config.md": "---\n{\"workflow\": \"x\"}\n---\n",
+        ".pipelines/v3-spec/1-spec/spec.md": "spec only\n", ".pipelines/v6/run-config.md": "---\n{\"format\": 6}\n---\n",
+        ".pipelines/v7/run-config.json": '{"target-phase": 4, "base": "main", "worktree-folder-root": ".worktrees"}\n', ".pipelines/v7/0-intent/intent.md": "---\nissue: 2\n---\n",
       };
       for (const [path, contents] of Object.entries(files)) writeFile(path, contents);
-      commitAll("tooling and earlier pipelines");
+      commitAll("tooling, folders without run-config.json, and another pipeline");
       git(root, "checkout", "--quiet", "demo");
       git(root, "merge", "--quiet", "--no-edit", "main");
-      conventions();
       pipeline(3, { lanes: LANES });
       writeFile(".pipelines/bin/env.mjs", "pipeline env\n");
       writeFile("src/app.js", "export const a = 2;\n");
@@ -102,13 +102,14 @@ describe("review lanes", () => {
       return tip;
     }
 
-    it("keeping the root's tooling at the tip's version in both commits, and dropping pipelines of every format", () => {
+    it("keeping the root's tooling and every folder without run-config.json at the tip's version in both commits, and dropping every other pipeline", () => {
       const tip = tooling();
       apply();
       const { base, change } = built("a");
       const inRoot = (commit) => files(commit).filter((path) => path.startsWith(".pipelines/"));
       assert.deepEqual(inRoot(change), [
         ".pipelines/README.md", ".pipelines/bin/env.mjs", ".pipelines/bin/node_modules/agent-browser/SKILL.md", `${PIPELINE}/0-intent/intent.md`,
+        ".pipelines/v0/prompt.md", ".pipelines/v1/0-prompt/prompt.md", ".pipelines/v3-spec/1-spec/spec.md", ".pipelines/v3/base/0-intent/intent.md", ".pipelines/v6/run-config.md",
       ]);
       assert.deepEqual(inRoot(base), inRoot(change));
       for (const commit of [base, change]) assert.equal(git(root, "show", `${commit}:.pipelines/bin/env.mjs`), "pipeline env\n");
@@ -141,7 +142,6 @@ describe("review lanes", () => {
     });
 
     it("as an empty change when the net change is empty", () => {
-      conventions();
       pipeline(3, { lanes: LANES });
       apply();
       const { base, change } = built("a");
@@ -155,7 +155,6 @@ describe("review lanes", () => {
     });
 
     it("giving a lane with no threads yet only the intent", () => {
-      conventions();
       pipeline(3, { lanes: [lane("reviewer", "c")] });
       thread({ ...TO_SPEC, status: "approved" });
       commitAll("thread");
@@ -193,7 +192,7 @@ describe("review lanes", () => {
     const reviewOf = (at = root) => JSON.parse(rp("check", `${at}/${PIPELINE}`, "--json")).reviews.find((entry) => entry.lane === "a");
     const moveBase = () => {
       git(root, "checkout", "--quiet", "main");
-      writeFile(".pipelines/other/0-intent/intent.md", "origin: issue 1\n\nFollow-up.\n");
+      writeFile(".pipelines/other/0-intent/intent.md", "---\nissue: 1\n---\n\nFollow-up.\n");
       writeFile("src/base.js", "export const b = 1;\n");
       commitAll("base moves, another pipeline changes");
       git(root, "checkout", "--quiet", "demo");
@@ -230,7 +229,6 @@ describe("review lanes", () => {
     });
 
     it("uncertified when its reviewer's last heading names no commit, removing the certification its path held", () => {
-      conventions();
       pipeline(3, { lanes: [lane("reviewer", "a")] });
       approveInLane();
       landRole("reviewer-a");
@@ -249,7 +247,6 @@ describe("review lanes", () => {
     });
 
     it("stale on a later input that reached the pipeline branch after its change was built", () => {
-      conventions();
       pipeline(3, { lanes: [lane("reviewer", "a")] });
       writeFile("src/app.js", "export const a = 2;\n");
       commitAll("work");
@@ -282,7 +279,7 @@ describe("review lanes", () => {
       scenario();
       const change = approveInLane();
       landRole("reviewer-a");
-      writeFile(".git/info/exclude", ".worktrees/\n.rp.md\n.clone/\n");
+      ignore(".clone/");
       git(root, "clone", "--quiet", "--no-local", "--single-branch", "--branch", "demo", root, `${root}/.clone`);
       git(`${root}/.clone`, "fetch", "--quiet", "origin", "main:main");
       assert.throws(() => execFileSync("git", ["cat-file", "-e", `${change}^{commit}`], { cwd: `${root}/.clone`, stdio: "ignore" }));
