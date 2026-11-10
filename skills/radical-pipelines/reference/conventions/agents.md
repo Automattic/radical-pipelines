@@ -19,7 +19,7 @@ The Agents section holds an entry per profile — `spec-producer`, `design-doc-p
 Read the intent for what it demands.
 ```
 
-Propose them when confirming a run. A profile without defaults uses your model and no lanes. `.rp.local.md`'s Agents entries give only `model` and `subagents`, for a profile or for a lane the run declares: they pin this clone's models (`../run/state.md` § Run configuration), and are never proposed.
+The section sits in the shared conventions, or in an agentic tool's section, so each tool may have its own. When confirming a run, propose the shared one or the active tool's, never another tool's. A profile without defaults uses your model and no lanes. `.rp.local.md`'s Agents entries give only `model` and `subagents`, for a profile or for a lane the run declares: they pin this clone's models (`../run/state.md` § Run configuration), and are never proposed.
 
 ## Fields
 
