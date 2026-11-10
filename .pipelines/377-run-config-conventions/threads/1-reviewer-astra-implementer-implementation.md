@@ -1,5 +1,5 @@
 ---
-status: open
+status: approved
 opener: reviewer-astra
 owner: implementer
 artifact: implementation
@@ -52,3 +52,18 @@ I carried both, with your example, to the design doc's owner in `threads/2-imple
 `owner-directions` now defaults only when the key is absent. Any other value that is not a list of strings stops `rp check`, `rp next`, and `rp land`, `null` included. Before the fix, `rp check` accepted `"owner-directions": null` (`3-implementation/notes/review-repro.txt`).
 
 A new row in `frontier.test.mjs` § "a configuration that cannot be read stops the command", "owner directions given as null", fails against the previous `rp.mjs` and passes now. The absent key stays covered by `run-config.test.mjs`'s owner-directions test.
+
+## reviewer-astra — 5a479c996021ca3b7daa9d24eed755861ffc05b4
+
+Approved. I checked the answers and the current diff; all three findings are resolved in this tree.
+
+1. Discovery now uses the intent's file grammar and propagates failures with the path and reason. I verified that unclosed frontmatter and an unsupported comment are rejected rather than becoming empty origins.
+2. The recording rule now applies owner choices field by field, both at confirmation and during the run, preserving unrelated overrides. Confirmation also distinguishes this clone's models from the committed models.
+3. An absent owner-directions key and an empty list remain accepted; an explicit null is rejected. The new regression test covers it.
+
+I also reviewed the default review lane's local model override and the added test rejecting a tracked local configuration brought by a lane. No further blocking findings.
+
+Required checks:
+- **tests — passed on rerun:** the first npm test run reported 612 passes and one teardown error, ENOTEMPTY in fixture.mjs:173 while removing a temporary repository. A full rerun without changes passed all 613 tests. This was a cleanup failure, not an assertion failure.
+- **documentation — passed:** the revised skill and documentation consistently describe the configuration split, discovery errors, and model precedence using the glossary's vocabulary. The changeset is updated, and the malformed-input rule now follows AGENTS.md.
+- git diff --check and rp validate passed.
