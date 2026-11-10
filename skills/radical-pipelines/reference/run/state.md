@@ -117,7 +117,7 @@ A profile's lanes are production lanes for `spec-producer` and `design-doc-produ
 
 ## Names
 
-- **Pipeline slug** — the pipeline's identifier, derived from its issue per the **Pipeline slug** convention: one path segment, a valid git ref, without `_`. A second pipeline for the same issue appends `-2`, `-3`.
+- **Pipeline slug** — the pipeline's identifier, derived from its issue per the **Pipeline slug** convention: one path segment, a valid git ref, without `_`. A new pipeline's slug names no other pipeline of the issue and no folder in the pipelines folder root of the commit its branch starts from: while it names one, it appends `-2`, `-3`.
 - **Pipeline folder** — `<pipelines folder root>/<pipeline slug>/`. A folder of the pipelines folder root is a pipeline folder when it holds `run-config.json`; anything else in the root, such as a project's pipeline tooling, is not a pipeline.
 - **Pipeline branch** — where the pipeline's commits land: the **Pipeline branch format** convention applied to the slug; work on a merged pipeline appends `_<n>`.
 - **Lane branches** — `<pipeline branch>-<artifact>-<lane>` for a production lane, `<artifact>` being `spec` or `design-doc`; `<pipeline branch>-review-<lane>` for a review lane, at the change built from the pipeline tip. `rp next --apply` creates, moves, and removes them, each with its worktree at `<worktree folder root>/<lane branch>`.
