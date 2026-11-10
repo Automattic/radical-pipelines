@@ -21,8 +21,8 @@ Every template may use:
 - `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree, as written; and `pipeline-folder-arg`, the pipeline folder's as one shell word, for a command line.
 - `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
 - `malformed-files`: a list of the frontier's `INVALID` lines naming a file the role writes, as `rp check` prints them.
-- `guardrails`, `resources`: a list of the run's entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
-- `commit-format`: the run's commit format, its placeholders expanded, or `An imperative subject line.` when the run has none.
+- `guardrails`, `resources`: a list of the entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
+- `commit-format`: the commit format, its placeholders expanded, or `An imperative subject line.` when the project sets none.
 - `vocabulary`: when a carried text keeps a placeholder, a list of each vocabulary fact as `` - `{<name>}`: <value> ``; otherwise no item.
 
 A producer's and the implementer's templates also use:

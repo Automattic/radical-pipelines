@@ -7,7 +7,7 @@ Throughout the run:
 - Address worktree files by absolute path.
 - Pass every `rp` command the pipeline worktree's absolute pipeline folder; it derives the repository from that argument and needs no `cd`.
 - Run every Git operation through `git -C <worktree>`.
-- Record each direction the owner gives for the run in `owner-directions` (`state.md` § Run configuration).
+- Record each direction the owner gives for the run in `owner-directions`, and commit it (`state.md` § Run configuration).
 
 ## One step
 

@@ -98,7 +98,7 @@ cites: <thread path | evidence path>
 
 The run configuration is `run-config.json` at the pipeline folder root, one JSON object in the schema of `../../scripts/README.md` § `run-config.json`: the configuration the tree is produced under, and everything `rp` reads about the run. `run-config.local.json` beside it holds what this clone overrides, in the schema of `../../scripts/README.md` § `run-config.local.json`; no commit holds it.
 
-At every run start, and at no other moment, record both from `.rp.md` and `.rp.local.md` as they stand then:
+Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand then; at no other moment write either from those files:
 
 - `run-config.json`:
   - `worktree-folder-root`, `landing-commit`, `commit-format`, `guardrails`, `resources`, and `variables`: what `.rp.md` states, replacing what an earlier run start recorded. A convention `.rp.md` does not set is absent.
@@ -106,7 +106,7 @@ At every run start, and at no other moment, record both from `.rp.md` and `.rp.l
   - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
   - `agents`: the models, subagent models, lanes, and briefs the owner confirmed.
   - Keep `target-phase`, `base`, and `agents` as they are unless the owner's request changes them.
-  - `owner-directions`: the owner's directions for the run, one entry each, every earlier entry kept. Append and commit each direction when the owner gives it, at triage or during the run.
+  - `owner-directions`: the owner's directions for the run, one entry each, added when the owner gives it, at triage or during the run; every earlier entry is kept.
 - `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it pins for a profile, or for a lane `run-config.json` declares, without the pins of a profile or lane whose model the owner asked for in this run's request. When nothing remains, there is no file: remove an existing one.
 
 Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Select the entries and associate each with its profiles. Never summarize or reword.
