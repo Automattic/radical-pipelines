@@ -1,0 +1,66 @@
+$ git ls-tree --name-only trunk .pipelines/
+.pipelines/107-rename-prompt-to-intent
+.pipelines/108-what-why-how-pr-template
+.pipelines/121-role-scoped-guardrails
+.pipelines/122-plan-driven-test-selection-v2
+.pipelines/123-per-phase-summaries
+.pipelines/128-fresh-team-per-run
+.pipelines/134-unify-docs-naming
+.pipelines/137-managing-issues-mid-session
+.pipelines/144-opencode-support
+.pipelines/145-package-lock-version-sync-v2
+.pipelines/150-make-guardrails-prose
+.pipelines/158-rename-review-runs-to-revisions
+.pipelines/218-lifecycle-hooks
+.pipelines/51-guardrails-convention-v2
+.pipelines/68-recommend-standard-remote-names
+.pipelines/70-restructure-repository-layout
+.pipelines/71-normalize-prompt-format-v3
+.pipelines/8-research-how-to-package-agents-and-skills-in-pi
+.pipelines/81-changelog-version-sync
+.pipelines/83-automate-releases
+.pipelines/86-code-output-rules-v3
+.pipelines/9-create-setup-to-populate-project-conventions
+.pipelines/90-per-agent-model-config
+.pipelines/91-local-convention-overrides
+.pipelines/95-pipeline-reviews
+
+$ git ls-tree --name-only v4 .pipelines/
+.pipelines/368-certification-out-of-files
+.pipelines/369-conventions-as-data
+.pipelines/370-rp-next-and-land
+.pipelines/371-rp-thread-and-validate
+
+$ rp pipelines .pipelines --base v4 --issue 371
+merged 6 v4 .pipelines/371-rp-thread-and-validate
+
+$ rp pipelines .pipelines --base v4 | grep 195-support-radical-pipelines-in-codex | head -5
+live earlier 195-support-radical-pipelines-in-codex .pipelines/195-support-radical-pipelines-in-codex
+live earlier 195-support-radical-pipelines-in-codex_2-design-doc-lane-1 .pipelines/195-support-radical-pipelines-in-codex
+live earlier 195-support-radical-pipelines-in-codex_2-design-doc-lane-2 .pipelines/195-support-radical-pipelines-in-codex
+live earlier 195-support-radical-pipelines-in-codex_2-design-doc-lane-3 .pipelines/195-support-radical-pipelines-in-codex
+live earlier 195-support-radical-pipelines-in-codex_v2 .pipelines/195-support-radical-pipelines-in-codex
+
+$ git show v4:.pipelines/371-rp-thread-and-validate/run-config.md | head -4
+---
+{
+  "format": 6,
+  "target-phase": 4,
+
+$ git show v4:.pipelines/371-rp-thread-and-validate/0-intent/intent.md | head -2
+origin: issue 371
+origin: starts-from 370-rp-next-and-land
+
+$ git show trunk:skills/radical-pipelines/reference/conventions/load.md | grep "current version"
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 5.
+Check the committed `.rp.md` before merging local overrides. A complete file at the current version loads without setup. When a required row is missing, offer setup. If the owner declines, stop and explain what is missing.
+
+$ git show trunk:.rp.md | sed -n 1,5p
+---
+{
+  "conventions": 5
+}
+---
+
+$ rp pipelines .pipelines --base v4 | grep -c "195-support-radical-pipelines-in-codex$"
+16
