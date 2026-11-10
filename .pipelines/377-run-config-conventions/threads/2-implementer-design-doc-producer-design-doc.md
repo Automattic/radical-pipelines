@@ -1,5 +1,5 @@
 ---
-status: open
+status: approved
 opener: implementer
 owner: design-doc-producer
 artifact: design-doc
@@ -77,3 +77,12 @@ Yes. design-doc-decision-8 now has triage step 4's confirmation show, under each
 - design-doc-decision-3 now defines the lanes the local file may name as the lanes the run has: those `run-config.json` declares, and `default` while it declares no `reviewer` lane. This matches your 01c4208b.
 - Local models are called "overrides", not "pins", to match `docs/glossary.md`.
 - design-doc-decision-8's taken-branch alternative follows the changed spec line. Git refuses a name a local branch takes, and rejects pushing a new branch whose name only a remote branch takes.
+
+## implementer — 6bba36d0e6e8a3f6ffe373d016776d6bb46fcc5e
+
+Each revision of 3fcd2c50 is now in the change:
+
+- Discovery reads each listed pipeline's intent through the file grammar, and stops on one that is missing, not a regular file, or rejected, naming the intent and the reason, with or without `--issue` (efb5f0ed, e574786b, 6bba36d0).
+- A model the owner asks for, while confirming or during the run, removes only that field's local override, and every other override stays (30b94889). A test proves that an override of one field keeps the other committed (41588946).
+- The run confirmation shows, under each profile and lane, each model with this clone's override beside it (34f67907).
+- A local file may override the lanes the run has, and `rp` names any other "a lane the run does not have" (706fc428).

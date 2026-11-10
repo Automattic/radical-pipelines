@@ -1,5 +1,5 @@
 ---
-status: open
+status: withdrawn
 opener: implementer
 owner: spec-producer
 artifact: spec
@@ -40,3 +40,7 @@ So the new pipeline's folder never receives another pipeline's files, which is w
 ### A prepared pipeline is unlisted from step 5 to step 6: stands
 
 The same evidence holds. Until step 6 commits its `run-config.json`, a prepared pipeline's folder exists only at its branch tip, outside the base branch's tree, and its branch name is taken as above. The spec leaves out listing such a pipeline under Considered and not required, because no source shows a consumer continuing a pipeline whose run never started. Committing `run-config.json` together with the intent is a question of how triage is built, so the design doc decides it.
+
+## implementer — 6bba36d0e6e8a3f6ffe373d016776d6bb46fcc5e
+
+I drop the finding. `1-spec/spec/taken-branch-probe.txt` shows that Git refuses a branch name a local branch takes, and rejects pushing a new branch whose name only a remote branch takes. So a new pipeline's folder never receives another pipeline's files, which is what spec-requirement-20 guards against. The visible stop that remains is the owner's choice, and I do not escalate it.

@@ -20,13 +20,22 @@ status: done
   - The changeset states that review lanes keep folders without `run-config.json` (8dd88a6c).
   - A test covers the stop on a landing that would bring `run-config.local.json` (10f8379c).
   - Evidence: `notes/review-repro.txt` and `notes/owner-findings.txt` (cfa4cb4b).
+- The revised design doc (3fcd2c50):
+  - Discovery reads each listed pipeline's intent through the file grammar, and stops on one that is missing, not a regular file, or rejected (efb5f0ed, e574786b, 6bba36d0).
+  - A model the owner asks for, while confirming or during the run, removes only that field's local override (30b94889). A test proves that an override of one field keeps the other committed (41588946).
+  - The run confirmation shows each model with this clone's override beside it (34f67907).
+  - A local file may override the lanes the run has (706fc428).
 
 ## Remaining
+
+- When the review threads next await the implementer, give the reviewers the results of the findings carried to other owners:
+  - astra 1 and 2, and default 3: the design doc changed in 3fcd2c50, implemented in the commits above.
+  - default 1: spec-requirement-20 stands, because Git refuses a taken local branch name and rejects pushing a branch whose name only a remote branch takes (`1-spec/spec/taken-branch-probe.txt`).
 
 ## Decisions
 
 - Prose entry form (`load.md` § Conventions): a value is one code span; a text is its own lines; an entry is a heading, its fields as `- <field>: <value>` list items, then a blank line and its text. Guardrails and resources have a `profiles` field, the profile names separated by commas; Agents profiles and lanes have `model` and `subagents`, a lane one heading level below its profile.
-- `rp` messages: `cannot read <folder>/run-config.json: missing`; `<path>: <key>: missing`; `<path>: unexpected key: <key>`; `<path>: tracked by Git`; `<path>: agents.<profile>.lanes.<id>: a lane run-config.json does not declare`.
+- `rp` messages: `cannot read <folder>/run-config.json: missing`; `<path>: <key>: missing`; `<path>: unexpected key: <key>`; `<path>: tracked by Git`; `<path>: agents.<profile>.lanes.<id>: a lane the run does not have`; `pipelines: cannot read <ref>:<folder>/0-intent/intent.md: missing | not a regular file`; `pipelines: <ref>:<folder>/0-intent/intent.md: <file grammar reason>`.
 - A lane of `run-config.local.json` is declared when it is one of the run's roles (`rolesOf`), the criterion the frontier uses, so the implicit `default` review lane counts; `runViewOf` creates the entry of a lane it overrides that the agents do not list.
 - The tracked check is `requireUntracked`, called first by `inspect` (working tree: the index or `HEAD`; `--ref`: that commit) and by `landingOf` (the commit a landing would leave).
 - `objectAt` takes an empty `at` for a whole file, and `jsonObjectOf` parses a JSON file holding one object; the certification parser uses both, with its messages unchanged.
