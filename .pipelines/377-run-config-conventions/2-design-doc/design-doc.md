@@ -2,7 +2,7 @@
 
 ## Overview
 
-Today `rp next` and `rp land` read the worktree folder root, the landing commit, the commit format, the guardrails, the resources, and the variables from the JSON frontmatter of the main checkout's `.rp.md` and `.rp.local.md`, at every step. Every pipeline also carries a format, which `rp` compares. The change moves that boundary. At every run start the orchestrator copies those conventions verbatim from a prose-only `.rp.md` into the pipeline's committed `run-config.json`. It copies what `.rp.local.md` overrides, a developer's model pins among it, into an uncommitted `run-config.local.json` beside it. `rp` reads only those two files: `check` reads the committed one, and `next` and `land` read the committed one with the local one overlaid by name.
+Today `rp next` and `rp land` read the worktree folder root, the landing commit, the commit format, the guardrails, the resources, and the variables from the JSON frontmatter of the main checkout's `.rp.md` and `.rp.local.md`, at every step. Every pipeline also carries a format, which `rp` compares. The change moves that boundary. At every run start the orchestrator copies those conventions verbatim from a prose-only `.rp.md` into the pipeline's committed `run-config.json`. It copies what `.rp.local.md` overrides, a developer's model overrides among it, into an uncommitted `run-config.local.json` beside it. `rp` reads only those two files: `check` reads the committed one, and `next` and `land` read the committed one with the local one overlaid by name.
 
 A pipeline is a folder holding `run-config.json`. No file carries or compares a version, and what `rp` cannot read stops it, naming the file and the reason. The skill's prose changes to match. Conventions become prose entries whose texts copy as one block. The recording rules are stated once, in `state.md`, and applied at triage's run start. The notion of an earlier pipeline format goes.
 
@@ -109,19 +109,20 @@ design-doc-decision-3: `run-config.local.json` overlays the run configuration by
 - `next` and `land` read `run-config.local.json` beside `run-config.json` in the pipeline worktree's working tree. An absent file overrides nothing. `check` reads only whether Git tracks it (design-doc-decision-4), so the frontier and the phase states never depend on its contents. `pipelines`, `thread`, and `validate` do not read it.
 - It may hold, each key optional:
   - `worktree-folder-root`, `landing-commit`, `commit-format`, `guardrails`, `resources`, and `variables`, in `run-config.json`'s schema;
-  - `agents`: for each profile only `model` and `subagents`, and for a lane profile `lanes`. Each lane is one `run-config.json` declares for that profile, and holds only `model` and `subagents`.
-- Any other key, at any level, stops `next` and `land`, naming the file and the key's path. Such keys include `target-phase`, `base`, `owner-directions`, a lane's `brief`, and a lane `run-config.json` does not declare. A malformed entry stops them as it does in `run-config.json`, naming this file.
+  - `agents`: for each profile only `model` and `subagents`, and for a lane profile `lanes`. Each lane is one the run has for that profile, and holds only `model` and `subagents`. The run has the lanes `run-config.json` declares, and the review lane `default` while it declares no `reviewer` lane: the lanes the frontier and the roles are computed from.
+- Any other key, at any level, stops `next` and `land`, naming the file and the key's path. Such keys include `target-phase`, `base`, `owner-directions`, a lane's `brief`, and a lane the run does not have. A malformed entry stops them as it does in `run-config.json`, naming this file.
 - The run view applies the local file over `run-config.json`:
   - Each of the worktree folder root, the landing commit, and the commit format it holds replaces the committed one.
   - Each guardrail, resource, and variable replaces the committed entry of its name, or is added.
   - Each model and subagent model replaces the committed one of the same profile or lane.
-- A role's models then follow today's rule over the overlaid agents: its lane's, else its profile's. A lane pin therefore wins for its lane's role. A profile pin reaches the profile's roles whose lane gives no model of its own. Every profile and lane the file does not name keeps its committed models.
+- A role's models then follow today's rule over the overlaid agents, field by field: its lane's, else its profile's. A lane's override therefore wins for its lane's role. A profile's override reaches the profile's roles whose lane gives no value of its own for that field. Every field, profile, and lane the file does not name keeps its committed value.
 - The plan's `wake <role> model` and `wake <role> resource` lines, and the assignment's carried texts and subagent model, come from the run view.
 
 **Alternatives:**
 
 - `check` also reads and validates the local file. Rejected: `check` uses none of its values, and the frontier is the same on every clone (spec-acceptance-criterion-15). Reading it would only let one clone's file stop the report.
-- A profile pin replaces the model a lane of that profile gives of its own. Rejected: the spec considered and did not take this, and overriding by name keeps one rule for every entry.
+- A profile's override replaces the model a lane of that profile gives of its own. Rejected: the spec considered and did not take this, and overriding by name keeps one rule for every entry.
+- Lanes the local file may name checked against `run-config.json`'s `agents` alone. Rejected: that is a second criterion for the run's lanes, and it would reject an override for the implicit `default` review lane, which the frontier counts.
 - The local file overrides a profile's whole agents entry, as `.rp.local.md`'s `agents` does today. Rejected: it would declare lanes and briefs, which intent-constraint-4 forbids.
 - The orchestrator merges the local values into `run-config.json`. Rejected: by intent-constraint-4 and intent-context-4, local values would reach the pipeline branch.
 
@@ -131,6 +132,7 @@ design-doc-decision-3: `run-config.local.json` overlays the run configuration by
 
 - observed: `modelsOf` takes a role's lane's model, else its profile's, from the run configuration's agents. `readConventions` merges `.rp.local.md`'s entries over `.rp.md`'s by name for the six conventions (read `rp.mjs`).
 - observed: `check` prints no model, resource, or carried text (read `cmdCheck`).
+- observed: with the changed `rp`, a local file overriding a profile's model and subagent model gives the role both, and one overriding only the subagent model gives the role the committed model and the local subagent model (`2-design-doc/design-doc/probe-respond.txt`, from `probe-respond.sh`).
 - assumed: the overlay tests in § Verification pass.
 
 design-doc-decision-4: A tracked `run-config.local.json` stops `rp`
@@ -165,8 +167,7 @@ design-doc-decision-5: A pipeline is a folder holding `run-config.json`, and car
 
 - In `rp`, a folder of the pipelines folder root is a pipeline folder when it holds `run-config.json` at its top level, and nothing else makes one.
 - `rp pipelines` lists only those folders, and reads only each one's intent origins, from the intent's frontmatter.
-  - An intent whose frontmatter cannot be read has no origins.
-  - A listed folder without a regular intent stops the command.
+  - It reads the intent as the file grammar reads it, the check `rp check` and `rp validate` make of the intent alone. A listed folder whose intent is missing, is not a regular file, or is rejected by that grammar stops the command, naming the intent and the reason.
   - Each entry carries no format: `<live|merged> <ref> <pipeline folder>`, or with `--json` an object of `state`, `ref`, `commit`, `folder`, and `origins`.
 - A review lane's root drops only the pipeline folders by the same mark. A folder without `run-config.json` stays as other content, like tooling.
 - In the skill, no file names a pipeline format or a pipeline of an earlier format.
@@ -180,14 +181,18 @@ design-doc-decision-5: A pipeline is a folder holding `run-config.json`, and car
 
 - Read a folder holding a phase folder or `run-config.md` as a pipeline whose `run-config.json` is missing. Rejected: the spec considered and did not take this, since intent-proposal-1 makes `run-config.json` the mark.
 - Mark a pipeline by `run-config.json` or an intent. Rejected: no source shows a prepared pipeline holding only an intent being continued (spec, Considered and not required).
+- Read an intent whose frontmatter cannot be read as having no origins. Rejected: `rp pipelines --issue` then hides the pipeline while `rp check` reports its intent `INVALID` (observed), so triage's scan finds no pipeline for the issue and starts a second one. intent-constraint-7 asks that what `rp` cannot read stop it. Every folder discovery lists was written by the current skill, which writes the origins in the intent's frontmatter, so no folder needs the tolerance.
+- Read only the frontmatter's form, and let an intent with a key outside its grammar give its origins. Rejected: that gives discovery a criterion for a readable intent of its own, beside the file grammar.
 
-**Trade-offs:** Merged pipelines holding `run-config.md` leave discovery and triage's view of their issue. Their files stay in the base branch's tree and in review lanes' trees.
+**Trade-offs:** Merged pipelines holding `run-config.md` leave discovery and triage's view of their issue. Their files stay in the base branch's tree and in review lanes' trees. One malformed intent at any branch tip, local or remote-tracking, stops discovery for every issue until its pipeline's branch repairs it, as a missing intent already does.
 
 **Claims:**
 
 - observed: `pipelineFoldersIn` marks a folder by a phase folder, `base/`, `run-config.md`, or `prompt.md`. `discoverFolders` reads `run-config.md` for the format, and reads the intent's leading `origin:` body lines below format 7. `reviewBuildOf` drops the folders `pipelineFoldersIn` marks (read `rp.mjs`).
 - observed: `rp pipelines` prints a format for each entry, and `earlier` for folders of every older kind (`1-spec/spec/probe-today.txt`).
 - observed: triage steps 2 and 3, report step 2, and changelog entries 1, 6, and 7 name earlier-format pipelines (read `triage.md`, `report.md`, and `changelog.md`).
+- observed: with the changed `rp`, a pipeline whose intent frontmatter has no closing line is listed by `rp pipelines`, listed by none with `--issue`, and reported `INVALID` by `rp check` (`2-design-doc/design-doc/probe-respond.txt`).
+- observed: an unquoted issue reference such as `#368` is outside the frontmatter grammar (read `state.md` § Frontmatter and `scripts/README.md` § Frontmatter), so an intent the orchestrator writes can be rejected by it.
 - assumed: the discovery and review-lane tests in § Verification pass.
 
 design-doc-decision-6: `.rp.md` holds every convention as prose entries that copy as written
@@ -205,7 +210,7 @@ design-doc-decision-6: `.rp.md` holds every convention as prose entries that cop
   - Variables: each entry names the variable and gives its template.
   - Agents: an entry per profile, naming its model and subagent model. Each lane is an entry beneath its profile, naming its id, its model, and its subagent model, with its brief as its remaining lines.
 - The Agents section may sit in the shared conventions or in a tool's section. The loader reads the active tool's section and no other tool's, as `load.md` § Sources already does.
-- `.rp.local.md` has no frontmatter. It overrides with the same sections and entries, by name, and its Agents entries pin models only.
+- `.rp.local.md` has no frontmatter. It overrides with the same sections and entries, by name, and its Agents entries override models only.
 - Setup writes `.rp.md` in this form, and appends the bare name `run-config.local.json` to `.gitignore` beside the worktree folder root's entry.
 - Changelog entry 7 migrates a version 5 or 6 `.rp.md`:
   - it rewrites the frontmatter as `conventions: 7`;
@@ -237,53 +242,61 @@ design-doc-decision-7: The orchestrator records the run configuration verbatim a
 
 - `run-config.json`, committed when it changes:
   - Its worktree folder root, landing commit, commit format, guardrails, resources, and variables are what `.rp.md` states at that moment, replacing what an earlier run start recorded. A convention `.rp.md` does not set is absent.
-  - Its target phase, base, and agents stay as they are, or are what the owner confirmed for a new pipeline. They change only when the owner's request changes them.
+  - Its target phase, base, and agents stay as they are, or are what the owner confirmed for a new pipeline. They change only when the owner asks, while confirming the run or during it.
   - `owner-directions` keeps every entry, and gains one for each direction the owner gives for the run, at triage or during the run, committed when given.
 - `run-config.local.json`, in the pipeline worktree and never committed:
-  - It holds what `.rp.local.md` overrides of those six conventions, and the models and subagent models it pins for profiles and for lanes `run-config.json` declares.
-  - It leaves out the pins of each profile or lane whose model the owner asked for in this run's request.
+  - It holds what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for profiles and for lanes the run has (design-doc-decision-3).
   - When nothing remains, the file is absent, and an existing one is removed.
+- A model or subagent model the owner asks for, for a profile or lane, while confirming a run or during it, holds on this clone for the rest of that run. The orchestrator records it in `run-config.json`'s agents, and `run-config.local.json` holds no override of that field for that profile or lane: the orchestrator leaves it out when it records the file, or removes it when the owner asks during the run, removing the file when nothing remains. Every other override stays, the other field of the same entry included. The next run start records `.rp.local.md` again.
 - The skill tells the orchestrator in plain words to copy each text and value character for character as its section writes it, with its placeholders unexpanded. The orchestrator selects the entries and associates each with its profiles. It never summarizes or rewords.
-- At no other moment does the orchestrator rewrite either file from `.rp.md` or `.rp.local.md`. A session resumed after compaction already skips triage (`SKILL.md`), and the loop writes neither file.
+- At no other moment does the orchestrator rewrite either file from `.rp.md` or `.rp.local.md`. A session resumed after compaction already skips triage (`SKILL.md`), and the loop writes neither file. An owner's request during the run changes only what it asks for.
 - `loop.md`, `SKILL.md`, and `state.md`'s Files table name `run-config.json` and `run-config.local.json`.
 
 **Alternatives:**
 
 - An `rp` command that records the run configuration from `.rp.md`. Rejected: it needs a prose parser in `rp` (intent-constraint-8), and intent-constraint-5 has the orchestrator copy.
-- Record the owner's asked model in `run-config.local.json` over the pin, instead of leaving the pin out. Rejected: it writes one model in two files. Leaving the pin out lets the committed model through by the one overlay rule.
+- Record the owner's asked model in `run-config.local.json` over the override, instead of leaving the override out. Rejected: it writes one model in two files. Leaving the field's override out lets the committed model through by the one overlay rule.
+- Leave out the whole entry of a profile or lane whose model the owner asked for. Rejected: it also drops the other field's override, which the owner did not ask about. With overrides for a profile's model and subagent model and an ask for its model only, the role would delegate on the committed subagent model instead of the local one. `rp` overlays field by field (observed), so leaving out one field keeps the other.
+- Apply the owner's ask to the local file only at a run start. Rejected: a model asked for during the run would not reach this clone's roles until the next run start, while `0-intent/constraint-1.md` covers a model asked for "when confirming or changing a run".
 - Write `run-config.local.json` at every run start, `{}` when nothing is overridden. Rejected: it puts an untracked file in every pipeline worktree of every clone. Where `.gitignore` lacks the name, a role's `git add -A` would commit it.
 
-**Trade-offs:** `rp` never checks the copy (spec-exclusion-1), so a reworded text reaches every assignment of the run. On a pinned clone, the owner's asked model holds for that run only, and the next run start records the pin again.
+**Trade-offs:** `rp` never checks the copy (spec-exclusion-1), so a reworded text reaches every assignment of the run. On a clone that overrides a model, the owner's asked model holds for that run only, and the next run start records the override again. A role already running when the owner asks keeps its model until it is spawned again.
 
 **Claims:**
 
 - observed: triage writes the run configuration at step 6 of every run, before `run-started`. It asks for confirmation only when the pipeline has no run configuration or the request changes it (read `triage.md` steps 4 and 6).
 - observed: a session resumed after compaction recomputes state with `rp check` and runs `rp next` without triage (read `SKILL.md`).
 - observed: today the owner's directions are prose in `run-config.md`'s body (read this pipeline's `run-config.md`).
+- observed: `state.md` § Run configuration has the orchestrator write and commit every configuration change before acting on it, during a run too (read `state.md`).
+- observed: with the changed `rp`, leaving out only the model override gives the role the committed model and keeps the local subagent model (`2-design-doc/design-doc/probe-respond.txt`).
 - assumed: spec-assumption-1 and design-doc-assumption-1.
 
-design-doc-decision-8: Triage gives a new pipeline an unused folder, names guardrails and resources in the confirmation, and proposes agents from `.rp.md`
+design-doc-decision-8: Triage gives a new pipeline an unused folder, shows the run's models and carried guardrails and resources in the confirmation, and proposes agents from `.rp.md`
 
-**Serves:** spec-requirement-20, spec-requirement-21, spec-requirement-22, spec-acceptance-criterion-33, spec-acceptance-criterion-34, spec-acceptance-criterion-35
+**Serves:** spec-requirement-8, spec-requirement-20, spec-requirement-21, spec-requirement-22, spec-acceptance-criterion-33, spec-acceptance-criterion-34, spec-acceptance-criterion-35, spec-acceptance-criterion-37
 
 **Decision:**
 
 - `state.md` § Names, Pipeline slug: a new pipeline's slug names no folder in the pipelines folder root of the commit its branch starts from. While it names one, the slug takes the next suffix, `-2`, `-3`, as it does for a second pipeline of the same issue. Triage step 5 already applies § Names.
-- Triage step 4's confirmation lists, under each profile, the names of the guardrails and resources the run will carry for that profile: `.rp.md`'s entries that bind it, with `.rp.local.md`'s over them by name.
-- Triage step 4 proposes a new pipeline's agents from `.rp.md`'s Agents section, the shared one or the active tool's, and from no other tool's. `.rp.local.md`'s pins go to `run-config.local.json`, never into the proposal. `agents.md` states this.
+- Triage step 4 proposes a new pipeline's agents from `.rp.md`'s Agents section, the shared one or the active tool's, and from no other tool's. This proposal, or a continued pipeline's agents, is what `run-config.json` records. `.rp.local.md`'s model overrides go to `run-config.local.json` alone. `agents.md` states this.
+- Triage step 4's confirmation shows, under each profile:
+  - each model and subagent model the run gives, and beside it each one `.rp.local.md` overrides on this clone, marked as this clone's, so the owner sees what the roles will run on and can ask for another;
+  - the names of the guardrails and resources the run will carry for that profile: `.rp.md`'s entries that bind it, with `.rp.local.md`'s over them by name.
 
 **Alternatives:**
 
 - `rp` refuses a new pipeline folder that exists in the start tree. Rejected: triage chooses the folder before any pipeline file exists to read, so `rp` would need a new command for a rule the orchestrator applies once.
-- Check the slug against every branch tip. Rejected: not needed, since a branch whose name is taken cannot be created (spec, Considered and not required).
+- Check the slug against every branch tip. Rejected: Git refuses to create a branch whose name a local branch takes, and rejects pushing a new branch whose name only a remote branch takes, so the new pipeline's folder never receives another pipeline's files (spec, Considered and not required).
 - Propose agents with `.rp.local.md`'s entries over them, as today. Rejected: local models would be committed in `run-config.json` (spec-requirement-8).
+- Show only the committed models. Rejected: on a clone with overrides, the owner confirms models the roles do not run on, and cannot see what to overrule while confirming, which `0-intent/constraint-1.md` lets the owner do (observed in the orchestrator exercise).
 
-**Trade-offs:** The confirmation grows by a line per profile.
+**Trade-offs:** The confirmation grows by a line per profile, and by a value beside each overridden model.
 
 **Claims:**
 
 - observed: a new pipeline written into the folder of `v4`'s merged pipeline 371 makes `rp check` report that folder's older files as `INVALID` (`1-spec/spec/probe-today.txt`). Triage learns of an issue's earlier pipelines only from `rp pipelines` (read `triage.md` steps 2 and 5).
-- observed: today the confirmation lists the target phase, the lanes, and the models (read `triage.md` step 4).
+- observed: `git worktree add -b` stops on a name a local branch takes, and a push of a new branch whose name only a remote branch takes is rejected (`1-spec/spec/taken-branch-probe.txt`).
+- observed: in the orchestrator exercise, the confirmation lists the review lane `astra` on `astra`, while `rp next` on that clone names `wake reviewer-astra model local-astra` (`3-implementation/notes/orchestrator-exercise/confirmation.md` and `rp-run.txt`).
 - assumed: spec-assumption-2 and design-doc-assumption-2.
 
 design-doc-decision-9: This repository's `.rp.md` and `.gitignore`
@@ -341,12 +354,12 @@ design-doc-decision-9: This repository's `.rp.md` and `.gitignore`
 {
   "commit-format": "<text>",
   "guardrails": { "<name>": { "rule": "<text>", "profiles": ["implementer"] } },
-  "agents": { "<profile>": { "model": "<name>", "subagents": "<name>", "lanes": { "<declared id>": { "model": "<name>", "subagents": "<name>" } } } }
+  "agents": { "<profile>": { "model": "<name>", "subagents": "<name>", "lanes": { "<id of a lane the run has>": { "model": "<name>", "subagents": "<name>" } } } }
 }
 ```
 
 - It may hold `worktree-folder-root`, `landing-commit`, `commit-format`, `guardrails`, `resources`, and `variables`, in `run-config.json`'s schema, and `agents` holding only models. Every key is optional.
-- Each lane it names is one `run-config.json` declares for that profile.
+- Each lane it names is one the run has for that profile: one `run-config.json` declares, or the review lane `default` while it declares no `reviewer` lane.
 - Overlay rules: design-doc-decision-3.
 
 **Stops** (stderr `rp: <reason>`, exit 1, nothing written):
@@ -357,6 +370,7 @@ design-doc-decision-9: This repository's `.rp.md` and `.gitignore`
 | `run-config.json` unreadable or outside its schema | `check`, `next`, `land` | the file and the reason, as `<key>.<name>…` for an entry |
 | `run-config.local.json` with a key outside its schema, or a malformed entry | `next`, `land` | the file and the key's path |
 | `run-config.local.json` tracked | `check`, `next`, `land` | the file, as tracked |
+| A listed pipeline's intent missing, not a regular file, or rejected by the file grammar | `pipelines` | the intent and the reason |
 
 No message refers to a format.
 
@@ -364,7 +378,7 @@ No message refers to a format.
 
 **`.rp.md` ↔ orchestrator.** The frontmatter is `conventions: 7`. The prose entry form is design-doc-decision-6's, and `.rp.local.md` overrides with the same entries.
 
-**Orchestrator ↔ owner.** A run confirmation lists, under each profile, the guardrail and resource names the run will carry.
+**Orchestrator ↔ owner.** A run confirmation shows, under each profile, the models the run gives with this clone's overrides beside them, and the guardrail and resource names the run will carry. A model the owner asks for, while confirming or during the run, holds on this clone for the rest of the run (design-doc-decision-7).
 
 ## Dependencies
 
@@ -379,7 +393,7 @@ No message refers to a format.
 - **A malformed `run-config.local.json`, or one holding a forbidden key.** `next` and `land` stop, naming the file and the key. `check` is unaffected.
 - **A tracked `run-config.local.json`.** `check`, `next`, and `land` stop, naming the file as tracked, until a commit removes it from the branch.
 - **A folder holding only `run-config.md`, given to `check`, `next`, or `land`.** It stops them, naming `run-config.json` as missing.
-- **A listed pipeline without a regular intent.** `rp pipelines` stops, naming the intent's path.
+- **A listed pipeline whose intent is missing, not a regular file, or rejected by the file grammar**, such as one holding an unquoted `#` issue reference. `rp pipelines` stops, naming the intent and the reason. Its pipeline's branch repairs the intent, and the next scan lists it.
 - **A text the orchestrator did not copy verbatim.** Nothing in `rp` detects it (spec-exclusion-1). It is visible in `run-config.json`'s diff in the run-start commit.
 
 ## Verification
@@ -393,17 +407,17 @@ No message refers to a format.
 - existing test "lane: each lane's branch at the tip and its worktree under the worktree folder root…" (`next.test.mjs`), now reading the run configuration — design-doc-decision-1, spec-acceptance-criterion-5 — a lane worktree is `<worktree folder root>/<lane branch>` under the main checkout's root.
 - existing landing-commit tests of `land.test.mjs`, including "with each commit's subject alone without a landing commit template", now reading the run configuration — design-doc-decision-1, spec-acceptance-criterion-6 — each landing commit's message is its subject in the template, or the subject alone without one.
 - new test at the `rp next --apply` and `rp land` boundary — design-doc-decision-3, spec-acceptance-criterion-11, spec-acceptance-criterion-12, spec-acceptance-criterion-13 — each convention in the local file replaces or adds by name in assignments, lane worktree paths, and landing commits. Every other convention keeps its committed value, and without the file `run-config.json` alone applies.
-- new test at the `rp next --apply` boundary — design-doc-decision-3, spec-acceptance-criterion-36 — with model and subagent model pins for a lane and for a profile: the lane's role runs on its lane's pins; the profile's other roles run on the profile's pins unless their lane gives its own model; and every role the pins do not name runs on its committed models. `wake <role> model` and the assignment's subagent model show this.
+- new test at the `rp next --apply` boundary — design-doc-decision-3, spec-acceptance-criterion-36 — with model and subagent model overrides for a lane and for a profile: the lane's role runs on its lane's overrides; the profile's other roles run on the profile's overrides unless their lane gives its own value; every role the overrides do not name runs on its committed models; an override of one field leaves the other field committed; and an override for the implicit `default` review lane applies. `wake <role> model` and the assignment's subagent model show this.
 - new test at the `rp next` and `rp land` boundary — design-doc-decision-3, spec-acceptance-criterion-14 — a local file holding any key spec-acceptance-criterion-14 names stops both, naming the file and the key, and writes nothing.
 - new test at the `rp check` boundary — design-doc-decision-3, spec-acceptance-criterion-15 — `check`'s report, with and without `--json`, is the same with the local file present and absent.
 - new test at the `rp check`, `rp next`, and `rp land` boundary — design-doc-decision-4, spec-acceptance-criterion-17 — a staged or committed local file stops each, naming it as tracked, as does one the tip still holds after its removal from the index. `check --ref` on a commit holding it stops. An untracked local file stops none.
-- existing test groups of `pipelines.test.mjs`, rewritten for the mark — design-doc-decision-5, spec-acceptance-criterion-27, spec-acceptance-criterion-32 — only folders holding `run-config.json` are listed, live and merged, filtered by issue. Folders holding `run-config.md`, a phase folder, `prompt.md`, `base/`, only an intent, or tooling are not listed. No entry carries a format, with or without `--json`. A listed folder without a regular intent stops the command.
+- existing test groups of `pipelines.test.mjs`, rewritten for the mark — design-doc-decision-5, spec-acceptance-criterion-27, spec-acceptance-criterion-32 — only folders holding `run-config.json` are listed, live and merged, filtered by issue. Folders holding `run-config.md`, a phase folder, `prompt.md`, `base/`, only an intent, or tooling are not listed. No entry carries a format, with or without `--json`. A listed folder whose intent is missing, not a regular file, or rejected by the file grammar stops the command, naming the intent and the reason, with and without `--issue`.
 - existing test "keeping the root's tooling at the tip's version in both commits, and dropping pipelines of every format" (`review-lanes.test.mjs`) — design-doc-decision-5 — the lane's root drops the folders holding `run-config.json` and keeps every other folder.
 - existing tests `frontier.test.mjs` § "1. INVALID", `validate.test.mjs`, and `thread-commands.test.mjs`, unchanged — design-doc-decision-1, spec-acceptance-criterion-30 — the intent, later inputs, `notes.md`, and threads are accepted and rejected as today, with the same reasons.
 - inspection of `rp.mjs`'s imports and `package.json` — design-doc-decision-1, spec-acceptance-criterion-29 — `rp` needs Node and Git alone.
 - inspection of `load.md`, `setup.md`, `changelog.md`, `guardrails.md`, `resources.md`, and `agents.md` — design-doc-decision-6, spec-acceptance-criterion-1, spec-acceptance-criterion-2, spec-acceptance-criterion-3, spec-acceptance-criterion-16, spec-acceptance-criterion-35 — fresh setup and migration write the entry form under `conventions: 7`, migration keeps every text, Write appends the ignore entry, and Agents is read from the shared section or the active tool's.
 - inspection of the skill for pipeline formats — design-doc-decision-5, spec-acceptance-criterion-28 — no step of triage, reporting, or setup's migration names a pipeline format or an earlier pipeline. Triage checks every listed live pipeline and routes every listed pipeline through the Route table.
-- inspection of `state.md` § Run configuration and § Names, triage steps 4 to 6, `loop.md`, and `SKILL.md` — design-doc-decision-7, design-doc-decision-8, spec-acceptance-criterion-8, spec-acceptance-criterion-9, spec-acceptance-criterion-20, spec-acceptance-criterion-21, spec-acceptance-criterion-22, spec-acceptance-criterion-23, spec-acceptance-criterion-24, spec-acceptance-criterion-33, spec-acceptance-criterion-34, spec-acceptance-criterion-37, spec-acceptance-criterion-38 — the recording moment and contents, the plain-words verbatim instruction, the slug rule, the confirmation's names, and the source of the proposed agents.
+- inspection of `state.md` § Run configuration and § Names, triage steps 4 to 6, `loop.md`, and `SKILL.md` — design-doc-decision-7, design-doc-decision-8, spec-acceptance-criterion-8, spec-acceptance-criterion-9, spec-acceptance-criterion-20, spec-acceptance-criterion-21, spec-acceptance-criterion-22, spec-acceptance-criterion-23, spec-acceptance-criterion-24, spec-acceptance-criterion-33, spec-acceptance-criterion-34, spec-acceptance-criterion-37, spec-acceptance-criterion-38 — the recording moment and contents, the plain-words verbatim instruction, the owner's asked model leaving out only that field's override while confirming or during the run, the slug rule, the confirmation's models with this clone's overrides and its guardrail and resource names, and the source of the proposed agents.
 - inspection of this repository's `.rp.md` against `git show 1a43fc61:.rp.md` — design-doc-decision-9, spec-acceptance-criterion-31 — the frontmatter is `conventions: 7` alone, and each text and value equals its frontmatter data character for character.
 - inspection with `git check-ignore` of a `run-config.local.json` in a pipeline folder of this repository — design-doc-decision-9, spec-acceptance-criterion-18 — Git ignores it.
 - end-to-end flow: the first run started in this repository after the change — design-doc-decision-7, design-doc-decision-8, spec-acceptance-criterion-19, spec-acceptance-criterion-21, spec-acceptance-criterion-31, spec-acceptance-criterion-34 — the texts in its `run-config.json` equal `.rp.md`'s sections, its assignments carry them, and its confirmation names the guardrails and resources under each profile. This confirms spec-assumption-1 and spec-assumption-2.
@@ -415,7 +429,10 @@ No message refers to a format.
 - **A project's `.gitignore` lacks `run-config.local.json`** (spec-exclusion-4). A role's `git add -A` in the pipeline worktree commits the file, and `check`, `next`, and `land` stop until a commit removes it.
 - **Pipelines holding `run-config.md` stop being listed or continued** (spec-exclusion-3), this pipeline included, once the orchestrator runs the changed skill. Further work on their issues starts new pipelines.
 - **Folders without `run-config.json` stay in review lanes' trees** as other content of the pipelines folder root. The net change is unaffected.
-- **The owner's asked model holds for one run only** on a clone that pins that profile or lane (design-doc-assumption-1). From the next run start, that clone runs on the pin again unless the owner asks again.
+- **A pipeline whose intent is committed but whose run never started holds no `run-config.json`.** Discovery does not list it. A new pipeline for its issue whose slug names its branch stops when triage creates the branch, or when it is pushed while only a remote branch holds the name (spec, Considered and not required).
+- **One malformed intent at any branch tip stops discovery for every issue** (design-doc-decision-5) until its pipeline's branch repairs it. A remote-tracking branch's intent is repaired only by whoever owns that branch.
+- **The owner's asked model holds for one run only** on a clone that overrides that field for that profile or lane (design-doc-assumption-1). From the next run start, that clone runs on the override again unless the owner asks again.
+- **An ask for a profile's model while the local file overrides that field for one of its lanes.** If the lane's committed entry gives no value of its own, it would inherit the asked model, but the local lane override still wins on this clone. No observed `.rp.local.md` overrides a lane that inherits its profile's model. The consequence is a lane running on its override for that run, which the confirmation shows beside the committed model.
 
 ## Open assumptions
 
@@ -423,6 +440,6 @@ spec-assumption-1: The orchestrator, told in plain words to copy each text verba
 
 spec-assumption-2: Guardrail and resource names listed under each profile in the run confirmation show the owner, before the run starts, one that `.rp.md` declares and the run would not carry — assumed: a confirmation in this repository that names its two guardrails and one resource under the profiles each binds.
 
-design-doc-assumption-1: When the owner asks for a model for a profile or lane that `.rp.local.md` pins, the orchestrator leaves that pin out of `run-config.local.json` for the run — assumed: on a clone pinning a profile's model, a run whose request asks for another model for that profile has `rp next` name the asked model.
+design-doc-assumption-1: When the owner asks for a model or subagent model for a profile or lane that `.rp.local.md` overrides, while confirming a run or during it, the orchestrator leaves that field's override out of `run-config.local.json`, or removes it, and keeps every other override — assumed: on a clone overriding a profile's model and subagent model, a run in which the owner asks for another model for that profile has `rp next` name the asked model while the assignment keeps the local subagent model, both after a confirmation and after an ask during the run.
 
 design-doc-assumption-2: Applying § Names, triage finds a folder that already exists in the start tree before it creates a new pipeline's branch — assumed: a new pipeline for an issue whose older folder, without `run-config.json`, is in the base branch's tree takes a suffixed slug, and `rp check` on it reports only the new pipeline's files.
