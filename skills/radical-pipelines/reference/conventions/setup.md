@@ -42,7 +42,7 @@ Running Radical Pipelines creates three kinds of files that need a home:
 
 - The project-level `.rp.md` config file (the conventions captured during this setup).
 - The pipelines folder containing the pipeline folders and their phase artifacts.
-- A `.gitignore` entry for the worktree folder root.
+- `.gitignore` entries for the worktree folder root and `run-config.local.json`.
 
 They can live either in the project's repository alongside the code, or in a separate fork. The fork option is used when the project does not accept these kinds of commits, or when the owner wants to keep the pipeline workflow private.
 
@@ -132,12 +132,12 @@ The recurring health loop's interval and stall threshold. Offer the defaults in 
 
 Keep `.rp.md` to the conventions above. Include other discovered facts or instructions only at the owner's explicit request; under-specification is safe.
 
-Write Worktree folder root, Landing commit, Commit format, Guardrails, Resources, Agents, and Variables as data in the frontmatter (`../../scripts/README.md` § Conventions data), each value and text as the owner gave it, and every other convention as a prose section. When a guardrail, resource, commit-format, or brief text uses a placeholder that names no vocabulary fact, offer to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose, when one does.
+Write every convention as a prose section in the form `load.md` § Conventions gives, each value and text as the owner gave it. When a guardrail, resource, commit-format, or brief text uses a placeholder that names no vocabulary fact, offer to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose, when one does.
 
 1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
 2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
-3. On the artifact base branch, write human-readable `.rp.md`: the frontmatter, `"conventions": 7` first, then shared fact sections and a section headed by the active tool's name for its project facts.
-4. With permission, append the worktree folder root entry to `.gitignore`.
+3. On the artifact base branch, write `.rp.md`: the frontmatter `conventions: 7`, then shared fact sections and a section headed by the active tool's name for its project facts.
+4. With permission, append to `.gitignore` the worktree folder root's entry and the name `run-config.local.json`.
 5. Commit the approved `.rp.md` on that branch, co-committing `.gitignore` when changed. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
 6. Report whether `.rp.md` was created or updated and whether setup is complete.
 

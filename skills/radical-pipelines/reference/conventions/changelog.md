@@ -18,10 +18,6 @@ Move these sections into the frontmatter's data (`../../scripts/README.md` § Co
 
 Offer `landing-commit`, the template of the commits `rp land` makes, proposing one that the commit format's examples follow, such as `{subject} (orchestrator)`. Offer variables for the placeholders these texts use (`setup.md` § Write). In `.rp.local.md`, the same conventions move into its frontmatter, without `conventions`.
 
-### Pipelines
-
-A pipeline whose `run-config.md` carries no `format` 7 is listed by discovery with its format and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
-
 ## 6
 
 Migrate from version 5.
@@ -42,10 +38,6 @@ When renamed blocks give one profile different models, ask the owner which to ke
 
 - `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
 - Remove every lane's `materials` and `after`.
-
-### Pipelines
-
-A pipeline whose `run-config.md` carries no `format` 6 is listed by discovery as `earlier` and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
 
 ## 5
 
@@ -139,10 +131,6 @@ Move the model table into an `Agents` section — one block per profile — rena
 - `researcher`
 
 Keep one `researcher` row, asking the owner which existing research value to retain when values differ.
-
-### Pipelines
-
-Pipelines in the previous layout (`<pipeline slug>/base/…`) are closed: discovery reads `<pipeline slug>/0-intent/intent.md`, so they are neither live nor continued. Further work on their issue starts a new pipeline.
 
 ### Additions
 

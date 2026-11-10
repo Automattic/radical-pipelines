@@ -1,12 +1,13 @@
 # The loop
 
-You enter from triage with a pipeline folder, branch, and worktree; `run-config.md` holds the run configuration. Start health monitoring (`../conventions/health-monitoring.md`), then repeat § One step until the frontier is `complete` or `escalate`. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` defines every term and frontier line used here, and `../../scripts/README.md` § `next` every line of a plan.
+You enter from triage with a pipeline folder, branch, and worktree; `run-config.json` holds the run configuration. Start health monitoring (`../conventions/health-monitoring.md`), then repeat § One step until the frontier is `complete` or `escalate`. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` defines every term and frontier line used here, and `../../scripts/README.md` § `next` every line of a plan.
 
 Throughout the run:
 
 - Address worktree files by absolute path.
 - Pass every `rp` command the pipeline worktree's absolute pipeline folder; it derives the repository from that argument and needs no `cd`.
 - Run every Git operation through `git -C <worktree>`.
+- Record each direction the owner gives for the run in `owner-directions` (`state.md` § Run configuration).
 
 ## One step
 
