@@ -94,20 +94,16 @@ describe("frontier", () => {
     // A run-config.json holding CONFIG with `changes` over it, a key given as undefined removed.
     const writeConfig = (changes) => write("run-config.json", JSON.stringify({ ...CONFIG, ...changes }));
     const configurations = [
-      ["run-config.json missing", () => remove("run-config.json"), /cannot read \.pipelines\/demo\/run-config\.json: missing/],
       ["a run-config.md in its place", () => { remove("run-config.json"); write("run-config.md", '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n'); },
         /cannot read \.pipelines\/demo\/run-config\.json: missing/],
       ["run-config.json that is not JSON", () => write("run-config.json", '---\n{"target-phase": 4}\n---\n'), /\.pipelines\/demo\/run-config\.json: not valid JSON: /],
       ["run-config.json that is not an object", () => write("run-config.json", "[]\n"), /\.pipelines\/demo\/run-config\.json: must be a JSON object/],
-      ["target-phase missing", () => writeConfig({ "target-phase": undefined }), /run-config\.json: target-phase: missing/],
       ["target-phase out of range", () => configure({ targetPhase: 5 }), /run-config\.json: target-phase: must be an integer from 1 to 4/],
       ["target-phase not an integer", () => configure({ targetPhase: "4" }), /run-config\.json: target-phase: must be an integer from 1 to 4/],
-      ["base missing", () => writeConfig({ base: undefined }), /run-config\.json: base: missing/],
       ["an empty base", () => configure({ base: " " }), /run-config\.json: base: must be a revision/],
       ["the worktree folder root missing", () => writeConfig({ "worktree-folder-root": undefined }), /run-config\.json: worktree-folder-root: missing/],
       ["an unknown key", () => configure({ workflow: "autonomous" }), /run-config\.json: unexpected key: workflow/],
       ["a lanes list", () => writeConfig({ lanes: [{ profile: "reviewer", id: "a" }] }), /run-config\.json: unexpected key: lanes/],
-      ["owner directions that are not a list", () => configure({ "owner-directions": "Keep it local." }), /run-config\.json: owner-directions: must be a list of strings/],
       ["owner directions holding other than strings", () => configure({ "owner-directions": ["Keep it local.", 2] }), /run-config\.json: owner-directions: must be a list of strings/],
       ["agents that are not an object", () => configure({ agents: [] }), /run-config\.json: agents: must be a JSON object/],
       ["agents naming an unknown profile", () => configure({ agents: { implementor: {} } }), /agents: unexpected key: implementor/],

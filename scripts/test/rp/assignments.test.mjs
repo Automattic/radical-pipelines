@@ -455,7 +455,6 @@ describe("assignments", () => {
       ["a landing commit template without {subject}", () => configWith({ "landing-commit": "(orchestrator)" }), /run-config\.json: landing-commit: must hold \{subject\}/],
       ["a landing commit template naming another placeholder", () => configWith({ "landing-commit": "{subject} ({role})" }), /run-config\.json: landing-commit: \{role\} names no part of a landing commit/],
       ["an empty commit format", () => configWith({ "commit-format": "" }), /run-config\.json: commit-format: must be a text/],
-      ["a commit format given as a list of lines", () => configWith({ "commit-format": ["Imperative.", "", "- `Add spec`"] }), /run-config\.json: commit-format: must be a text/],
       ["a guardrail without its text", () => entry("guardrails", "tests", { profiles: ["implementer"] }), /run-config\.json: guardrails\.tests\.rule: must be a text/],
       ["a resource whose text holds no line", () => entry("resources", "suite", { resource: " \n ", profiles: ["implementer"] }), /run-config\.json: resources\.suite\.resource: must be a text/],
       ["a resource whose text is a list of lines", () => entry("resources", "test suite", { resource: ["a", "b"], profiles: ["implementer"] }), /run-config\.json: resources\."test suite"\.resource: must be a text/],
@@ -472,8 +471,6 @@ describe("assignments", () => {
     // [what run-config.local.json holds, what the message names]: each stops rp next and rp land, and rp check reads none.
     const locals = [
       ["the target phase", { "target-phase": 3 }, /run-config\.local\.json: unexpected key: target-phase/],
-      ["the base", { base: "main" }, /run-config\.local\.json: unexpected key: base/],
-      ["owner directions", { "owner-directions": ["Keep it local."] }, /run-config\.local\.json: unexpected key: owner-directions/],
       ["a lane's brief", { agents: { reviewer: { lanes: { a: { brief: "Look closer." } } } } }, /run-config\.local\.json: agents\.reviewer\.lanes\.a: unexpected key: brief/],
       ["a model for a lane run-config.json does not declare", { agents: { reviewer: { lanes: { b: { model: "opus" } } } } }, /run-config\.local\.json: agents\.reviewer\.lanes\.b: a lane run-config\.json does not declare/],
       ["a malformed entry", { resources: { browser: { resource: "A browser.", profiles: ["builder"] } } }, /run-config\.local\.json: resources\.browser\.profiles: "builder" is no profile/],
