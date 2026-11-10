@@ -107,7 +107,7 @@ Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand t
   - `agents`: the models, subagent models, lanes, and briefs the owner confirmed.
   - Keep `target-phase`, `base`, and `agents` as they are unless the owner's request changes them.
   - `owner-directions`: the owner's directions for the run, one entry each, added when the owner gives it, at triage or during the run; every earlier entry is kept.
-- `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it pins for a profile, or for a lane `run-config.json` declares, without the pins of a profile or lane whose model the owner asked for in this run's request. When nothing remains, there is no file: remove an existing one.
+- `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane `run-config.json` declares, without the overrides of a profile or lane whose model the owner asked for in this run's request. When nothing remains, there is no file: remove an existing one.
 
 Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Select the entries and associate each with its profiles. Never summarize or reword.
 

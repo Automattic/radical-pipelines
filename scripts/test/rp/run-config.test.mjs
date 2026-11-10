@@ -80,7 +80,7 @@ describe("the run configuration", () => {
     landRole("spec-producer-a");
     const locals = [
       () => remove("run-config.local.json"),
-      () => write("run-config.local.json", JSON.stringify({ "commit-format": "Local.", agents: { "spec-producer": { model: "pinned" }, reviewer: { lanes: { b: { model: "pinned" } } } } })),
+      () => write("run-config.local.json", JSON.stringify({ "commit-format": "Local.", agents: { "spec-producer": { model: "local" }, reviewer: { lanes: { b: { model: "local" } } } } })),
     ];
     assert.match(same(locals, () => rp("check", abs(PIPELINE))), /^frontier consolidate 1-spec\/spec\.md$/m);
     same(locals, () => rp("check", abs(PIPELINE), "--json"));

@@ -370,22 +370,22 @@ describe("assignments", () => {
       assert.match(opencode[0], /^wake implementer model opus$/m);
     });
 
-    it("with each model and subagent model run-config.local.json pins replacing the committed one of its lane or profile, the default review lane's included, and the committed ones where it pins none", () => {
+    it("with each model and subagent model run-config.local.json gives replacing the committed one of its lane or profile, the default review lane's included, and the committed ones where it gives none", () => {
       const agents = { "spec-producer": { model: "opus", subagents: "sonnet", lanes: { a: { model: "sonnet" }, b: {}, c: { subagents: "luna" } } }, implementer: { model: "opus", subagents: "sonnet" } };
-      const pins = { agents: { "spec-producer": { model: "pinned-opus", subagents: "pinned-sonnet", lanes: { b: { model: "pinned-b", subagents: "pinned-b-sub" } } }, reviewer: { lanes: { default: { model: "pinned-default" } } } } };
+      const overrides = { agents: { "spec-producer": { model: "local-opus", subagents: "local-sonnet", lanes: { b: { model: "local-b", subagents: "local-b-sub" } } }, reviewer: { lanes: { default: { model: "local-default" } } } } };
       const models = (role) => { const { model, values } = assign(role); return [model, values["subagent-model"][0] ?? null]; };
       const lanes = () => ["a", "b", "c"].map((id) => models(`spec-producer-${id}`));
-      local(pins);
+      local(overrides);
       pipeline(0, { agents });
-      assert.deepEqual(lanes(), [["sonnet", "pinned-sonnet"], ["pinned-b", "pinned-b-sub"], ["pinned-opus", "luna"]]);
+      assert.deepEqual(lanes(), [["sonnet", "local-sonnet"], ["local-b", "local-b-sub"], ["local-opus", "luna"]]);
       remove("run-config.local.json");
       assert.deepEqual(lanes(), [["sonnet", "sonnet"], ["opus", "sonnet"], ["opus", "luna"]]);
-      local(pins);
+      local(overrides);
       pipeline(2, { agents });
       assert.deepEqual(models("implementer"), ["opus", "sonnet"]);
       pipeline(3, { agents });
-      assert.deepEqual(models("reviewer-default"), ["pinned-default", null]);
-      assert.equal(spawnSync("git", ["grep", "--quiet", "pinned", "HEAD"], { cwd: root }).status, 1);
+      assert.deepEqual(models("reviewer-default"), ["local-default", null]);
+      assert.equal(spawnSync("git", ["grep", "--quiet", "local-", "HEAD"], { cwd: root }).status, 1);
     });
   });
 
