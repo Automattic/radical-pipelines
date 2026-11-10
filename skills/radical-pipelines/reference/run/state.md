@@ -151,7 +151,7 @@ Every live pipeline is a pipeline folder at some branch tip; every merged one is
 
 1. Collect the tree id of every pipeline folder at each branch tip.
 2. Keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history: those are the live ones.
-3. Read their `0-intent/intent.md` and the base branch's.
+3. Read their `0-intent/intent.md` and the base branch's. An intent that is missing, or that `rp check` would report `INVALID`, stops the command, naming the intent and the reason.
 4. Keep those whose intent's `issue` names the issue.
 
 Branch and folder names are not used to find pipelines; only the intent's origins are. `rp check --ref` then reads each live pipeline at its tip.
