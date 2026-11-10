@@ -474,7 +474,7 @@ describe("assignments", () => {
     const locals = [
       ["the target phase", { "target-phase": 3 }, /run-config\.local\.json: unexpected key: target-phase/],
       ["a lane's brief", { agents: { reviewer: { lanes: { a: { brief: "Look closer." } } } } }, /run-config\.local\.json: agents\.reviewer\.lanes\.a: unexpected key: brief/],
-      ["a model for a lane run-config.json does not declare", { agents: { reviewer: { lanes: { b: { model: "opus" } } } } }, /run-config\.local\.json: agents\.reviewer\.lanes\.b: a lane run-config\.json does not declare/],
+      ["a model for a lane the run does not have", { agents: { reviewer: { lanes: { b: { model: "opus" } } } } }, /run-config\.local\.json: agents\.reviewer\.lanes\.b: a lane the run does not have/],
       ["a malformed entry", { resources: { browser: { resource: "A browser.", profiles: ["builder"] } } }, /run-config\.local\.json: resources\.browser\.profiles: "builder" is no profile/],
       ["no JSON", "artifact-storage: fork\n", /run-config\.local\.json: not valid JSON/],
     ];

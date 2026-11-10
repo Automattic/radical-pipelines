@@ -576,7 +576,7 @@ export function parseLocal(bytes, config, malformed) {
   local.agents = parseAgents(data.agents, malformed, MODELS);
   for (const [profile, entry] of Object.entries(local.agents))
     for (const id of Object.keys(entry.lanes ?? {}))
-      if (!rolesOf(config).some((role) => role.profile === profile && role.lane === id)) malformed(`${entryName(`agents.${profile}.lanes`, id)}: a lane ${CONFIG} does not declare`);
+      if (!rolesOf(config).some((role) => role.profile === profile && role.lane === id)) malformed(`${entryName(`agents.${profile}.lanes`, id)}: a lane the run does not have`);
   return local;
 }
 
