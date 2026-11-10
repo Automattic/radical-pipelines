@@ -238,7 +238,7 @@ Fetching is the caller's job. The pipelines folder root, absolute or relative to
 3. Every pipeline folder in the tree of `--base` is **merged**, reported once from `--base`.
 4. With `--issue`, keep those whose intent names `issue <ref>` among its origins.
 
-Of each pipeline folder, discovery reads only its intent's origins, so no pipeline is validated: of `0-intent/intent.md`, its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written. An intent whose frontmatter cannot be read (§ Frontmatter) has no origins. A pipeline without a regular `0-intent/intent.md` is malformed and stops the command. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+Of each pipeline folder, discovery reads only `0-intent/intent.md`, through the file grammar (§ `validate`): its origins are its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written. A pipeline whose intent is missing, not a regular file, or rejected by the file grammar stops the command, naming the intent and the reason, with or without `--issue`; no other file of a pipeline is read or validated. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <ref> <pipeline folder>`. `--json` prints a list of `{state, ref, commit, folder, origins}`.
 

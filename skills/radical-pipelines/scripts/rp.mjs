@@ -1004,11 +1004,10 @@ async function certificationOf(root, folder, config, subject, at, reviewed = nul
 
 // --- pipelines --------------------------------------------------------------------
 
-// The origins an intent names: those of its frontmatter, each as `<key> <value>`, in the order written. Nothing is
-// validated: an intent whose frontmatter cannot be read has none.
+// The origins an intent names, read through the file grammar (§ parseFile): each key of its frontmatter as
+// `<key> <value>`, in the order written. An intent the grammar rejects is Invalid.
 export function originsOf(bytes) {
-  try { return [...frontmatterOf(bytes).values].filter(([key]) => ORIGIN_KEYS.includes(key)).map(([key, value]) => `${key} ${value}`); }
-  catch (error) { if (error instanceof Invalid) return []; throw error; }
+  return [...parseFile(INTENT, kindOf(INTENT), bytes).values].map(([key, value]) => `${key} ${value}`);
 }
 
 // A pipeline folder is a folder of the pipelines folder root that holds the run configuration. Any other content of the
@@ -1019,19 +1018,23 @@ async function pipelineFoldersIn(root, entries) {
   return folders.filter((folder) => trees.get(folder.oid).has(CONFIG));
 }
 
-// What discovery reads of a pipeline folder tree: its intent's origins. A pipeline without a regular intent stops the
-// command; any other file or key is never read.
+// What discovery reads of a pipeline folder tree: its intent's origins. A pipeline whose intent is missing, not a regular
+// file, or rejected by the file grammar stops the command, naming the intent and the reason; no other file is read.
 async function discoverFolders(root, folders, where) {
   const trees = await readTrees(root, folders.map((folder) => folder.tree));
   const intentFolders = await readTrees(root, [...trees.values()].map((entries) => entries.get("0-intent")).filter((entry) => entry?.mode === "040000").map((entry) => entry.oid));
   const intents = folders.map((folder) => {
     const intentFolder = trees.get(folder.tree).get("0-intent");
     const intent = intentFolder?.mode === "040000" ? intentFolders.get(intentFolder.oid).get("intent.md") : null;
-    return REGULAR.includes(intent?.mode) ? intent.oid : fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
+    if (!intent) fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
+    return REGULAR.includes(intent.mode) ? intent.oid : fail(`pipelines: cannot read ${where(folder)}/${INTENT}: not a regular file`);
   });
   const wanted = [...new Set(intents)];
   const blobs = new Map((await readObjects(root, wanted)).map((content, i) => [wanted[i], content]));
-  return folders.map((folder, i) => ({ ...folder, origins: originsOf(blobs.get(intents[i])) }));
+  return folders.map((folder, i) => {
+    try { return { ...folder, origins: originsOf(blobs.get(intents[i])) }; }
+    catch (error) { if (error instanceof Invalid) fail(`pipelines: ${where(folder)}/${INTENT}: ${error.message}`); throw error; }
+  });
 }
 
 // Every live pipeline folder at a branch tip, and every merged one in the base branch's tree, optionally filtered by issue.

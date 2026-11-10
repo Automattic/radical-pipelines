@@ -101,10 +101,8 @@ describe("pipelines", () => {
   // [what, the listed pipeline's files, its origins]
   const intents = [
     ["a run-config.json check would reject", { "run-config.json": '{"workflow": "x"}\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, "issue 5"],
-    ["an intent whose frontmatter is outside the subset", { "run-config.json": CONFIG, "0-intent/intent.md": "---\nissue: #5\n---\n" }, ""],
-    ["an intent with unclosed frontmatter", { "run-config.json": CONFIG, "0-intent/intent.md": "---\nissue: 5\n" }, ""],
     ["an intent whose origins are body lines only", { "run-config.json": CONFIG, "0-intent/intent.md": "origin: issue 5\n\n# I\n" }, ""],
-    ["malformed files discovery does not read", { "run-config.json": CONFIG, "0-intent/intent.md": "---\nissue: 5\nstatus: x\n---\n", "threads/1-x.md": "status: nope\n", "1-spec/spec.md/x": "x\n" }, "issue 5"],
+    ["malformed files discovery does not read", { "run-config.json": CONFIG, "0-intent/intent.md": "---\nissue: 5\n---\n", "threads/1-x.md": "status: nope\n", "1-spec/spec.md/x": "x\n" }, "issue 5"],
   ];
   for (const [what, files, origins] of intents)
     it(`lists a pipeline with ${what}, reading only its intent's origins`, () => {
@@ -151,15 +149,23 @@ describe("pipelines", () => {
       assert.match(out.stderr, message);
     });
 
-  for (const [what, intent] of [["no intent", null], ["an intent that is a folder", "0-intent/intent.md/x"]])
-    it(`stops on a pipeline with ${what}`, () => {
+  // [what, the intent's files, the reason]
+  const broken = [
+    ["no intent", {}, /cannot read broken:\.pipelines\/broken\/0-intent\/intent\.md: missing/],
+    ["an intent that is a folder", { "0-intent/intent.md/x": "x\n" }, /cannot read broken:\.pipelines\/broken\/0-intent\/intent\.md: not a regular file/],
+    ["an intent the file grammar rejects", { "0-intent/intent.md": "---\nissue: #5\n---\n" }, /broken:\.pipelines\/broken\/0-intent\/intent\.md: frontmatter issue: a comment/],
+  ];
+  for (const [what, files, message] of broken)
+    it(`stops on a pipeline with ${what}, with and without --issue`, () => {
       git(root, "checkout", "--quiet", "-b", "broken", "main");
       writeFile(".pipelines/broken/run-config.json", CONFIG);
-      if (intent) writeFile(`.pipelines/broken/${intent}`, "x\n");
+      for (const [rel, contents] of Object.entries(files)) writeFile(`.pipelines/broken/${rel}`, contents);
       commitAll("broken");
-      const out = run("pipelines", `${root}/.pipelines`, "--base", "main");
-      assert.equal(out.status, 1);
-      assert.match(out.stderr, /cannot read broken:\.pipelines\/broken\/0-intent\/intent\.md: missing/);
+      for (const issue of [[], ["--issue", "5"]]) {
+        const out = run("pipelines", `${root}/.pipelines`, "--base", "main", ...issue);
+        assert.deepEqual([out.status, out.stdout], [1, ""]);
+        assert.match(out.stderr, message);
+      }
     });
 
   it("reads an intent's origins from its frontmatter as the text written, in the order written", () => {
