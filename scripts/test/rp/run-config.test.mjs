@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
@@ -109,6 +110,18 @@ describe("the run configuration", () => {
         track();
         for (const args of commands()) assert.equal(stops(args), `rp: ${LOCAL}: tracked by Git\n`);
       });
+
+    it("stops rp next and rp land on a lane's turn that commits it, naming the commit its landing would leave, and lands nothing", () => {
+      pipeline(0, { lanes: [lane("spec-producer", "a")] });
+      apply();
+      const wt = laneWorktree("demo-spec-a");
+      writeFileSync(join(wt, PIPELINE, "run-config.local.json"), "{}\n");
+      git(wt, "add", "--force", LOCAL);
+      commitIn(wt, { [candidate("a")]: "# Candidate\n" }, "a turn that commits the local file");
+      const before = head();
+      for (const args of commands().slice(1)) assert.match(stops(args), new RegExp(`^rp: [0-9a-f]{40}:${LOCAL.replaceAll(".", "\\.")}: tracked by Git\\n$`));
+      assert.equal(head(), before);
+    });
 
     it("stops rp check --ref on a commit that holds it, and nothing once a commit removes it", () => {
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
