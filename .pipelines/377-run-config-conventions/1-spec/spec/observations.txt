@@ -24,16 +24,6 @@ $ git show v4:.pipelines/371-rp-thread-and-validate/0-intent/intent.md | sed -n 
 origin: issue 371
 origin: starts-from 370-rp-next-and-land
 
-$ git branch -a --list "*195-support-radical-pipelines-in-codex*" | wc -l
-16
-
-$ git branch -a --list "*195-support-radical-pipelines-in-codex"
-  195-support-radical-pipelines-in-codex
-  remotes/origin/195-support-radical-pipelines-in-codex
-
-$ rp pipelines .pipelines --base v4 | grep -c " .pipelines/195-support-radical-pipelines-in-codex$"
-16
-
 $ git show trunk:.rp.md | sed -n 1,5p
 ---
 {
@@ -88,3 +78,9 @@ $ grep -n "astra" .rp.claude-code.md; grep -n "pin other strings" .rp.opencode.m
 $ grep "^#" <main checkout>/.rp.local.md
 # Local overrides
 ### Artifact storage
+
+$ rp next .pipelines/377-run-config-conventions | grep " model "   (at 4b7f2df2)
+wake spec-producer model opus
+
+$ grep -n "subagent model" skills/radical-pipelines/templates/README.md
+19:- `subagent-model`: the subagent model name the run gives the role, or empty.
