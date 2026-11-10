@@ -49,7 +49,7 @@ Every convention is a prose section. The run configuration copies some of them v
 
 Check the committed `.rp.md` before merging local overrides. A complete file at the current version loads without setup. When a required row is missing, offer setup. If the owner declines, stop and explain what is missing.
 
-After it passes, merge `.rp.local.md` over it in memory: each section and entry it holds, in the same form, overrides the committed one of its name, or adds it; unmentioned facts retain their committed values.
+After it passes, merge `.rp.local.md` over it in memory: each section and entry it holds, in the same form, overrides the committed one of its name, or adds it; unmentioned facts retain their committed values. The run configuration records the two files apart (`../run/state.md` § Run configuration).
 
 ## Tool requirements
 
