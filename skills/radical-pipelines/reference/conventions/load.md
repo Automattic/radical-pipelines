@@ -30,11 +30,11 @@ Find the repository's main root, even when running inside a worktree. Read in th
 | Variables              | Placeholders the guardrail, resource, commit-format, and brief texts use, each a template over the vocabulary (`../../scripts/README.md` § Placeholders)                                                                                                                                                 | No       |
 | Health monitoring      | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                                                                                                                                                                                           | No       |
 
-Every convention is a prose section. The run configuration copies some of them verbatim (`../run/state.md` § Run configuration), so their sections bound each value and text:
+Every convention is a prose section. The sections the run configuration copies (`../run/state.md` § Run configuration) write each value and text in this form:
 
 - A value is one code span, whose content is the value: the worktree folder root, the landing commit template, a variable's template, and a model name.
 - A text is written as its own lines, unindented and unquoted: the commit format, a guardrail's rule, a resource's text, and a lane's brief.
-- An entry is a heading naming it, then its fields, one list item each — `- profiles: <profile>, <profile>…`, the profile names separated by commas, or `- model: <value>` and `- subagents: <value>` — then, when it has a text, a blank line and the text, the entry's remaining lines. Guardrails and resources (`guardrails.md`, `resources.md`), and profiles and lanes (`agents.md`), are entries.
+- An entry is a heading naming it, then its fields, one list item each: `- profiles: <profile>, <profile>…`, or `- model: <value>` and `- subagents: <value>`. When the entry has a text, a blank line follows its fields, and the entry's remaining lines are the text. Guardrails and resources (`guardrails.md`, `resources.md`), and profiles and lanes (`agents.md`), are entries.
 - Worktree folder root and Landing commit: the section's body is the value. Commit format: the section's body is the text. Variables: one list item per variable, `- <name>: <template>`.
 
 ## Schema stamp

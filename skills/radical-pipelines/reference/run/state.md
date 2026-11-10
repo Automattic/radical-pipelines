@@ -66,7 +66,7 @@ The values `rp` reads from a file you or a role writes are its frontmatter: YAML
 - `notes.md`: `status`.
 - A thread: its header (§ Threads).
 
-The run configuration is JSON (§ Run configuration). The spec, the design doc, and the candidates carry no frontmatter.
+The run configuration, the spec, the design doc, and the candidates carry no frontmatter.
 
 ## Certification
 
@@ -106,12 +106,12 @@ Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand t
   - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
   - `agents`: the models, subagent models, lanes, and briefs the owner confirmed.
   - Keep `target-phase`, `base`, and `agents` as they are unless the owner asks to change them, while confirming the run or during it.
-  - `owner-directions`: the owner's directions for the run, one entry each, added when the owner gives it, at triage or during the run; every earlier entry is kept.
-- `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane the run has. When nothing remains, there is no file: remove an existing one.
-
-A model or subagent model the owner asks for, for a profile or lane, while confirming a run or during it, holds on this clone for the rest of that run. Record it in `run-config.json`'s `agents`, and keep no override of that field for that profile or lane in `run-config.local.json`: leave it out when you record the file, or remove it when the owner asks during the run, and remove the file when nothing remains. Every other override stays, the other field of the same entry included.
+  - `owner-directions`: the owner's directions for the run, one entry per direction, added when the owner gives it, at triage or during the run. Keep every earlier entry.
+- `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane the run has. When it would hold nothing, write no file and remove an existing one.
 
 Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Select the entries and associate each with its profiles. Never summarize or reword.
+
+A model or subagent model the owner asks for, for a profile or lane, while confirming a run or during it, holds on this clone for the rest of that run. Record it in `run-config.json`'s `agents`. Drop that field's override for that profile or lane from `run-config.local.json`: leave it out when you record the file, or remove it when the owner asks during the run. Every other override stays, including the other field of the same entry.
 
 A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. A lane without a brief covers its profile's whole scope. Lane ids start with a lowercase letter or digit and continue with those or hyphens. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
 
@@ -147,7 +147,7 @@ Below the frontier, `rp check` lists the threads awaiting each woken role and th
 
 ## Discovery
 
-Every live pipeline is a pipeline folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue, reading only each pipeline's intent origins:
+Every live pipeline is a pipeline folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue, reading only each pipeline's intent:
 
 1. Collect the tree id of every pipeline folder at each branch tip.
 2. Keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history: those are the live ones.
