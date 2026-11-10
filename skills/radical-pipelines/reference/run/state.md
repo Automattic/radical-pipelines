@@ -105,9 +105,11 @@ Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand t
   - `target-phase`: the phase the run continues through, 1 to 4.
   - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
   - `agents`: the models, subagent models, lanes, and briefs the owner confirmed.
-  - Keep `target-phase`, `base`, and `agents` as they are unless the owner's request changes them.
+  - Keep `target-phase`, `base`, and `agents` as they are unless the owner asks to change them, while confirming the run or during it.
   - `owner-directions`: the owner's directions for the run, one entry each, added when the owner gives it, at triage or during the run; every earlier entry is kept.
-- `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane `run-config.json` declares, without the overrides of a profile or lane whose model the owner asked for in this run's request. When nothing remains, there is no file: remove an existing one.
+- `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane the run has. When nothing remains, there is no file: remove an existing one.
+
+A model or subagent model the owner asks for, for a profile or lane, while confirming a run or during it, holds on this clone for the rest of that run. Record it in `run-config.json`'s `agents`, and keep no override of that field for that profile or lane in `run-config.local.json`: leave it out when you record the file, or remove it when the owner asks during the run, and remove the file when nothing remains. Every other override stays, the other field of the same entry included.
 
 Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Select the entries and associate each with its profiles. Never summarize or reword.
 
