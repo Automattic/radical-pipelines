@@ -6,17 +6,18 @@ Entries are ordered by version. Version 0 is the unstamped format.
 
 Migrate from version 6.
 
-### Data
+### Frontmatter
 
-Move these sections into the frontmatter's data (`../../scripts/README.md` § Conventions data), with every value and text unchanged, and remove them from the body:
+Rewrite the frontmatter as the line `conventions: 7`.
 
-- `Worktree folder root` → `worktree-folder-root`.
-- `Commit format` → `commit-format`, a list of its lines when it has several.
-- Each `Guardrails` block → an entry of `guardrails` under its name: its `rule`, and its `agents` as `profiles`.
-- Each `Resources` block → an entry of `resources` under its name: its `resource`, and its `agents` as `profiles`.
-- `Agents` → `agents`: each profile's `model` and `subagents`, and its lanes under `lanes` by id, each with its `brief`, `model`, and `subagents`.
+### Entries
 
-Offer `landing-commit`, the template of the commits `rp land` makes, proposing one that the commit format's examples follow, such as `{subject} (orchestrator)`. Offer variables for the placeholders these texts use (`setup.md` § Write). In `.rp.local.md`, the same conventions move into its frontmatter, without `conventions`.
+Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, and a lane's brief the lane's text. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
+
+### Additions
+
+- `Landing commit`, optional: the template of the commits `rp land` makes. Propose one that the commit format's examples follow, such as `{subject} (orchestrator)`.
+- `Variables`, optional: the placeholders the guardrail, resource, commit-format, and brief texts use (`setup.md` § Write).
 
 ## 6
 
