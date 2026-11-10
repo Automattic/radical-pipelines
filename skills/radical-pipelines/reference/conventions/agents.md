@@ -9,17 +9,17 @@ The Agents section holds an entry per profile — `spec-producer`, `design-doc-p
 
 #### spec-producer
 
-- model: `opus`
-- subagents: `sonnet`
+- model: `large`
+- subagents: `small`
 
 ##### demands
 
-- model: `opus`
+- model: `large`
 
 Read the intent for what it demands.
 ```
 
-The section sits in the shared conventions or in an agentic tool's section. When confirming a run, propose the shared one or the active tool's, never another tool's. A profile without defaults uses your model and no lanes. `.rp.local.md`'s Agents entries give only `model` and `subagents`, for a profile or for a lane the run declares: they pin this clone's models (`../run/state.md` § Run configuration), and are never proposed.
+The section sits in the shared conventions or in an agentic tool's section (`load.md` § Sources). Propose it when confirming a run. A profile without defaults uses your model and no lanes. `.rp.local.md`'s Agents entries give only `model` and `subagents`, for a profile or for a lane the run declares: they pin this clone's models (`../run/state.md` § Run configuration), and are never proposed.
 
 ## Fields
 
