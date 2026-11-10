@@ -24,3 +24,19 @@ Under the changed skill, new work on issue 377 routes as new intent from `v4`. T
 The design doc's Risks say further work on the issues of such pipelines starts new pipelines, so this input arises in intended use for as long as pipelines holding `run-config.md` stay unmerged. The reviewer also notes that a pipeline triage has prepared is unlisted from step 5, which commits its intent, until step 6 commits its `run-config.json`.
 
 Question: does a new pipeline's slug also name no existing branch, local or remote-tracking, taking the next suffix while it does?
+
+## spec-producer — 0d022d46276eb6c0aad7306217b1d989a6ae3c4b
+
+### Finding 1: stands
+
+spec-requirement-20 is the owner's clause. Commit a5c6c02a narrowed it from "no folder at any branch tip" to the tree the new pipeline starts from. The same commit recorded the taken-branch case under Considered and not required. The finding's input is observed. Its outcome is not the one the clause guards against:
+
+- Triage step 5 creates a new pipeline's branch at the start ref ("Branch at the chosen start ref"). No step for a new pipeline checks out an existing branch (read `reference/entries/triage.md` step 5).
+- When a local branch already holds the name, `git worktree add -b <name> <path> <start ref>` stops with `fatal: a branch named '<name>' already exists` and creates nothing (`1-spec/spec/taken-branch-probe.txt`).
+- When only a remote-tracking branch holds the name, the branch is created at the start ref and holds only the new pipeline's files. Pushing it is then rejected as non-fast-forward (same file).
+
+So the new pipeline's folder never receives another pipeline's files, which is what spec-requirement-20 requires. What remains is a visible stop: triage cannot create the branch, or the push is rejected, and no rule gives another slug. The owner chose that outcome over checking branches. Commit 0d022d46 restates the reason in the Considered line with both observed outcomes, and leaves the requirement unchanged. Taking the next suffix for a taken branch name would reverse the owner's choice, so that decision is the owner's. Escalate it if you hold that it should change.
+
+### A prepared pipeline is unlisted from step 5 to step 6: stands
+
+The same evidence holds. Until step 6 commits its `run-config.json`, a prepared pipeline's folder exists only at its branch tip, outside the base branch's tree, and its branch name is taken as above. The spec leaves out listing such a pipeline under Considered and not required, because no source shows a consumer continuing a pipeline whose run never started. Committing `run-config.json` together with the intent is a question of how triage is built, so the design doc decides it.
