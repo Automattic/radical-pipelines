@@ -109,7 +109,7 @@ origin: from-intent intent-constraint-7
 
 observed: `rp check` stops with `pipeline of an earlier format; it is not continued` on a `run-config.md` of format 6 or without one, and with `pipeline of a newer format 8; update the skill` on format 8. `rp pipelines` prints a format for each pipeline, and prints `earlier` for a folder holding `prompt.md`, a phase folder under `base/`, or a phase folder without `run-config.md` (`1-spec/spec/probe-today.txt`).
 
-spec-requirement-15: The orchestrator distinguishes no pipeline by format. Triage, reporting, and setup's migration name no pipeline format and no pipeline of an earlier format. Triage runs `rp check` on every pipeline `rp pipelines` lists for an issue, and routes each through its Route table like any other.
+spec-requirement-15: The orchestrator distinguishes no pipeline by format. Triage, reporting, and setup's migration name no pipeline format and no pipeline of an earlier format. Triage runs `rp check` on every live pipeline `rp pipelines` lists for an issue, takes a merged one as listed, as today, and routes each through its Route table like any other.
 
 origin: from-intent intent-constraint-7
 
@@ -140,7 +140,7 @@ origin: from-intent intent-proposal-1
 observed: today a folder is a pipeline when it holds a phase folder (directly or under `base/`), `run-config.md`, or `prompt.md` (read `reference/run/state.md` § Names). `rp pipelines` lists folders of each kind (`1-spec/spec/probe-today.txt`).
 observed: the merged pipelines in `v4`'s tree hold a format-6 `run-config.md`, and their intents name their issues in `origin:` lines of the body (`1-spec/spec/observations.txt`).
 
-spec-requirement-20: When triage starts a new pipeline, its slug names a folder that exists nowhere in the repository: not in the pipelines folder root of the commit its branch starts from, and not at the tip of any branch, local or fetched. The new pipeline's folder therefore holds only its own files. This holds when an issue's earlier work sits only in folders `rp pipelines` does not list, and triage routes that work as new intent.
+spec-requirement-20: When triage starts a new pipeline, its slug names a folder that does not exist in the pipelines folder root of the commit its branch starts from, whether or not `rp pipelines` lists that folder. The new pipeline's folder therefore holds only its own files.
 
 origin: derived intent-proposal-1 issues get new pipelines while an earlier pipeline folder exists. `trunk`'s pipelines folder root holds re-attempt folders such as `122-plan-driven-test-selection-v2`, `v4`'s holds issue 371's merged folder, and issue 195's folder sits at 16 branch tips, local and fetched (observed: `1-spec/spec/observations.txt`)
 
@@ -220,7 +220,7 @@ spec-acceptance-criterion-26: Given a `run-config.json` that `rp` cannot read, w
 
 spec-acceptance-criterion-27: Given any pipelines folder root, when `rp pipelines` lists its pipelines, with or without `--json`, then no entry carries a format.
 
-spec-acceptance-criterion-28: Given the skill, when the orchestrator follows triage, reporting, or setup's migration, then no step names a pipeline format or a pipeline of an earlier format. Every pipeline `rp pipelines` lists for the issue is checked with `rp check` and routed through the Route table.
+spec-acceptance-criterion-28: Given the skill, when the orchestrator follows triage, reporting, or setup's migration, then no step names a pipeline format or a pipeline of an earlier format. Every live pipeline `rp pipelines` lists for the issue is checked with `rp check`, and every listed pipeline is routed through the Route table.
 
 spec-acceptance-criterion-29: Given a checkout with no installed package, when `rp` runs any of its commands, then it runs with Node and Git alone.
 
@@ -233,7 +233,7 @@ spec-acceptance-criterion-32: Given a pipelines folder root holding folders with
 spec-acceptance-criterion-33: Given an issue whose only folders in the pipelines folder root lack `run-config.json`, when the owner brings work on it, then:
 
 - triage routes the work as new intent;
-- the new pipeline's folder exists neither in the tree its branch starts from nor at any branch tip;
+- the new pipeline's folder does not exist in the tree its branch starts from;
 - `rp check` on the new pipeline reports no file the new pipeline did not write.
 
 spec-acceptance-criterion-34: Given guardrails and resources that each bind some profiles, when triage asks the owner to confirm a run, then the confirmation names, under each profile, every guardrail and resource the run configuration will carry for it.
@@ -257,7 +257,7 @@ spec-exclusion-4: `rp` does not stop on a project whose `.gitignore` lacks `run-
 - `owner-directions` recorded in `run-config.local.json` — the owner gives directions for a run directly, not in `.rp.local.md` (observed: the main checkout's `.rp.local.md` holds only an Artifact storage section, in `1-spec/spec/observations.txt`).
 - Leaving this repository's `.gitignore` entry to setup — not taken: setup does not run here again at version 7 (spec-requirement-10).
 - Leaving per-tool Agents to the loader's existing rule for tool sections, with no requirement of its own — not taken: today Agents is one frontmatter entry for every tool (read `reference/conventions/agents.md`), and intent-context-1 names the per-tool table as the use that was lost.
-- Checking a new pipeline's slug only against the pipelines folder root of the commit its branch starts from — not taken: issue 195's folder and branch exist at 16 branch tips, local and fetched, and are not in `v4`'s tree (observed: `1-spec/spec/observations.txt`).
+- Checking a new pipeline's slug against the tip of every branch, local or fetched — a folder outside the tree the pipeline starts from never shares the new pipeline's folder, which is what made `rp check` report older files (spec-requirement-20), and a branch whose name is taken cannot be created.
 - Reading a folder that holds a phase folder or `run-config.md`, but no `run-config.json`, as a pipeline whose `run-config.json` is missing — not taken: intent-proposal-1 makes `run-config.json` the mark of a pipeline, and such a folder's intent names its issue in body `origin:` lines (observed: `v4`'s pipeline 371, in `1-spec/spec/observations.txt`).
 - Listing a prepared pipeline whose run never started, with an intent committed and no `run-config.json` — no source shows a consumer continuing one. Triage writes the run configuration at the run start that follows preparation (read `reference/entries/triage.md` steps 5 and 6), and a later pipeline for the issue takes a folder at no branch tip (spec-requirement-20).
 - An intent that names its issue only in body `origin:` lines, in a folder holding `run-config.json` — no pipeline started under the current skill writes one: the intent names its issue in its frontmatter (read `reference/entries/intent-format.md`).
