@@ -104,6 +104,7 @@ describe("frontier", () => {
       ["the worktree folder root missing", () => writeConfig({ "worktree-folder-root": undefined }), /run-config\.json: worktree-folder-root: missing/],
       ["an unknown key", () => configure({ workflow: "autonomous" }), /run-config\.json: unexpected key: workflow/],
       ["a lanes list", () => writeConfig({ lanes: [{ profile: "reviewer", id: "a" }] }), /run-config\.json: unexpected key: lanes/],
+      ["owner directions given as null", () => configure({ "owner-directions": null }), /run-config\.json: owner-directions: must be a list of strings/],
       ["owner directions holding other than strings", () => configure({ "owner-directions": ["Keep it local.", 2] }), /run-config\.json: owner-directions: must be a list of strings/],
       ["agents that are not an object", () => configure({ agents: [] }), /run-config\.json: agents: must be a JSON object/],
       ["agents naming an unknown profile", () => configure({ agents: { implementor: {} } }), /agents: unexpected key: implementor/],

@@ -560,8 +560,8 @@ export function parseConfig(bytes, malformed) {
   const targetPhase = data["target-phase"];
   if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) malformed("target-phase: must be an integer from 1 to 4");
   if (typeof data.base !== "string" || !data.base.trim()) malformed("base: must be a revision, a non-empty string");
-  const directions = data["owner-directions"] ?? [];
-  if (!Array.isArray(directions) || !directions.every((direction) => typeof direction === "string")) malformed("owner-directions: must be a list of strings");
+  const directions = data["owner-directions"];
+  if ("owner-directions" in data && !(Array.isArray(directions) && directions.every((direction) => typeof direction === "string"))) malformed("owner-directions: must be a list of strings");
   const agents = "agents" in data ? parseAgents(data.agents, malformed) : {};
   return { targetPhase, base: data.base, agents, lanes: lanesOf(agents), landingCommit: null, commitFormat: null, guardrails: {}, resources: {}, variables: {},
     ...conventionsOf(data, malformed) };
