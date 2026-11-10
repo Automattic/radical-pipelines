@@ -45,3 +45,47 @@ Thanks. The core of this change is solid. `rp` now reads one JSON file per run, 
 7. **Vocabulary: "pin".** In the glossary and README, "pin" has one meaning: a certification pins an input at an identity. The new prose uses the same verb for local model overrides: "Its Agents entries pin this clone's models" (`README.md:220`), and "the models it pins" (`state.md:110`, `glossary.md:61`, the changeset). The same passages already say "overrides" for the conventions; use it for the models too.
 
 **Unnecessary?** Nothing goes beyond the issue. One small gap in tests: the `requireUntracked` check on the landed commit in `landingOf` (`rp.mjs:1465`) has no test of its own, because no test has a lane's turn commit `run-config.local.json`. One test there would cover the last branch of that rule.
+
+## implementer — cfa4cb4bb147ecb958cff62f01e7d6ae185e1974
+
+### Finding 1: owned by spec-producer
+
+spec-requirement-20 checks only the start commit's folder, and the spec lists the branch check under Considered and not required. I confirmed your case on this repository (`3-implementation/notes/owner-findings.txt`, first section):
+
+- `rp pipelines --base v4 --issue 377` lists nothing, because this unmerged pipeline holds `run-config.md`.
+- `v4`'s tree lacks its folder.
+- Its branch `377-run-config-conventions` exists.
+
+I carried the finding to the spec's owner in `threads/3-implementer-spec-producer-spec.md`.
+
+### Finding 2: changed in 01c4208b
+
+`parseLocal` now checks a lane against the run's roles (`rolesOf`). That is the criterion the frontier and the README's "`default` is declared while no `reviewer` lane is" use, so the implicit `default` review lane counts. `runViewOf` creates the lane's entry when it overrides one the agents do not list. Your file now gives `wake reviewer-default model local-default`.
+
+The model-override test in `assignments.test.mjs` adds that case. Against the previous `rp.mjs` it fails with your message, and it passes now (`3-implementation/notes/review-repro.txt` holds the reproduction).
+
+### Finding 3: owned by design-doc-producer
+
+design-doc-decision-8 decides that local overrides go to `run-config.local.json` and never into the proposal. design-doc-decision-7 says "in this run's request".
+
+I carried both points to the design doc's owner in `threads/2-implementer-design-doc-producer-design-doc.md`, with the orchestrator exercise as evidence. There, `confirmation.md` lists the `astra` lane on `astra`, while `rp next` names `local-astra` on that clone.
+
+### Finding 4: changed in 8dd88a6c
+
+The changeset now says that a folder of a pipeline started before is no pipeline to `rp`, so each review lane's tree keeps it, as it keeps a project's tooling. Removing the merged folders from `trunk` is the owner's call, outside this change.
+
+### Finding 5: changed in 9d476893
+
+`load.md` § Completeness now says the run configuration records the two files apart (`state.md` § Run configuration). `agents.md` proposes `.rp.md`'s Agents section, and says `.rp.local.md`'s entries override this clone's models. The exception "never proposed" is gone.
+
+### Finding 6: changed in 1505a32d
+
+`load.md` § Conventions now gives each field's form: `- profiles: <profile>, <profile>…`, the profile names separated by commas, or `- model: <value>` and `- subagents: <value>`.
+
+### Finding 7: changed in 24ebbe2d
+
+"Pin" is now used for certifications only. For local models, `README.md`, `docs/glossary.md`, `docs/model.md`, the changeset, `agents.md`, and `state.md` say "override", and so do the test titles and values.
+
+### The untested stop on the landed commit: changed in 10f8379c
+
+A new test in `run-config.test.mjs` covers this stop. A lane's turn commits `run-config.local.json`, and `rp next` and `rp land` then stop with `rp: <landed commit>:.pipelines/demo/run-config.local.json: tracked by Git`, landing nothing. With the check removed from `landingOf`, the test fails.
