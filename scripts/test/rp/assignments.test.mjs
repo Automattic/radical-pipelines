@@ -370,9 +370,9 @@ describe("assignments", () => {
       assert.match(opencode[0], /^wake implementer model opus$/m);
     });
 
-    it("with each model and subagent model run-config.local.json pins replacing the committed one of its lane or profile, and the committed ones where it pins none", () => {
+    it("with each model and subagent model run-config.local.json pins replacing the committed one of its lane or profile, the default review lane's included, and the committed ones where it pins none", () => {
       const agents = { "spec-producer": { model: "opus", subagents: "sonnet", lanes: { a: { model: "sonnet" }, b: {}, c: { subagents: "luna" } } }, implementer: { model: "opus", subagents: "sonnet" } };
-      const pins = { agents: { "spec-producer": { model: "pinned-opus", subagents: "pinned-sonnet", lanes: { b: { model: "pinned-b", subagents: "pinned-b-sub" } } } } };
+      const pins = { agents: { "spec-producer": { model: "pinned-opus", subagents: "pinned-sonnet", lanes: { b: { model: "pinned-b", subagents: "pinned-b-sub" } } }, reviewer: { lanes: { default: { model: "pinned-default" } } } } };
       const models = (role) => { const { model, values } = assign(role); return [model, values["subagent-model"][0] ?? null]; };
       const lanes = () => ["a", "b", "c"].map((id) => models(`spec-producer-${id}`));
       local(pins);
@@ -383,6 +383,8 @@ describe("assignments", () => {
       local(pins);
       pipeline(2, { agents });
       assert.deepEqual(models("implementer"), ["opus", "sonnet"]);
+      pipeline(3, { agents });
+      assert.deepEqual(models("reviewer-default"), ["pinned-default", null]);
       assert.equal(spawnSync("git", ["grep", "--quiet", "pinned", "HEAD"], { cwd: root }).status, 1);
     });
   });

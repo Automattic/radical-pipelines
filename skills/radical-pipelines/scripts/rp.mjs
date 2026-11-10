@@ -568,7 +568,7 @@ export function parseConfig(bytes, malformed) {
 }
 
 // run-config.local.json, over the run configuration `config`: the conventions it overrides, and in `agents` the models
-// and subagent models it pins, for a profile or for a lane `config` declares; each key optional.
+// and subagent models it overrides, for a profile or for a lane of `config`'s roles (§ rolesOf); each key optional.
 export function parseLocal(bytes, config, malformed) {
   const data = jsonObjectOf(bytes, malformed, [...CONVENTIONS, "agents"]);
   const local = conventionsOf(data, malformed);
@@ -576,7 +576,7 @@ export function parseLocal(bytes, config, malformed) {
   local.agents = parseAgents(data.agents, malformed, MODELS);
   for (const [profile, entry] of Object.entries(local.agents))
     for (const id of Object.keys(entry.lanes ?? {}))
-      if (!config.agents[profile]?.lanes?.[id]) malformed(`${entryName(`agents.${profile}.lanes`, id)}: a lane ${CONFIG} does not declare`);
+      if (!rolesOf(config).some((role) => role.profile === profile && role.lane === id)) malformed(`${entryName(`agents.${profile}.lanes`, id)}: a lane ${CONFIG} does not declare`);
   return local;
 }
 
@@ -588,7 +588,10 @@ function runViewOf(config, local) {
   const agents = structuredClone(config.agents);
   for (const [profile, { lanes = {}, ...models }] of Object.entries(local.agents ?? {})) {
     agents[profile] = { ...agents[profile], ...models };
-    for (const [id, pins] of Object.entries(lanes)) Object.assign(agents[profile].lanes[id], pins);
+    for (const [id, overrides] of Object.entries(lanes)) {
+      const own = agents[profile].lanes ??= {};
+      own[id] = { ...own[id], ...overrides };
+    }
   }
   return { ...config, ...local, ...Object.fromEntries(["guardrails", "resources", "variables"].map((key) => [key, { ...config[key], ...local[key] }])), agents, lanes: lanesOf(agents) };
 }
