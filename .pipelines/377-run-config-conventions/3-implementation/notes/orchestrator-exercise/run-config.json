@@ -1,0 +1,60 @@
+{
+  "target-phase": 4,
+  "base": "v4",
+  "worktree-folder-root": ".worktrees",
+  "landing-commit": "{subject} (orchestrator)",
+  "commit-format": "Use imperative mood, sentence case, no period at the end. End with the profile name in parentheses, or `(assisted)` for a commit a person made with an agent outside a pipeline.\n\nExamples:\n\n- `Add intent (orchestrator)`\n- `Add spec (spec-producer)`\n- `Support for X (implementer)`\n- `Open review thread (reviewer)`\n- `Fix bug Y (assisted)`",
+  "guardrails": {
+    "tests": {
+      "rule": "Run `npm test` and confirm it passes.",
+      "profiles": ["implementer", "reviewer"]
+    },
+    "documentation": {
+      "rule": "Follow `AGENTS.md` and `docs/glossary.md`, the canonical vocabulary.",
+      "profiles": ["implementer", "reviewer"]
+    }
+  },
+  "resources": {
+    "test suite and scripts": {
+      "resource": "The repository's test suite and scripts. `npm test` runs the unit tests; `npm run test:rp`, `npm run test:opencode-unit`, and `npm run test:release` run parts of them, and `npm run test:opencode` runs the opencode integration suite. `node skills/radical-pipelines/scripts/rp.mjs` runs `rp`, and every script under `scripts/` may be run directly.",
+      "profiles": ["spec-producer", "design-doc-producer", "implementer", "reviewer"]
+    }
+  },
+  "agents": {
+    "spec-producer": {
+      "model": "opus",
+      "subagents": "sonnet",
+      "lanes": {
+        "demands": {
+          "brief": "Read the intent for what it demands: every outcome it asks for, and each input intended use produces that an outcome must handle.",
+          "model": "opus"
+        },
+        "omits": {
+          "brief": "Read the intent for what it leaves out: the cases, mechanisms, and guarantees it does not ask for and no intended use produces, and keep the spec to what remains.",
+          "model": "sonnet"
+        }
+      }
+    },
+    "design-doc-producer": {
+      "model": "opus",
+      "subagents": "sonnet"
+    },
+    "implementer": {
+      "model": "fable",
+      "subagents": "sonnet"
+    },
+    "reviewer": {
+      "lanes": {
+        "default": {
+          "model": "opus",
+          "subagents": "sonnet"
+        },
+        "astra": {
+          "model": "astra",
+          "subagents": "luna"
+        }
+      }
+    }
+  },
+  "owner-directions": ["Keep the pipeline branch local: do not push it."]
+}

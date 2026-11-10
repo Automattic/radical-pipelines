@@ -1,0 +1,11 @@
+equal conventions
+equal worktree-folder-root
+equal landing-commit
+equal commit-format
+equal guardrails.tests
+equal guardrails.documentation
+equal resources.test suite and scripts
+equal agents.spec-producer
+equal agents.design-doc-producer
+equal agents.implementer
+equal agents.reviewer

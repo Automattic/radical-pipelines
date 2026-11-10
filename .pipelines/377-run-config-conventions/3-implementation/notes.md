@@ -1,0 +1,34 @@
+---
+status: done
+---
+
+# Implementation notes
+
+## Done
+
+- `rp` reads `run-config.json`, and for `next` and `land` `run-config.local.json` over it by name; it reads neither `.rp.md` nor `.rp.local.md`, carries no pipeline format, marks a pipeline folder by `run-config.json` alone, and stops `check`, `next`, and `land` on a `run-config.local.json` Git tracks. The `rp` contract (`scripts/README.md`, `templates/README.md`) and the tests follow, with `scripts/test/rp/run-config.test.mjs` new (7b69f1e2, 10ad9963).
+- The skill: conventions as prose entries (`load.md`, `guardrails.md`, `resources.md`, `agents.md`, `setup.md`), the run configuration recorded verbatim at every run start (`state.md` § Run configuration, triage steps 4 and 6, `loop.md`, `SKILL.md`), and no step naming a pipeline format (triage, report, changelog) (43724325, 38cfdf7e, 14deae6e).
+- This repository's `.rp.md` as prose at version 7, each text and value equal to its frontmatter data at 1a43fc61 (8874be1a; `notes/rp-md-inspection.txt`, from `notes/rp-md-inspection.mjs`).
+- Derived: changelog entry 7 migrates a version-6 `.rp.md` into the entry form (823cc4d1); `.gitignore` ignores `run-config.local.json` (a65c1681; `notes/check-ignore.txt`); a new pipeline's slug names no folder of its start commit's pipelines folder root (73c38a58); Agents may sit in a tool's section (a4da7fee).
+- `README.md`, `docs/`, the website's file listing, and the unreleased changesets, `conventions-as-data.md` becoming `run-configuration.md` (635225d6, 6554527c).
+
+## Remaining
+
+## Decisions
+
+- Prose entry form (`load.md` § Conventions): a value is one code span; a text is its own lines; an entry is a heading, its fields as `- <field>: <value>` list items, then a blank line and its text. Guardrails and resources have a `profiles` field; Agents profiles and lanes have `model` and `subagents`, a lane one heading level below its profile.
+- `rp` messages: `cannot read <folder>/run-config.json: missing`; `<path>: <key>: missing`; `<path>: unexpected key: <key>`; `<path>: tracked by Git`; `<path>: agents.<profile>.lanes.<id>: a lane run-config.json does not declare`.
+- The tracked check is `requireUntracked`, called first by `inspect` (working tree: the index or `HEAD`; `--ref`: that commit) and by `landingOf` (the commit a landing would leave).
+- `objectAt` takes an empty `at` for a whole file, and `jsonObjectOf` parses a JSON file holding one object; the certification parser uses both, with its messages unchanged.
+- Test fixture: `configure()` writes `run-config.json` with `worktree-folder-root: ".worktrees"` and the conventions `conventions(data)` sets; `useRepo` has Git ignore `.worktrees/` and `run-config.local.json`, as setup has a project ignore them; `ignore(pattern)` appends to the exclude file.
+- The unreleased changesets describe what ships, as earlier unreleased reworks did: `conventions-as-data.md` is rewritten as `run-configuration.md`, and the others name `run-config.json`.
+- Against the base's `rp.mjs`, the changed and new tests fail (180 of 192 in `run-config`, `assignments`, `pipelines`, `frontier`, and `review-lanes`; 357 of 496 across `scripts/test/rp`), most at their first `rp` call, since that `rp` reads no `run-config.json`.
+
+## Failed approaches
+
+## Assumptions
+
+spec-assumption-1: observed: a subagent on `claude-agent/sonnet`, acting as the orchestrator with the changed skill, recorded a new pipeline's `run-config.json` from this repository's `.rp.md`; each value and text equals the conventions data at 1a43fc61 (`notes/orchestrator-exercise/compare.txt`, `run-config.json`).
+spec-assumption-2: observed: that subagent's confirmation names `tests` and `documentation` under `implementer` and `reviewer`, and `test suite and scripts` under every profile (`notes/orchestrator-exercise/confirmation.md`).
+design-doc-assumption-1: observed: with `.rp.local.md` pinning the implementer to `local-opus` and a request asking for `fable`, the recorded `run-config.local.json` left that pin out, and `rp next` named `wake implementer model fable`, while the lane pin gave `wake reviewer-astra model local-astra` (`notes/orchestrator-exercise/run-config.local.json`, `rp-run.txt`).
+design-doc-assumption-2: observed: a subagent acting as the orchestrator chose the slug `371-rp-thread-and-validate-2` for new work on issue 371, because `v4`'s pipelines folder root holds `371-rp-thread-and-validate`; no ref holds the new folder (`notes/orchestrator-exercise/slug.md`).
