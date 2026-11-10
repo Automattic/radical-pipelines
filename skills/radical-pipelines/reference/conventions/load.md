@@ -34,7 +34,7 @@ Every convention is a prose section. The run configuration copies some of them v
 
 - A value is one code span, whose content is the value: the worktree folder root, the landing commit template, a variable's template, and a model name.
 - A text is written as its own lines, unindented and unquoted: the commit format, a guardrail's rule, a resource's text, and a lane's brief.
-- An entry is a heading naming it, then its fields, one list item `- <field>: <value>` each, then, when it has a text, a blank line and the text, the entry's remaining lines. Guardrails and resources (`guardrails.md`, `resources.md`), and profiles and lanes (`agents.md`), are entries.
+- An entry is a heading naming it, then its fields, one list item each — `- profiles: <profile>, <profile>…`, the profile names separated by commas, or `- model: <value>` and `- subagents: <value>` — then, when it has a text, a blank line and the text, the entry's remaining lines. Guardrails and resources (`guardrails.md`, `resources.md`), and profiles and lanes (`agents.md`), are entries.
 - Worktree folder root and Landing commit: the section's body is the value. Commit format: the section's body is the text. Variables: one list item per variable, `- <name>: <template>`.
 
 ## Schema stamp
