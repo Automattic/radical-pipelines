@@ -10,4 +10,4 @@ BREAKING: Run each loop step with `rp next` and `rp land`, which replace `rp sta
 
 Each changed input in an assignment now names the commit at which it was as its artifact last landed, so its diff shows only what changed since, also after a landing that left the artifact unchanged.
 
-The worktree folder root moves into `.rp.md`'s data as `worktree-folder-root`, and `landing-commit` declares the template of the commits `rp land` makes, such as `{subject} (orchestrator)`; without it, a commit has its subject alone. Lane branches no longer fire `before-creating-branch` or `after-creating-branch`.
+`rp next` places each lane's worktree under the worktree folder root, and the **Landing commit** convention declares the template of the commits `rp land` makes, such as `{subject} (orchestrator)`; without it, a commit has its subject alone. Lane branches no longer fire `before-creating-branch` or `after-creating-branch`.

@@ -117,7 +117,7 @@ describe("approval freshness", () => {
     assert.ok(lines.includes(`review default stale ${INTENT} code`));
   });
 
-  it("uses the merge-base with the base run-config.md names", () => {
+  it("uses the merge-base with the base run-config.json names", () => {
     pipeline(3);
     git(root, "branch", "release", "main");
     onBase(() => writeFile("src/main-only.js", "x\n"));

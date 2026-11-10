@@ -26,8 +26,8 @@ flowchart TD
     R5 --> GROUP
     R6 --> GROUP
     R7 --> GROUP
-    GROUP --> NEED{"Writes an intent, constraint, or proposal; no run-config.md or the request changes it; or a question left open?"}
-    NEED -->|Yes| CONFIRM["In one message: each route and why, the text to write, the configuration — target, lanes, models — what a lane change does to the tree, and the open questions; revise until the owner confirms"]
+    GROUP --> NEED{"Writes an intent, constraint, or proposal; no run-config.json or the request changes it; or a question left open?"}
+    NEED -->|Yes| CONFIRM["In one message: each route and why, the text to write, the configuration — target, lanes, models — each profile's guardrails and resources, what a lane change does to the tree, and the open questions; revise until the owner confirms"]
     NEED -->|No| PREP
     CONFIRM --> PREP{"Prepare every route of the run"}
     PREP --> P1["New pipeline: slug and branch; branch at the start ref and worktree; synthesize and commit the intent"]
@@ -38,7 +38,7 @@ flowchart TD
     P2 --> RUN
     P3 --> RUN
     P4 --> RUN
-    RUN["Record unconsumed work directions as later input; write and commit run-config.md with the agents the owner confirmed"] --> START["Fire run-started; run the loop"]
+    RUN["Record unconsumed work directions as later input; record the run configuration from .rp.md and .rp.local.md and commit run-config.json"] --> START["Fire run-started; run the loop"]
     START --> NEXT{"Another run?"}
     NEXT -->|Yes| PREP
 ```
