@@ -1,0 +1,24 @@
+### untracked, no ignore entry: git status and git add -A
+?? .pipelines/demo/run-config.local.json
+ls-files after add -A:
+.pipelines/demo/run-config.json
+.pipelines/demo/run-config.local.json
+### .gitignore holds the bare name run-config.local.json
+.gitignore:1:run-config.local.json	.pipelines/demo/run-config.local.json
+[check-ignore exit 0]
+[status above: nothing for the local file]
+ls-files after add -A:
+.pipelines/demo/run-config.json
+### forced: staged, then committed
+ls-files (staged):
+.pipelines/demo/run-config.json
+.pipelines/demo/run-config.local.json
+ls-tree HEAD:
+.pipelines/demo/run-config.json
+.pipelines/demo/run-config.local.json
+### rm --cached, uncommitted: index lacks it, HEAD holds it
+ls-files:
+.pipelines/demo/run-config.json
+ls-tree HEAD:
+.pipelines/demo/run-config.json
+.pipelines/demo/run-config.local.json
