@@ -44,3 +44,36 @@ Observed in the orchestrator exercise:
 `0-intent/constraint-1.md` lets the owner overrule a local model when confirming a run. To do that, the owner has to see it.
 
 Question: does the confirmation show each local override beside the committed model?
+
+## design-doc-producer — 3fcd2c5008c743cd78ff3712925437c223c077db
+
+### Finding 1: changed in 3fcd2c50
+
+Yes. design-doc-decision-5 now has `rp pipelines` read each listed pipeline's intent through the file grammar, the check `rp check` and `rp validate` make of the intent alone. A listed folder whose intent is missing, is not a regular file, or is rejected by that grammar stops the command, naming the intent and the reason, with or without `--issue`. "An intent whose frontmatter cannot be read has no origins" is gone, and is recorded under Alternatives.
+
+- I reproduced the case with the changed `rp` (`2-design-doc/design-doc/probe-respond.txt`): `rp pipelines` lists the pipeline, `--issue 5` lists nothing, and `rp check` reports `INVALID 0-intent/intent.md: frontmatter has no closing --- line`.
+- Intended use produces this input. An unquoted issue reference such as `issue: #368` is outside the grammar (`state.md` § Frontmatter), and a run can stop before its `fix` line is acted on.
+- The stop uses the file grammar rather than a second, looser "readable frontmatter" criterion. An intent with a key outside the grammar stops discovery too. The existing test "malformed files discovery does not read" keeps its other files, but its intent with `status: x` now stops.
+- The trade-off you raised is recorded under Trade-offs and Risks. One malformed intent at any branch tip stops discovery for every issue until its pipeline's branch repairs it, as a missing intent already does.
+
+### Finding 2: changed in 3fcd2c50
+
+(a) Only the field the owner asked for is left out. design-doc-decision-7 now reads: a model or subagent model the owner asks for, for a profile or lane, holds on this clone for the rest of that run. `run-config.json`'s agents record it, and `run-config.local.json` holds no override of that field for that profile or lane. Every other override stays, the other field of the same entry included. With the changed `rp`, a local file that keeps only the subagent override gives the role the committed model and the local subagent model (`probe-respond.txt`, third section). Your example therefore delegates on `local-small`.
+
+(b) The rule follows `0-intent/constraint-1.md`'s "when confirming or changing a run", not "this run's request":
+- A model asked for while confirming is left out when the run start records the file.
+- A model asked for during the run is recorded in `run-config.json`, as `state.md` already has every configuration change written and committed before acting on it. Its field's override is removed from `run-config.local.json` then, and the file is removed when nothing remains.
+- This is not a rewrite from `.rp.local.md`. The next run start records `.rp.local.md` again, so the override returns for the next run.
+- A role already running keeps its model until it is spawned again. This is noted under Trade-offs.
+
+design-doc-assumption-1 and the inspection entry in § Verification now carry both moments and the per-field rule. One case stays uncovered, and Risks records it: the owner asks for a profile's model while the local file overrides that field for a lane that would inherit it. No observed `.rp.local.md` produces it, and the confirmation now shows that lane's override.
+
+### Finding 3: changed in 3fcd2c50
+
+Yes. design-doc-decision-8 now has triage step 4's confirmation show, under each profile, each model and subagent model the run gives. Beside each one, it shows the value `.rp.local.md` overrides on this clone, marked as this clone's. `run-config.json` still records only `.rp.md`'s Agents or the owner's choice, and the overrides go to `run-config.local.json` alone. Your exercise is the evidence: `confirmation.md` lists `astra` on `astra` while `rp next` names `local-astra`. Showing only the committed models is recorded under Alternatives.
+
+### Also revised in 3fcd2c50
+
+- design-doc-decision-3 now defines the lanes the local file may name as the lanes the run has: those `run-config.json` declares, and `default` while it declares no `reviewer` lane. This matches your 01c4208b.
+- Local models are called "overrides", not "pins", to match `docs/glossary.md`.
+- design-doc-decision-8's taken-branch alternative follows the changed spec line. Git refuses a name a local branch takes, and rejects pushing a new branch whose name only a remote branch takes.
