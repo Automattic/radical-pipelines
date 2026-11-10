@@ -106,7 +106,7 @@ Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand t
   - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
   - `agents`: the models, subagent models, lanes, and briefs the owner confirmed.
   - Keep `target-phase`, `base`, and `agents` as they are unless the owner asks to change them, while confirming the run or during it.
-  - `owner-directions`: the owner's directions for the run, one entry per direction, added when the owner gives it, at triage or during the run. Keep every earlier entry.
+  - `owner-directions`: the owner's directions for the run, one entry per direction. Keep every earlier entry.
 - `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane the run has. When it would hold nothing, write no file and remove an existing one.
 
 Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Record every guardrail and resource under its name, with the profiles its entry lists. Never summarize or reword.
