@@ -370,9 +370,11 @@ describe("assignments", () => {
       assert.match(opencode[0], /^wake implementer model opus$/m);
     });
 
-    it("with each model and subagent model run-config.local.json gives replacing the committed one of its lane or profile, the default review lane's included, and the committed ones where it gives none", () => {
-      const agents = { "spec-producer": { model: "opus", subagents: "sonnet", lanes: { a: { model: "sonnet" }, b: {}, c: { subagents: "luna" } } }, implementer: { model: "opus", subagents: "sonnet" } };
-      const overrides = { agents: { "spec-producer": { model: "local-opus", subagents: "local-sonnet", lanes: { b: { model: "local-b", subagents: "local-b-sub" } } }, reviewer: { lanes: { default: { model: "local-default" } } } } };
+    it("with each model and subagent model run-config.local.json gives replacing the committed one of its lane or profile, field by field, the default review lane's included, and the committed ones where it gives none", () => {
+      const agents = { "spec-producer": { model: "opus", subagents: "sonnet", lanes: { a: { model: "sonnet" }, b: {}, c: { subagents: "luna" } } },
+        "design-doc-producer": { model: "opus", subagents: "sonnet" }, implementer: { model: "opus", subagents: "sonnet" } };
+      const overrides = { agents: { "spec-producer": { model: "local-opus", subagents: "local-sonnet", lanes: { b: { model: "local-b", subagents: "local-b-sub" } } },
+        implementer: { subagents: "local-sonnet" }, reviewer: { lanes: { default: { model: "local-default" } } } } };
       const models = (role) => { const { model, values } = assign(role); return [model, values["subagent-model"][0] ?? null]; };
       const lanes = () => ["a", "b", "c"].map((id) => models(`spec-producer-${id}`));
       local(overrides);
@@ -381,8 +383,10 @@ describe("assignments", () => {
       remove("run-config.local.json");
       assert.deepEqual(lanes(), [["sonnet", "sonnet"], ["opus", "sonnet"], ["opus", "luna"]]);
       local(overrides);
+      pipeline(1, { agents });
+      assert.deepEqual(models("design-doc-producer"), ["opus", "sonnet"]);
       pipeline(2, { agents });
-      assert.deepEqual(models("implementer"), ["opus", "sonnet"]);
+      assert.deepEqual(models("implementer"), ["opus", "local-sonnet"]);
       pipeline(3, { agents });
       assert.deepEqual(models("reviewer-default"), ["local-default", null]);
       assert.equal(spawnSync("git", ["grep", "--quiet", "local-", "HEAD"], { cwd: root }).status, 1);
