@@ -27,7 +27,7 @@ flowchart TD
     R6 --> GROUP
     R7 --> GROUP
     GROUP --> NEED{"Writes an intent, constraint, or proposal; no run-config.json or the request changes it; or a question left open?"}
-    NEED -->|Yes| CONFIRM["In one message: each route and why, the text to write, the configuration — target, lanes — each profile's models with this clone's overrides, its guardrails and resources, what a lane change does to the tree, and the open questions; revise until the owner confirms"]
+    NEED -->|Yes| CONFIRM["In one message: each route and why; the text to write; the configuration — target, lanes, each profile's models beside this clone's overrides, and its guardrails and resources; what a lane change does to the tree; and the open questions. Revise until the owner confirms"]
     NEED -->|No| PREP
     CONFIRM --> PREP{"Prepare every route of the run"}
     PREP --> P1["New pipeline: slug and branch; branch at the start ref and worktree; synthesize and commit the intent"]
