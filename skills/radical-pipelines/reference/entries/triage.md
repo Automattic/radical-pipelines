@@ -42,7 +42,8 @@ For the runs that need it, propose each run's configuration: its current `run-co
 
 - each route and why — or, when no predicate decides, the one deciding question;
 - the text of each intent, constraint, or proposal you will write;
-- the configuration to confirm or change: target phase in plain language without phase numbers, lanes, models;
+- the configuration to confirm or change: target phase in plain language without phase numbers, and lanes;
+- under each profile and lane, each model and subagent model the run gives, with the one `.rp.local.md` overrides on this clone beside it, marked as this clone's;
 - under each profile, the name of each guardrail and resource the run will carry for it: `.rp.md`'s entries that bind it, with `.rp.local.md`'s over them by name;
 - what a lane change does to the tree: a dropped production lane's folder is removed;
 - the questions steps 1 to 3 left open.
