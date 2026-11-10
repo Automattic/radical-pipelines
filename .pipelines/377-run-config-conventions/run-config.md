@@ -1,7 +1,7 @@
 ---
 {
   "format": 7,
-  "target-phase": 1,
+  "target-phase": 4,
   "base": "v4",
   "agents": {
     "spec-producer": {
@@ -44,7 +44,7 @@
 
 # Run configuration
 
-Target: the spec. The run stops after phase 1 (the spec) and waits for the owner's review.
+Target: through review. The run continues until every review lane approves.
 
 Owner directions:
 
