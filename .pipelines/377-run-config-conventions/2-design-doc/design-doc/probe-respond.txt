@@ -1,0 +1,17 @@
+### committed only: model other-large, subagents shared-small
+wake spec-producer model other-large
+- Subagent model: shared-small
+### local overrides both fields
+wake spec-producer model local-large
+- Subagent model: local-small
+### local overrides the subagent model only (the model override left out)
+wake spec-producer model other-large
+- Subagent model: local-small
+### intent frontmatter without its closing line
+$ rp pipelines --base main
+live demo .pipelines/demo
+[exit 0]
+$ rp pipelines --base main --issue 5
+[exit 0]
+$ rp check
+frontier INVALID 0-intent/intent.md: frontmatter has no closing --- line

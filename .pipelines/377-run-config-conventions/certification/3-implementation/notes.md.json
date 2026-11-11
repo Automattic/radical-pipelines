@@ -1,0 +1,6 @@
+{
+  "inputs": [
+    "1-spec/spec.md@7a6eb2cf1419",
+    "2-design-doc/design-doc.md@9f76a82418a3"
+  ]
+}

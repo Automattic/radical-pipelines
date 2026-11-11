@@ -1,0 +1,14 @@
+# Scratch: main holds no .pipelines/9-old; branch 9-old exists locally and on origin; 8-remote-only exists on origin only.
+
+$ git worktree add -b 9-old <root>/wt-9 main      (name taken by a local branch)
+fatal: a branch named '9-old' already exists
+[exit 255]
+ls: <root>/wt-9: No such file or directory
+
+$ git worktree add -b 8-remote-only <root>/wt-8 main      (name taken only by origin/8-remote-only)
+[exit 0]
+
+$ git -C <root>/wt-8 push origin 8-remote-only
+ ! [rejected]        8-remote-only -> 8-remote-only (non-fast-forward)
+error: failed to push some refs to '<root>/origin-repo'
+hint: Updates were rejected because the tip of your current branch is behind

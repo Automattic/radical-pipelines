@@ -53,7 +53,6 @@ describe("rp next", () => {
     ];
     for (const [what, reach] of steps)
       it(`with ${what}: no file, ref, worktree, assignment, or step record`, () => {
-        conventions();
         reach();
         const before = snapshot();
         assert.ok(actions(plan()).length);
@@ -82,7 +81,6 @@ describe("rp next", () => {
     });
 
     it("consolidate: the lanes to terminate first, their worktrees and branches to remove, and the root producer to wake on a fresh instance in the pipeline worktree", () => {
-      conventions();
       pipeline(0, { lanes: SPEC_LANES });
       apply();
       produceCandidates();
@@ -100,7 +98,6 @@ describe("rp next", () => {
     });
 
     it("produce and respond: the artifact's owner in the pipeline worktree, and nothing to create", () => {
-      conventions();
       pipeline(1);
       let lines = plan();
       assert.deepEqual([actions(lines), wakeOf(lines, "design-doc-producer").worktree, wakeOf(lines, "design-doc-producer").phase], [[], at(), "2"]);
@@ -112,7 +109,6 @@ describe("rp next", () => {
     });
 
     it("review: each lane's branch at the change built from the tip, a worktree on it, and its reviewer to wake there with its first request", () => {
-      conventions();
       pipeline(3, { lanes: [lane("reviewer", "default"), lane("reviewer", "second")] });
       writeFile("src/app.js", "export const a = 2;\n");
       const tip = commitAll("code");
@@ -153,7 +149,6 @@ describe("rp next", () => {
     });
 
     it("INVALID on a file no role writes: the file to fix, and no role to wake", () => {
-      conventions();
       pipeline(1);
       write(INTENT, withFrontmatter({ issue: 7, pins: "x" }, "\n# Intent\n"));
       commitAll("a rejected intent");
@@ -161,7 +156,6 @@ describe("rp next", () => {
     });
 
     it("escalate and complete: the frontier alone", () => {
-      conventions();
       pipeline(3);
       const escalated = thread(TO_OWNER);
       commitAll("escalation");
@@ -174,7 +168,6 @@ describe("rp next", () => {
 
   describe("with --apply", () => {
     it("changes exactly the worktrees, branches, and assignments the plan names, and applying again changes nothing", () => {
-      conventions();
       pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] });
       writeFile("src/app.js", "export const a = 2;\n");
       const tip = commitAll("code"), status = git(root, "status", "--porcelain", "--untracked-files=all");
@@ -192,7 +185,6 @@ describe("rp next", () => {
     });
 
     it("moves a remaining lane's branch and worktree forward to the tip, creating no worktree, its turn commit the new tip", () => {
-      conventions();
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
       produceCandidates(["a"]);
@@ -205,7 +197,6 @@ describe("rp next", () => {
     });
 
     it("stops on a failed action naming it and its reason, keeps the actions it completed, and applies only the rest once the cause is gone", () => {
-      conventions();
       pipeline(0, { lanes: SPEC_LANES });
       const blocked = laneWorktree("demo-spec-b");
       writeFile(".worktrees/demo-spec-b", "in the way\n");
@@ -226,7 +217,6 @@ describe("rp next", () => {
 
   describe("keeps a lane's commits that did not land", () => {
     it("naming its turn alone to land, which applying leaves as it is", () => {
-      conventions();
       pipeline(0, { lanes: SPEC_LANES });
       apply();
       const unlanded = commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate a\n" }, "candidate a");
@@ -249,7 +239,6 @@ describe("rp next", () => {
     ];
     for (const [what, lanes, upTo, role, branch, file, rejected, reason, repaired] of repairs)
       it(`waking ${what} whose landing would reject a file it wrote in its worktree as it stands, its next landing bringing both turns`, () => {
-        conventions();
         pipeline(upTo, { lanes });
         apply();
         const wt = laneWorktree(branch), turn1 = commitIn(wt, { [file]: rejected }, "first turn");
@@ -271,7 +260,6 @@ describe("rp next", () => {
 
   describe("names phase-started", () => {
     it("on the first step that wakes a role of a phase and on a step that resumes it, never on a step applied again", () => {
-      conventions();
       pipeline(0);
       assert.ok(apply().includes("hook phase-started 1"));
       assert.deepEqual([plan(), apply()].map((lines) => lines.filter((line) => line.startsWith("hook phase-started"))), [[], []]);
@@ -287,7 +275,6 @@ describe("rp next", () => {
   });
 
   it("wakes a role whose turn did not land for the same work, with the same changed inputs and commits", () => {
-    conventions();
     pipeline(2);
     write(INTENT, `${read(INTENT)}Changed.\n`);
     commitAll("the intent changes");
@@ -312,7 +299,6 @@ describe("rp next", () => {
     ];
     for (const [[command, ...args], message] of misuses)
       it(`stopping on rp ${command} ${args.join(" ")}`, () => {
-        conventions();
         pipeline(1);
         const before = snapshot();
         const out = run(command, abs(PIPELINE), ...args);
@@ -328,7 +314,6 @@ describe("rp next", () => {
   });
 
   it("reads a step record it wrote, and stops naming one that is malformed", () => {
-    conventions();
     pipeline(1);
     apply();
     const record = join(gitDir(root), "rp/step.json");

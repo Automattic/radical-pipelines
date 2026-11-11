@@ -1,26 +1,23 @@
-# Project-format changelog
+# Conventions changelog
 
-Entries are ordered by version. Version 0 is the unstamped format.
+Entries are ordered by version. Version 0 is a `.rp.md` without a conventions version.
 
 ## 7
 
 Migrate from version 6.
 
-### Data
+### Frontmatter
 
-Move these sections into the frontmatter's data (`../../scripts/README.md` § Conventions data), with every value and text unchanged, and remove them from the body:
+Rewrite the frontmatter as the line `conventions: 7`.
 
-- `Worktree folder root` → `worktree-folder-root`.
-- `Commit format` → `commit-format`, a list of its lines when it has several.
-- Each `Guardrails` block → an entry of `guardrails` under its name: its `rule`, and its `agents` as `profiles`.
-- Each `Resources` block → an entry of `resources` under its name: its `resource`, and its `agents` as `profiles`.
-- `Agents` → `agents`: each profile's `model` and `subagents`, and its lanes under `lanes` by id, each with its `brief`, `model`, and `subagents`.
+### Entries
 
-Offer `landing-commit`, the template of the commits `rp land` makes, proposing one that the commit format's examples follow, such as `{subject} (orchestrator)`. Offer variables for the placeholders these texts use (`setup.md` § Write). In `.rp.local.md`, the same conventions move into its frontmatter, without `conventions`.
+Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, and a lane's brief the lane's text. Rewrite `Worktree folder root` as its value alone. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
 
-### Pipelines
+### Additions
 
-A pipeline whose `run-config.md` carries no `format` 7 is listed by discovery with its format and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
+- `Landing commit`, optional: the template of the commits `rp land` makes. Propose one that the commit format's examples follow, such as `{subject} (orchestrator)`.
+- `Variables`, optional: the placeholders the guardrail, resource, commit-format, and brief texts use (`setup.md` § Write).
 
 ## 6
 
@@ -42,10 +39,6 @@ When renamed blocks give one profile different models, ask the owner which to ke
 
 - `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
 - Remove every lane's `materials` and `after`.
-
-### Pipelines
-
-A pipeline whose `run-config.md` carries no `format` 6 is listed by discovery as `earlier` and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
 
 ## 5
 
@@ -139,10 +132,6 @@ Move the model table into an `Agents` section — one block per profile — rena
 - `researcher`
 
 Keep one `researcher` row, asking the owner which existing research value to retain when values differ.
-
-### Pipelines
-
-Pipelines in the previous layout (`<pipeline slug>/base/…`) are closed: discovery reads `<pipeline slug>/0-intent/intent.md`, so they are neither live nor continued. Further work on their issue starts a new pipeline.
 
 ### Additions
 

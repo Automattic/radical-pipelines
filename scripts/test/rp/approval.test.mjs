@@ -117,7 +117,7 @@ describe("approval freshness", () => {
     assert.ok(lines.includes(`review default stale ${INTENT} code`));
   });
 
-  it("uses the merge-base with the base run-config.md names", () => {
+  it("uses the merge-base with the base run-config.json names", () => {
     pipeline(3);
     git(root, "branch", "release", "main");
     onBase(() => writeFile("src/main-only.js", "x\n"));
@@ -166,7 +166,7 @@ describe("approval freshness", () => {
 
   it("compares code outside the pipelines folder root that is the pipeline folder's parent, whatever .rp.md says", () => {
     writeFile(".rp.md", "### Pipelines folder root\n\n`elsewhere/`\n");
-    const files = { "run-config.md": '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n', "0-intent/intent.md": "# I\n", "1-spec/spec.md": "# S\n" };
+    const files = { "run-config.json": '{"target-phase": 4, "base": "main", "worktree-folder-root": ".worktrees"}\n', "0-intent/intent.md": "# I\n", "1-spec/spec.md": "# S\n" };
     for (const [rel, contents] of Object.entries(files)) writeFile(`work/pipes/demo/${rel}`, contents);
     const turn = commitAll("pipeline");
     const approval = "work/pipes/demo/threads/1-reviewer-default-implementer-implementation.md";

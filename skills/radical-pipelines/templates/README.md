@@ -15,7 +15,7 @@ Every template may use:
 - The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
 - `turn-commit`: the tip of the role's worktree; a reviewer's is the change, or above it when its lane is repaired in place (`../scripts/README.md` § `next`).
 - `rp`: `node` and the absolute path of the `rp` script writing the assignment, the path one POSIX shell word: as written when every character in it is one a shell takes literally, quoted otherwise. Each template states the role's `rp` commands in the form `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`.
-- `base-branch`: `run-config.md`'s `base`.
+- `base-branch`: `run-config.json`'s `base`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
 - `brief`: the lane's brief, its placeholders expanded, or empty.
 - `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree, as written; and `pipeline-folder-arg`, the pipeline folder's as one shell word, for a command line.

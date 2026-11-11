@@ -7,7 +7,7 @@ Tool mechanics live in the skill. Project facts live in the project files and re
 Find the repository's main root, even when running inside a worktree. Read in this order, from lowest to highest precedence:
 
 1. `tools/<active tool>.md` from the skill, when present: spawn, seat, address, terminate, health-loop, and model mechanics. When the skill has no file for the active tool, those mechanics come from the tool's section in `.rp.md`, and setup asks the owner for them.
-2. `.rp.md` from the main root: its frontmatter's data, its shared sections, and the active tool's section — `## <Tool>` inline, or the sidecar `.rp.<tool>.md` it names. Ignore other tools. A tool section written for a different tool than the active one counts as absent: offer setup for the active tool.
+2. `.rp.md` from the main root: its frontmatter, its shared sections, and the active tool's section — `## <Tool>` inline, or the sidecar `.rp.<tool>.md` it names. Ignore other tools. A tool section written for a different tool than the active one counts as absent: offer setup for the active tool.
 3. `.rp.local.md` from the main root, when present. Apply it only after the completeness check below.
 
 ## Conventions
@@ -30,11 +30,16 @@ Find the repository's main root, even when running inside a worktree. Read in th
 | Variables              | Placeholders the guardrail, resource, commit-format, and brief texts use, each a template over the vocabulary (`../../scripts/README.md` § Placeholders)                                                                                                                                                 | No       |
 | Health monitoring      | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                                                                                                                                                                                           | No       |
 
-Worktree folder root, Landing commit, Commit format, Guardrails, Resources, Agents, and Variables are data in `.rp.md`'s frontmatter (`../../scripts/README.md` § Conventions data); every other convention is a prose section.
+Every convention is a prose section. The sections the run configuration copies (`../run/state.md` § Run configuration) write each value and text in this form:
 
-## Schema stamp
+- A value is one code span, whose content is the value: the worktree folder root, the landing commit template, a variable's template, and a model name.
+- A text is written as its own lines, unindented and unquoted: the commit format, a guardrail's rule, a resource's text, and a lane's brief.
+- An entry is a heading naming it, then its fields, one list item each: `- profiles: <profile>, <profile>…`, or `- model: <value>` and `- subagents: <value>`. When the entry has a text, a blank line follows its fields, and the entry's remaining lines are the text. Guardrails and resources (`guardrails.md`, `resources.md`), and profiles and lanes (`agents.md`), are entries.
+- Worktree folder root and Landing commit: the section's body is the value. Commit format: the section's body is the text. Variables: one list item per variable, `- <name>: <template>`.
 
-`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 7.
+## Conventions version
+
+`.rp.md`'s frontmatter records the conventions version in `conventions`. The current version is 7, written as the line `conventions: 7`.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.
@@ -44,7 +49,7 @@ Worktree folder root, Landing commit, Commit format, Guardrails, Resources, Agen
 
 Check the committed `.rp.md` before merging local overrides. A complete file at the current version loads without setup. When a required row is missing, offer setup. If the owner declines, stop and explain what is missing.
 
-After it passes, merge `.rp.local.md` over it in memory: matching project facts override it, and each data entry its frontmatter names replaces the committed one by name; unmentioned facts retain their committed values.
+After it passes, merge `.rp.local.md` over it in memory: each section and entry it holds, in the same form, overrides the committed one of its name, or adds it; unmentioned facts retain their committed values. The run configuration records the two files apart (`../run/state.md` § Run configuration).
 
 ## Tool requirements
 

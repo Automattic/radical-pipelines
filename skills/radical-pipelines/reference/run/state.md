@@ -18,7 +18,8 @@ Paths are relative to the pipeline folder.
 
 | Path | Contents | Written by |
 | --- | --- | --- |
-| `run-config.md` | The run configuration (§ Run configuration) | You |
+| `run-config.json` | The run configuration (§ Run configuration) | You |
+| `run-config.local.json` | This clone's overrides of the run configuration, never committed (§ Run configuration) | You |
 | `0-intent/intent.md` | The intent (`../entries/intent-format.md`) | You, on the owner's approval |
 | `0-intent/constraint-<n>.md`, `0-intent/proposal-<n>.md`, `0-intent/failure-<n>.md` | Later input (`../entries/intent-format.md` § Later input) | You, on the owner's approval |
 | `1-spec/spec.md` | The spec | `spec-producer` |
@@ -52,7 +53,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
 - **Turn commit** — the tip of a role's worktree when `rp next --apply` writes its assignment, before you wake it. The assignment names it, and the role reads its materials at it.
 - **Stale** — an artifact or an approved review thread with a required input that its certification leaves unpinned, or pins at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its approved commit's by anything other than clean merges of the base: `rp check` merges the current base into the approved commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict outside the pipelines folder or a difference makes it stale. An approval whose approved commit the clone lacks, as after a squash merge, is no approval.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its `status` is `done`.
-- **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
+- **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.json`'s `base`.
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder: what the reviewer reads.
 - **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause.
 
@@ -65,7 +66,7 @@ The values `rp` reads from a file you or a role writes are its frontmatter: YAML
 - `notes.md`: `status`.
 - A thread: its header (§ Threads).
 
-`run-config.md`'s frontmatter is JSON (§ Run configuration). The spec, the design doc, and the candidates carry none.
+The run configuration, the spec, the design doc, and the candidates carry no frontmatter.
 
 ## Certification
 
@@ -87,7 +88,7 @@ cites: <thread path | evidence path>
 ---
 ```
 
-- **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and `reviewer-<lane>` for a review lane. Production lanes open no threads: the grammar accepts `spec-producer-<lane>` and `design-doc-producer-<lane>` only so earlier closed threads stay readable, and an `open` or `disagreement` thread with such a party is malformed. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`. The opener is any role but `owner`.
+- **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and `reviewer-<lane>` for a review lane. Production lanes open no threads: a thread whose opener or owner is `spec-producer-<lane>` or `design-doc-producer-<lane>` is malformed. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`. The opener is any role but `owner`.
 - **Messages** — in the body, each headed `## <role> — <commit>`, written by the opener, the thread's owner, or, for an owner's answer, by you as `owner`.
 - **Awaits** — an `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Status** — the opener closes `approved` or `withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which a role opens for a disagreement on what the intent means or demands, citing the thread it comes from, or for evidence that every kind of approach fails an intent goal or constraint, citing that evidence; you close it `answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
@@ -95,23 +96,31 @@ cites: <thread path | evidence path>
 
 ## Run configuration
 
-`run-config.md` at the pipeline folder root states the configuration the tree is produced under. Its frontmatter is a JSON object containing only:
+The run configuration is `run-config.json` at the pipeline folder root, one JSON object in the schema of `../../scripts/README.md` § `run-config.json`: the configuration the tree is produced under, and everything `rp` reads about the run. `run-config.local.json` beside it holds what this clone overrides, in the schema of `../../scripts/README.md` § `run-config.local.json`; no commit holds it.
 
-- `format`: the conventions format it was written under, `7`. `rp` stops on a pipeline of another format.
-- `target-phase`: an integer from 1 through 4.
-- `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
-- `agents`, optional: the models, subagent models, lanes, and briefs the owner confirmed for the run, in the schema of the **Agents** convention (`../conventions/agents.md`).
+Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand then; at no other moment write either from those files:
+
+- `run-config.json`:
+  - `worktree-folder-root`, `landing-commit`, `commit-format`, `guardrails`, `resources`, and `variables`: what `.rp.md` states, replacing what an earlier run start recorded. A convention `.rp.md` does not set is absent.
+  - `target-phase`: the phase the run continues through, 1 to 4.
+  - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
+  - `agents`: the models, subagent models, lanes, and briefs the owner confirmed.
+  - Keep `target-phase`, `base`, and `agents` as they are unless the owner asks to change them, while confirming the run or during it.
+  - `owner-directions`: the owner's directions for the run, one entry per direction. Keep every earlier entry.
+- `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane the run has. When it would hold nothing, write no file and remove an existing one.
+
+Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Record every guardrail and resource under its name, with the profiles its entry lists. Never summarize or reword.
+
+A model or subagent model the owner asks for, for a profile or lane, while confirming a run or during it, holds on this clone for the rest of that run. Record it in `run-config.json`'s `agents`. Drop that field's override for that profile or lane from `run-config.local.json`: leave it out when you record the file, or remove it when the owner asks during the run. Every other override stays, including the other field of the same entry.
 
 A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. A lane without a brief covers its profile's whole scope. Lane ids start with a lowercase letter or digit and continue with those or hyphens. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
 
-Its body is free prose — the target in words, the owner's directions for the run; `rp` ignores it.
-
-The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `withdrawn`. Terminate agents working under a changed lane.
+`run-config.json` remains with a merged pipeline, holding the conventions of its last run start. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `withdrawn`. Terminate agents working under a changed lane.
 
 ## Names
 
-- **Pipeline slug** — the pipeline's identifier, derived from its issue per the **Pipeline slug** convention: one path segment, a valid git ref, without `_`. A second pipeline for the same issue appends `-2`, `-3`.
-- **Pipeline folder** — `<pipelines folder root>/<pipeline slug>/`. A folder of the pipelines folder root is a pipeline folder when it holds a pipeline file of some format: a phase folder `<n>-<name>/`, directly or under `base/`, `run-config.md`, or `prompt.md`; anything else in the root, such as a project's pipeline tooling, is not a pipeline.
+- **Pipeline slug** — the pipeline's identifier, derived from its issue per the **Pipeline slug** convention: one path segment, a valid git ref, without `_`. A new pipeline's slug names no other pipeline of the issue and no folder in the pipelines folder root of the commit its branch starts from: while it names one, it appends `-2`, `-3`.
+- **Pipeline folder** — `<pipelines folder root>/<pipeline slug>/`. A folder of the pipelines folder root is a pipeline folder when it holds `run-config.json`; anything else in the root, such as a project's pipeline tooling, is not a pipeline.
 - **Pipeline branch** — where the pipeline's commits land: the **Pipeline branch format** convention applied to the slug; work on a merged pipeline appends `_<n>`.
 - **Lane branches** — `<pipeline branch>-<artifact>-<lane>` for a production lane, `<artifact>` being `spec` or `design-doc`; `<pipeline branch>-review-<lane>` for a review lane, at the change built from the pipeline tip. `rp next --apply` creates, moves, and removes them, each with its worktree at `<worktree folder root>/<lane branch>`.
 - **Assignment** — the file `git rev-parse --git-path rp/<profile>.md` resolves to in the role's worktree: the worktree's private git directory, outside the tree. It holds the role's template, filled by `rp next --apply`. No two instances of one profile share a worktree.
@@ -123,7 +132,7 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 
 ## The frontier
 
-`rp check <pipeline folder>` reads `run-config.md` and prints the frontier: the first of these that holds, one line per action.
+`rp check <pipeline folder>` reads `run-config.json` and prints the frontier: the first of these that holds, one line per action.
 
 1. A malformed pipeline file → `INVALID <path>: <reason>`. Nothing is computed from a malformed file.
 2. A thread with `status: disagreement` → `escalate <thread>`.
@@ -134,16 +143,15 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
    - phase 4 → `review <lane>` for each lane not approved or with a thread awaiting its reviewer.
 4. Otherwise → `complete`.
 
-Below the frontier, `rp check` lists the threads awaiting each woken role and the changed inputs of each stale artifact. A missing or invalid configuration, a certification it cannot read, a base that does not resolve, or no merge-base stops the command.
+Below the frontier, `rp check` lists the threads awaiting each woken role and the changed inputs of each stale artifact. A missing or invalid configuration, a `run-config.local.json` Git tracks, a certification it cannot read, a base that does not resolve, or no merge-base stops the command.
 
 ## Discovery
 
-Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue, reading only each pipeline's intent origins and `format`:
+Every live pipeline is a pipeline folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue, reading only each pipeline's intent:
 
-1. Collect the tree id of every `<pipelines folder root>/<pipeline slug>` at each branch tip.
+1. Collect the tree id of every pipeline folder at each branch tip.
 2. Keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history: those are the live ones.
-3. Read their `0-intent/intent.md` and the base branch's.
-4. Keep those whose intent's origins name the issue: its `issue`, or in an earlier format its `origin: issue` line.
-5. List each with its `format`: the value, or `earlier` when its `run-config.md` has none.
+3. Read their `0-intent/intent.md` and the base branch's. An intent that is missing, or that `rp check` would report `INVALID`, stops the command, naming the intent and the reason.
+4. Keep those whose intent's `issue` names the issue.
 
-Branch and folder names are not used to find pipelines; only the intent's origins are. `rp check --ref` then reads each live pipeline of the current format at its tip.
+Branch and folder names are not used to find pipelines; only the intent's origins are. `rp check --ref` then reads each live pipeline at its tip.

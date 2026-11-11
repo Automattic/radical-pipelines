@@ -1,0 +1,4 @@
+.gitignore:8:run-config.local.json	.pipelines/377-run-config-conventions/run-config.local.json
+.gitignore:8:run-config.local.json	.pipelines/some-pipeline/run-config.local.json
+[check-ignore exit 0]
+[status lists no run-config.local.json]

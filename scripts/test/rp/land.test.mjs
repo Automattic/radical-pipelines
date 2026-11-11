@@ -39,7 +39,6 @@ describe("rp land", () => {
     });
 
     it("of a review lane: picks its commits after its change onto the pipeline branch, none that built the change", () => {
-      conventions();
       pipeline(3);
       apply();
       const wt = laneWorktree("demo-review-default"), change = head(wt);
@@ -73,7 +72,6 @@ describe("rp land", () => {
     });
 
     it("of each role a rejected thread woke in the pipeline worktree: each one's artifact at its turn commit", () => {
-      conventions();
       pipeline(2);
       const path = thread({ ...TO_SPEC, status: "pending" });
       write(INTENT, `${read(INTENT)}Changed.\n`);
@@ -87,7 +85,6 @@ describe("rp land", () => {
 
     for (const rel of [SPEC, DESIGN, NOTES])
       it(`certifying ${rel} with its upstream artifacts and the later inputs targeting it`, () => {
-        conventions();
         pipeline(3, { targetPhase: 3 });
         write("0-intent/constraint-1.md", later(`${rel}#item-1`));
         write("0-intent/proposal-1.md", later([SPEC, DESIGN, NOTES].find((path) => path !== rel)));
@@ -108,7 +105,6 @@ describe("rp land", () => {
 
     for (const [rel, upTo, profile, target] of [[candidate("a"), 0, "spec-producer", SPEC], [candidate("a", "2-design-doc", "design-doc.md"), 1, "design-doc-producer", DESIGN]])
       it(`certifying ${rel} with its root's upstream artifacts alone, not the later inputs targeting its root`, () => {
-        conventions();
         pipeline(upTo, { lanes: [lane(profile, "a")] });
         write("0-intent/constraint-1.md", later(target));
         const turn = commitAll("a later input");
@@ -119,7 +115,6 @@ describe("rp land", () => {
       });
 
     it("that left its artifact unchanged, making the artifact fresh at the inputs the turn read", () => {
-      conventions();
       pipeline(3);
       write(INTENT, `${read(INTENT)}Clarified.\n`);
       commitAll("the intent changes");
@@ -129,7 +124,6 @@ describe("rp land", () => {
     });
 
     it("whose role's artifact no longer pins an input it no longer requires", () => {
-      conventions();
       pipeline(1);
       write("0-intent/failure-1.md", later(SPEC));
       commitAll("a failure");
@@ -157,7 +151,6 @@ describe("rp land", () => {
     });
 
     it("with each commit's subject alone without a landing commit template", () => {
-      conventions();
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
       commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n" }, "Add a candidate");
@@ -169,7 +162,6 @@ describe("rp land", () => {
 
   describe("prints the phases its landing made complete", () => {
     it("for a consolidation that makes the spec fresh, phase 1, and for a production lane while the root is missing, none", () => {
-      conventions();
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
       commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n" }, "Add a candidate");
@@ -181,7 +173,6 @@ describe("rp land", () => {
     });
 
     it("for one review lane's approval while another is not approved, none, and for the last one's, phase 4", () => {
-      conventions();
       pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] });
       apply();
       const approve = (laneId, n) => {
@@ -193,7 +184,6 @@ describe("rp land", () => {
     });
 
     it("for the spec-producer's answer to the implementer's thread, the spec unchanged and notes.md not done, phases 1 and 2", () => {
-      conventions();
       pipeline(2);
       const path = thread({ ...TO_SPEC, opener: "implementer", messages: [["implementer", head()]] });
       commitAll("a thread to the spec");
@@ -204,7 +194,6 @@ describe("rp land", () => {
     });
 
     it("for the second of two landings of one step that each leave a phase complete, none", () => {
-      conventions();
       pipeline(2);
       const path = thread({ ...TO_SPEC, status: "pending", messages: [["design-doc-producer", "abc1234"], ["spec-producer", "abc1234"]] });
       commitAll("a rejected thread");
@@ -217,7 +206,6 @@ describe("rp land", () => {
 
   describe("stops, landing nothing", () => {
     it("on a role whose branch lacks its turn commit, naming its worktree", () => {
-      conventions();
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
       const wt = laneWorktree("demo-spec-a");
@@ -237,7 +225,6 @@ describe("rp land", () => {
     ];
     for (const [what, lanes, upTo, role, branch, file, contents, reason] of rejections)
       it(`on ${what} the turn brings, naming it with the reason rp check gives`, () => {
-        conventions();
         pipeline(upTo, { lanes });
         apply();
         const wt = laneWorktree(branch);
@@ -250,11 +237,10 @@ describe("rp land", () => {
       });
 
     it("on a landing after which rp check could not read the pipeline", () => {
-      conventions();
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
-      const config = read("run-config.md").replace('"base": "main"', '"base": "missing-base"');
-      commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n", "run-config.md": config }, "turn");
+      const config = read("run-config.json").replace('"base": "main"', '"base": "missing-base"');
+      commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n", "run-config.json": config }, "turn");
       const before = untouched();
       const out = run("land", abs(PIPELINE), "--role", "spec-producer-a");
       assert.deepEqual([out.status, out.stdout], [1, ""]);
@@ -263,7 +249,6 @@ describe("rp land", () => {
     });
 
     it("on a landing that conflicts", () => {
-      conventions();
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
       commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# The lane's\n" }, "candidate");
@@ -278,7 +263,6 @@ describe("rp land", () => {
   });
 
   it("certifies at the turn commit whatever it holds that the certification does not read", () => {
-    conventions();
     pipeline(3);
     const path = thread({ ...TO_SPEC, status: "pending" });
     write(NOTES, "---\nstatus: [done]\n---\n");

@@ -5,8 +5,8 @@ This chart mirrors [`reference/conventions/load.md`](../../skills/radical-pipeli
 ```mermaid
 flowchart TD
     A["Find the repository's main root, even from a worktree"] --> B["Read the skill's tools/tool.md"]
-    B --> C["Read .rp.md: its frontmatter's data, shared sections, and the active tool's section"]
-    C --> H{"Schema stamp"}
+    B --> C["Read .rp.md: its frontmatter, shared sections, and the active tool's section"]
+    C --> H{"Conventions version"}
     H -->|No .rp.md| I["Offer Fresh setup"]
     H -->|Absent or older| J["Offer Migration through the changelog"]
     H -->|Newer| L["Stop: the owner updates the skill"]

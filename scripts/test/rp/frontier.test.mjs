@@ -90,27 +90,30 @@ describe("frontier", () => {
   });
 
   describe("a configuration that cannot be read stops the command", () => {
+    const CONFIG = { "target-phase": 4, base: "main", "worktree-folder-root": ".worktrees" };
+    // A run-config.json holding CONFIG with `changes` over it, a key given as undefined removed.
+    const writeConfig = (changes) => write("run-config.json", JSON.stringify({ ...CONFIG, ...changes }));
     const configurations = [
-      ["run-config.md missing", () => remove("run-config.md"), /\.pipelines\/demo\/run-config.md: pipeline of an earlier format; it is not continued/],
-      ["run-config.md without format", () => write("run-config.md", '---\n{"target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
-      ["an earlier format", () => write("run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
-      ["a format that is not an integer", () => write("run-config.md", '---\n{"format": "7", "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format/],
-      ["format 6, whose lanes are a list", () => write("run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main", "lanes": [{"profile": "reviewer", "id": "a"}]}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
-      ["a newer format", () => write("run-config.md", '---\n{"format": 8, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of a newer format 8; update the skill/],
-      ["run-config.md without frontmatter", () => write("run-config.md", "target-phase: 4\n"), /run-config.md: pipeline of an earlier format/],
-      ["target-phase out of range", () => configure({ targetPhase: 5 }), /target-phase/],
-      ["target-phase not an integer", () => configure({ targetPhase: "4" }), /target-phase/],
-      ["an empty base", () => configure({ base: " " }), /base must be/],
-      ["an unknown key", () => write("run-config.md", '---\n{"format": 7, "target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /unexpected frontmatter key: workflow/],
-      ["a lanes list", () => write("run-config.md", '---\n{"format": 7, "target-phase": 4, "base": "main", "lanes": [{"profile": "reviewer", "id": "a"}]}\n---\n'), /unexpected frontmatter key: lanes/],
-      ["agents that are not an object", () => configure({ agents: [] }), /run-config.md: agents: must be a JSON object/],
+      ["a run-config.md in its place", () => { remove("run-config.json"); write("run-config.md", '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n'); },
+        /cannot read \.pipelines\/demo\/run-config\.json: missing/],
+      ["run-config.json that is not JSON", () => write("run-config.json", '---\n{"target-phase": 4}\n---\n'), /\.pipelines\/demo\/run-config\.json: not valid JSON: /],
+      ["run-config.json that is not an object", () => write("run-config.json", "[]\n"), /\.pipelines\/demo\/run-config\.json: must be a JSON object/],
+      ["target-phase out of range", () => configure({ targetPhase: 5 }), /run-config\.json: target-phase: must be an integer from 1 to 4/],
+      ["target-phase not an integer", () => configure({ targetPhase: "4" }), /run-config\.json: target-phase: must be an integer from 1 to 4/],
+      ["an empty base", () => configure({ base: " " }), /run-config\.json: base: must be a revision/],
+      ["the worktree folder root missing", () => writeConfig({ "worktree-folder-root": undefined }), /run-config\.json: worktree-folder-root: missing/],
+      ["an unknown key", () => configure({ workflow: "autonomous" }), /run-config\.json: unexpected key: workflow/],
+      ["a lanes list", () => writeConfig({ lanes: [{ profile: "reviewer", id: "a" }] }), /run-config\.json: unexpected key: lanes/],
+      ["owner directions given as null", () => configure({ "owner-directions": null }), /run-config\.json: owner-directions: must be a list of strings/],
+      ["owner directions holding other than strings", () => configure({ "owner-directions": ["Keep it local.", 2] }), /run-config\.json: owner-directions: must be a list of strings/],
+      ["agents that are not an object", () => configure({ agents: [] }), /run-config\.json: agents: must be a JSON object/],
       ["agents naming an unknown profile", () => configure({ agents: { implementor: {} } }), /agents: unexpected key: implementor/],
       ["a profile with an unknown key", () => configure({ agents: { implementer: { subagent: "sonnet" } } }), /agents.implementer: unexpected key: subagent/],
       ["a model that is no name", () => configure({ agents: { reviewer: { model: " " } } }), /agents.reviewer.model: must be a model name/],
       ["implementer lanes", () => configure({ agents: { implementer: { lanes: { a: {} } } } }), /agents.implementer: unexpected key: lanes/],
       ["an empty lanes object", () => configure({ agents: { reviewer: { lanes: {} } } }), /agents.reviewer.lanes: must name a lane/],
       ["a lane with an empty brief", () => configure({ lanes: [{ profile: "reviewer", id: "a", brief: " " }] }), /agents.reviewer.lanes.a.brief: must be a text/],
-      ["a lane with a brief that is no text", () => configure({ lanes: [{ profile: "spec-producer", id: "a", brief: ["a", 1] }] }), /agents.spec-producer.lanes.a.brief: must be a text/],
+      ["a lane with a brief given as a list of lines", () => configure({ lanes: [{ profile: "spec-producer", id: "a", brief: ["One.", "Two."] }] }), /agents.spec-producer.lanes.a.brief: must be a text/],
       ["a lane with a malformed id", () => configure({ lanes: [lane("reviewer", "A b")] }), /agents.reviewer.lanes."A b": a lane id must match/],
       ["a lane with a subagent model that is no name", () => configure({ lanes: [{ profile: "reviewer", id: "a", subagents: 5 }] }), /agents.reviewer.lanes.a.subagents: must be a model name/],
       ["a lane with an unknown key", () => configure({ lanes: [{ profile: "reviewer", id: "a", profile_: "x" }] }), /agents.reviewer.lanes.a: unexpected key: profile_/],
@@ -123,6 +126,7 @@ describe("frontier", () => {
         const out = run("check", abs(P("")));
         assert.equal(out.status, 1);
         assert.match(out.stderr, message);
+        assert.doesNotMatch(out.stderr, /format/);
       });
 
     // [what, lanes, the frontier on a pipeline missing its spec, the frontier on a done implementation]
@@ -131,7 +135,7 @@ describe("frontier", () => {
       ["review lanes without a brief", [{ profile: "reviewer", id: "a" }, lane("reviewer", "b")], ["produce 1-spec/spec.md"], ["review a", "review b"]],
       ["default declared alongside another review lane", [{ profile: "reviewer", id: "default" }, lane("reviewer", "b")], ["produce 1-spec/spec.md"], ["review default", "review b"]],
       ["default declared with a brief", [lane("reviewer", "default")], ["produce 1-spec/spec.md"], ["review default"]],
-      ["lanes with models and a brief of several lines", [{ profile: "spec-producer", id: "a", brief: ["One.", "", "Two."], model: "opus", subagents: "sonnet" }, { profile: "reviewer", id: "b", model: "openai/gpt-6-astra#high" }],
+      ["lanes with models and a brief of several lines", [{ profile: "spec-producer", id: "a", brief: "One.\n\nTwo.", model: "opus", subagents: "sonnet" }, { profile: "reviewer", id: "b", model: "openai/gpt-6-astra#high" }],
         ["lane 1-spec/spec.md a"], ["review b"]],
     ];
     for (const [what, lanes, missingSpec, done] of briefless)
@@ -142,9 +146,8 @@ describe("frontier", () => {
         assert.deepEqual(frontier(), done);
       });
 
-    it("accepts the same lane id under different profiles and ignores the body", () => {
+    it("accepts the same lane id under different profiles", () => {
       pipeline(3, { lanes: [lane("spec-producer", "a"), lane("reviewer", "a")] });
-      write("run-config.md", `${read("run-config.md")}\nModels: spec-producer a on a large model.\n`);
       assert.deepEqual(frontier(), ["review a"]);
     });
   });

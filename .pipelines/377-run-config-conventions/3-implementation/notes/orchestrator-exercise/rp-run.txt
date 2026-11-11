@@ -1,0 +1,41 @@
+$ rp check
+frontier lane 1-spec/spec.md demands
+frontier lane 1-spec/spec.md omits
+lane 1-spec/spec.md demands missing
+lane 1-spec/spec.md omits missing
+artifact 1-spec/spec.md missing
+artifact 2-design-doc/design-doc.md missing
+artifact 3-implementation/notes.md missing
+net-change 8299aec72ef093227946ae1254465364cfb3b831..bd5aef540bf39442d812bf864810edd46fa4156f
+review default unapproved
+review astra unapproved
+$ rp pipelines --issue 999
+live 999-demo .pipelines/999-demo
+$ rp next (lane roles: models)
+frontier lane 1-spec/spec.md demands
+frontier lane 1-spec/spec.md omits
+wake spec-producer-demands model opus
+wake spec-producer-demands resource test suite and scripts
+wake spec-producer-omits model sonnet
+wake spec-producer-omits resource test suite and scripts
+$ rp next (implementer)
+frontier produce 3-implementation/notes.md
+wake implementer model fable
+$ rp next (reviewers)
+frontier review default
+frontier review astra
+wake reviewer-default model opus
+wake reviewer-astra model local-astra
+$ rp check after moving run-config.local.json away: same report
+frontier review default
+frontier review astra
+artifact 1-spec/spec.md fresh
+$ rp next without .rp.md anywhere
+0
+$ reviewer-astra assignment: Guardrails and Seat
+37:Your subagents run on the model your tool finds by the name `local-luna`, or on your own model when it finds none.
+52:Before you end any turn, run `rp validate` and fix each file it reports. End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."
+$ reviewer-astra assignment, the guardrail it carries
+### tests
+
+- rule: Run `npm run test:rp` and confirm it passes.

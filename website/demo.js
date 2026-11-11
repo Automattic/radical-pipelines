@@ -210,7 +210,7 @@
       line(logEl, 'cc-sub done', '  ⎿  Preparing worktree (new branch \'1234-fix-checkout\')');
       line(logEl, 'cc-sub done', '  ⎿  HEAD is now at eda5064');
       line(logEl, 'cc-sub done', '  ⎿  Captured issue #1234 → 0-intent/intent.md (phase 0 · intent)');
-      line(logEl, 'cc-sub done', '  ⎿  Wrote run-config.md (target: review)');
+      line(logEl, 'cc-sub done', '  ⎿  Wrote run-config.json (target: review)');
       line(logEl, 'cc-spacer', '');
 
       // Tree header

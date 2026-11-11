@@ -1,0 +1,7 @@
+$ rp check, owner-directions null
+frontier produce 1-spec/spec.md
+artifact 1-spec/spec.md missing
+[exit 0]
+$ rp next, local file overriding the implicit default review lane
+rp: .pipelines/demo/run-config.local.json: agents.reviewer.lanes.default: a lane run-config.json does not declare
+[exit 1]

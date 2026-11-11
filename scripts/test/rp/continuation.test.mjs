@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
 
-import { DESIGN, NOTES, P, PIPELINE, SPEC, approve, certification, commitAll, git, later, pipeline, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
+import { DESIGN, NOTES, P, PIPELINE, SPEC, approve, certification, commitAll, git, ignore, later, pipeline, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
 
 const APPROVAL = "threads/1-reviewer-default-implementer-implementation.md";
 const checkAt = (at) => JSON.parse(rp("check", `${at}/${PIPELINE}`, "--json"));
@@ -25,7 +25,7 @@ function squashMerged() {
 // A fresh clone of the base branch, which holds none of the pipeline branch's commits, continuing on `demo_2`.
 function freshClone(approved) {
   const clone = `${root}/.clone`;
-  writeFile(".git/info/exclude", ".clone/\n");
+  ignore(".clone/");
   git(root, "clone", "--quiet", "--no-local", root, clone);
   for (const [key, value] of [["user.email", "rp-test@example.com"], ["user.name", "RP Test"], ["commit.gpgsign", "false"]]) git(clone, "config", key, value);
   git(clone, "checkout", "--quiet", "-b", "demo_2", "origin/main");

@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,6 +42,8 @@ export function writeFile(rel, contents) {
 export const write = (rel, contents) => writeFile(P(rel), contents);
 export const read = (rel) => readFileSync(abs(P(rel)), "utf8");
 export const remove = (rel) => rmSync(abs(P(rel)), { force: true, recursive: true });
+// Has Git ignore `pattern` in the repository, as a line of its exclude file.
+export const ignore = (pattern) => appendFileSync(abs(".git/info/exclude"), `${pattern}\n`);
 
 // The run's `agents`: `agents` with each of `lanes`, `{ profile, id, ...members }`, under its profile's `lanes`.
 export function agentsOf(lanes = [], agents = {}) {
@@ -52,9 +54,15 @@ export function agentsOf(lanes = [], agents = {}) {
   }
   return result;
 }
-export function configure({ targetPhase = 4, base = "main", lanes, agents } = {}) {
+// The conventions each run configuration records: worktrees under `.worktrees`, which every test repository's Git
+// ignores, with `data` over them by key. Each test starts with none but the worktree folder root.
+let recorded = {};
+export function conventions(data = {}) { recorded = data; }
+// The run configuration, `run-config.json`: the target phase, the base, the recorded conventions, the run's agents, and
+// `extra` keys, written as given.
+export function configure({ targetPhase = 4, base = "main", lanes, agents, ...extra } = {}) {
   const runAgents = lanes || agents ? { agents: agentsOf(lanes, agents) } : {};
-  write("run-config.md", `---\n${JSON.stringify({ format: 7, "target-phase": targetPhase, base, ...runAgents }, null, 2)}\n---\n`);
+  write("run-config.json", `${JSON.stringify({ "target-phase": targetPhase, base, "worktree-folder-root": ".worktrees", ...recorded, ...runAgents, ...extra }, null, 2)}\n`);
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 
@@ -151,10 +159,13 @@ export function newRepo(folder = null) {
   return at;
 }
 
-// Each test in a new repository on `demo`, in the subfolder `folder` of its temporary folder when given.
+// Each test in a new repository on `demo`, in the subfolder `folder` of its temporary folder when given, whose Git
+// ignores `.worktrees` and `run-config.local.json`, as setup has a project's ignore them, with no conventions recorded.
 export function useRepo(folder = null) {
   beforeEach(() => {
     root = newRepo(folder);
+    writeFile(".git/info/exclude", ".worktrees/\nrun-config.local.json\n");
+    recorded = {};
     writeFile("src/app.js", "export const a = 1;\n");
     commitAll("base");
     git(root, "checkout", "--quiet", "-b", "demo");
@@ -162,12 +173,6 @@ export function useRepo(folder = null) {
   afterEach(() => rmSync(folder ? dirname(root) : root, { recursive: true, force: true }));
 }
 
-// `.rp.md` in the main checkout: a JSON frontmatter holding `data` at the current version, with worktrees under
-// `.worktrees`, above a prose body. Git ignores both, and `.rp.local.md`, so no commit holds them.
-export function conventions(data = {}, body = "\n# Conventions\n") {
-  writeFile(".git/info/exclude", ".worktrees/\n.rp.md\n.rp.local.md\n");
-  writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 7, "worktree-folder-root": ".worktrees", ...data }, null, 2)}\n---\n${body}`);
-}
 // The plan `rp next` prints, with `args`, as its lines.
 export function plan(...args) {
   const out = run("next", abs(PIPELINE), ...args);

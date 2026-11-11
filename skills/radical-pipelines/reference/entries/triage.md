@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline of the current format: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the base branch's tree.
+`git fetch`, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the base branch's tree.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies' state the tracker cannot report, proceeds without comment.
 
@@ -30,21 +30,21 @@ A request carries one or more statements; route each by the first predicate that
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; the intent's `re-attempts` names it                       |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
-A pipeline of an earlier format is history, never continued and never given later input: work on its issue routes as new intent, from the base branch or, by the owner's choice, from that pipeline's tip.
-
 When several live pipelines match, take the one the request identifies — by name, or as the only one whose frontier it advances; otherwise ask the owner in step 4 which pipeline, and, for a new pipeline, which tip to start from.
 
 Group the routed statements by pipeline; each group is one run.
 
 ### 4. Confirm the runs
 
-A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.md` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `run-config.md` without one.
+A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.json` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `run-config.json` without one.
 
-For the runs that need it, propose each run's configuration: its current `run-config.md`, else the **Agents** defaults with `.rp.local.md`'s entries over them. In one message, give:
+For the runs that need it, propose each run's configuration: its current `run-config.json`, else the **Agents** defaults (`../conventions/agents.md`). In one message, give:
 
 - each route and why — or, when no predicate decides, the one deciding question;
 - the text of each intent, constraint, or proposal you will write;
-- the configuration to confirm or change: target phase in plain language without phase numbers, lanes, models;
+- the configuration to confirm or change: target phase in plain language without phase numbers, and lanes;
+- each profile's and lane's model and subagent model, and beside it the one `.rp.local.md` overrides it with, marked as this clone's;
+- under each profile, the name of each guardrail and resource the run will carry for it: `.rp.md`'s entries that bind it, with `.rp.local.md`'s over them by name;
 - what a lane change does to the tree: a dropped production lane's folder is removed;
 - the questions steps 1 to 3 left open.
 
@@ -80,4 +80,4 @@ Every branch and worktree you create here fires its `before-`/`after-creating-br
 
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) with the current `format` and the configuration the run starts under, its `agents` the models, lanes, and briefs as the owner confirmed them; commit. Then fire `run-started` and follow `../run/loop.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Record the run configuration the run starts under (`../run/state.md` § Run configuration) and commit `run-config.json`. Then fire `run-started` and follow `../run/loop.md`.
