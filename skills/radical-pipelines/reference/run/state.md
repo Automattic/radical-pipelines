@@ -97,13 +97,13 @@ cites: <thread path | evidence path>
 
 The pipeline configuration is `config.json` at the pipeline folder root, one JSON object in the schema of `../../scripts/README.md` § `config.json`: the configuration the tree is produced under, and everything `rp` reads about the pipeline.
 
-Record it at every run start from the conventions as they stand then, `.rp.local.md`'s overrides applied, and at no other moment from them:
+Record it at every run start, and at no other moment from the conventions:
 
-- `worktree-folder-root`, `commit-format`, `guardrails`, `resources`, and `variables`: what the conventions state, replacing what an earlier run start recorded. A convention they do not set is absent.
+- `worktree-folder-root`, `commit-format`, `guardrails`, `resources`, and `variables`: what the conventions state as they stand then, `.rp.local.md`'s overrides applied, replacing what an earlier run start recorded. A convention they do not set is absent.
 - `landing-commit-format`: the template of the commits `rp land` makes, holding `{subject}` where each commit's subject goes, as the Commit format convention has your commits read; absent when it says nothing of them.
 - `target-phase`: the phase the run continues through, 1 to 4.
 - `base-branch`: the branch of the unmerged pipeline it started from, else the artifact base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
-- `lanes` and `models`: the lanes, briefs, models, and subagent models the owner confirmed.
+- `lanes` and `models`: the lanes, briefs, models, and subagent models the owner confirmed, from the Lanes and Models conventions.
 - Keep `target-phase`, `base-branch`, `lanes`, and `models` as they are unless the owner asks to change them, while confirming the run or during it.
 - `owner-directions`: the owner's directions for the run, one entry per direction. Keep every earlier entry.
 

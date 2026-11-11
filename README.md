@@ -195,7 +195,7 @@ opencode reports plugin ids, not versions, so RP carries its version in its id: 
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`, prose a person reads and edits. Its frontmatter is the one line `conventions: <version>`, the conventions version — currently 7 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. Every convention is a prose section below it. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`, prose a person reads and edits. Its frontmatter is the one line `conventions: <version>`, the conventions version — currently 7 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. The conventions are prose below it. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
 At every run start, the orchestrator copies the conventions `rp` reads — the worktree folder root and what every role's assignment carries: commit format, guardrails, resources, and variables — verbatim into the pipeline's `config.json`, beside the target phase, the base branch, and the lanes and models the owner confirmed. `rp` reads that file and never `.rp.md`: it places lane worktrees, shapes the commits it makes, and writes each assignment from it. Editing `.rp.md` therefore changes no run under way, and a merged pipeline keeps the conventions it ran under.
 

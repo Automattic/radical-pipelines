@@ -12,7 +12,7 @@ Rewrite the frontmatter as the line `conventions: 7`.
 
 ### Tool files
 
-Move the content of each `.rp.<tool>.md` into `.rp.md` and delete the file.
+Move the content of each `.rp.<tool>.md` into `.rp.md`, stating the tool it applies to, and delete the file.
 
 ### Agents
 
