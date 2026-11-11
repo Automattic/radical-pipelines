@@ -61,11 +61,11 @@
 ## Commit format
 
 {{commit-format}}
-{{#vocabulary}}
+{{#facts}}
 
 ## Placeholders
 
 A name in braces left in your Brief, Guardrails, Resources, or Commit format is a placeholder: replace it with the value it stands for, from these values of your turn:
 
-{{vocabulary}}
-{{/vocabulary}}
+{{facts}}
+{{/facts}}

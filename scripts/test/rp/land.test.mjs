@@ -14,7 +14,7 @@ const candidate = (id, phase = "1-spec", name = "spec.md") => `${phase}/lanes/${
 // Everything a stopped landing leaves as it was: every ref, the pipeline worktree's status, and each certification.
 const untouched = () => [git(root, "for-each-ref", "--format=%(refname) %(objectname)"), git(root, "status", "--porcelain", "--untracked-files=all"),
   git(root, "ls-tree", "-r", "HEAD", "--", P("certification"))];
-const LANDING = { "landing-commit": "{subject} (orchestrator)" };
+const LANDING = { "landing-commit-format": "{subject} (orchestrator)" };
 
 describe("rp land", () => {
   useRepo();
@@ -35,10 +35,10 @@ describe("rp land", () => {
       assert.equal(read(candidate("a")), "# Candidate\n");
       assert.deepEqual(certification(candidate("a")), { inputs: [pin(INTENT, turn)] });
       assert.equal(git(root, "status", "--porcelain", "--untracked-files=all"), "");
-      assert.deepEqual(check().phases[0].lanes, [{ id: "a", path: candidate("a"), state: "stale", stale: [INTENT] }]);
+      assert.deepEqual(check().phases[0].lanes, [{ lane: "a", path: candidate("a"), state: "stale", stale: [INTENT] }]);
     });
 
-    it("of a review lane: picks its commits after its change onto the pipeline branch, none that built the change", () => {
+    it("of a review lane: picks its commits after its review head onto the pipeline branch, none that built the review head", () => {
       pipeline(3);
       apply();
       const wt = laneWorktree("demo-review-default"), change = head(wt);
@@ -47,12 +47,12 @@ describe("rp land", () => {
       const before = head();
       assert.equal(landRole("reviewer-default"), "hook phase-completed 4\n");
       assert.deepEqual(subjects(`${before}..HEAD`), ["Certify review lane default approval", "Approve"]);
-      assert.deepEqual(certification(path), { inputs: [pin(INTENT, change)], reviewed: git(root, "rev-parse", "HEAD^").trim() });
+      assert.deepEqual(certification(path), { inputs: [pin(INTENT, change)], "approved-commit": git(root, "rev-parse", "HEAD^").trim() });
       assert.deepEqual(subjects(`${before}..HEAD`).filter((subject) => subject.startsWith("rp review")), []);
       assert.deepEqual(check().reviews, [{ lane: "default", approved: true }]);
     });
 
-    it("of a consolidation in the pipeline worktree: certifies the root at the turn commit, pinning the intent and the later inputs targeting it there", () => {
+    it("of a consolidation in the pipeline worktree: certifies the artifact at the turn commit, pinning the intent and the later inputs targeting it there", () => {
       conventions(LANDING);
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
@@ -71,7 +71,7 @@ describe("rp land", () => {
       assert.equal(check().phases[0].state, "fresh");
     });
 
-    it("of each role a rejected thread woke in the pipeline worktree: each one's artifact at its turn commit", () => {
+    it("of each role a malformed thread woke in the pipeline worktree: each one's artifact at its turn commit", () => {
       pipeline(2);
       const path = thread({ ...TO_SPEC, status: "pending" });
       write(INTENT, `${read(INTENT)}Changed.\n`);
@@ -104,7 +104,7 @@ describe("rp land", () => {
       });
 
     for (const [rel, upTo, profile, target] of [[candidate("a"), 0, "spec-producer", SPEC], [candidate("a", "2-design-doc", "design-doc.md"), 1, "design-doc-producer", DESIGN]])
-      it(`certifying ${rel} with its root's upstream artifacts alone, not the later inputs targeting its root`, () => {
+      it(`certifying ${rel} with its artifact's upstream artifacts alone, not the later inputs targeting its artifact`, () => {
         pipeline(upTo, { lanes: [lane(profile, "a")] });
         write("0-intent/constraint-1.md", later(target));
         const turn = commitAll("a later input");
@@ -161,7 +161,7 @@ describe("rp land", () => {
   });
 
   describe("prints the phases its landing made complete", () => {
-    it("for a consolidation that makes the spec fresh, phase 1, and for a production lane while the root is missing, none", () => {
+    it("for a consolidation that makes the spec fresh, phase 1, and for a production lane while the artifact is missing, none", () => {
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
       commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n" }, "Add a candidate");
@@ -198,7 +198,7 @@ describe("rp land", () => {
       const path = thread({ ...TO_SPEC, status: "pending", messages: [["design-doc-producer", "abc1234"], ["spec-producer", "abc1234"]] });
       commitAll("a rejected thread");
       apply();
-      write(path, read(path).replace("status: pending", "status: approved"));
+      write(path, read(path).replace("status: pending", "status: resolved"));
       commitAll("Repair the thread");
       assert.deepEqual([landRole("spec-producer"), landRole("design-doc-producer")], ["hook phase-completed 1\nhook phase-completed 2\n", ""]);
     });
@@ -221,7 +221,7 @@ describe("rp land", () => {
     const rejections = [
       ["a candidate with frontmatter", [lane("spec-producer", "a")], 0, "spec-producer-a", "demo-spec-a", candidate("a"), withFrontmatter({ status: "done" }, "# a\n"), "carries no frontmatter"],
       ["a review thread with status pending", [lane("reviewer", "a")], 3, "reviewer-a", "demo-review-a", "threads/1-reviewer-a-implementer-implementation.md",
-        withFrontmatter({ status: "pending", ...REVIEW("a") }, "\n## reviewer-a — abc1234\n"), "status must be one of open | approved | withdrawn | answered | disagreement"],
+        withFrontmatter({ status: "pending", ...REVIEW("a") }, "\n## reviewer-a — abc1234\n"), "status must be one of open | approved | resolved | withdrawn | escalated | answered"],
     ];
     for (const [what, lanes, upTo, role, branch, file, contents, reason] of rejections)
       it(`on ${what} the turn brings, naming it with the reason rp check gives`, () => {
@@ -232,19 +232,19 @@ describe("rp land", () => {
         const before = untouched();
         const out = run("land", abs(PIPELINE), "--role", role);
         assert.deepEqual([out.status, out.stdout], [1, ""]);
-        assert.equal(out.stderr, `rp: land: ${wt}: rp check rejects files the turn brings:\nINVALID ${file}: ${reason}\n`);
+        assert.equal(out.stderr, `rp: land: ${wt}: the turn brings malformed files:\nmalformed ${file}: ${reason}\n`);
         assert.deepEqual(untouched(), before);
       });
 
     it("on a landing after which rp check could not read the pipeline", () => {
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
-      const config = read("run-config.json").replace('"base": "main"', '"base": "missing-base"');
-      commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n", "run-config.json": config }, "turn");
+      const config = read("config.json").replace('"base-branch": "main"', '"base-branch": "missing-base"');
+      commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n", "config.json": config }, "turn");
       const before = untouched();
       const out = run("land", abs(PIPELINE), "--role", "spec-producer-a");
       assert.deepEqual([out.status, out.stdout], [1, ""]);
-      assert.match(out.stderr, /^rp: base does not resolve to a commit: missing-base$/m);
+      assert.match(out.stderr, /^rp: base-branch does not resolve to a commit: missing-base$/m);
       assert.deepEqual(untouched(), before);
     });
 

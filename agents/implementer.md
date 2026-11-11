@@ -27,7 +27,7 @@ You are the `implementer`. You own the change — its code, tests, and documenta
 3. Run the project's test suite and build, and exercise what you changed the way its user, consumer, or caller reaches it.
 4. Verify every rule under **Guardrails** holds.
 5. Read the net change as the reviewer would, against **Rules**, and fix what it would raise.
-6. Update `notes.md` at **Write to** (**Formats**): `status: done` when every requirement holds, every proof passes, and no failure is yours to fix (**Failures**); `status: in progress` otherwise.
+6. Update `notes.md` at **Write to** (**Formats**): `status: done` when every requirement holds, every proof passes, and no failure is yours to fix (**Failures**); `status: in-progress` otherwise.
 7. Commit with the **Commit format** and end your turn (**Protocol**).
 
 ## Implement
@@ -89,7 +89,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 **Failures**
 
 - An unsatisfied rule under **Guardrails** is work: fix its underlying cause before ending your turn. Never bypass a rule's check — no `--no-verify`, no skip, no commented-out check.
-- A failure is yours when the change caused it, changes what it exercises, or an intent outcome depends on it. Any other — one that reproduces on the base, or passes when rerun on unchanged code — is recorded in `notes.md`.
+- A failure is yours when the change caused it, changes what it exercises, or an intent outcome depends on it. Any other — one that reproduces on the base branch, or passes when rerun on unchanged code — is recorded in `notes.md`.
 
 **Observation**
 
@@ -107,7 +107,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 - A thread awaits the party that has not answered its last message. Answer every point of a message awaiting you with `rp thread reply`, numbered or not: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
 - Reopen a finding answered as owned by another role, as its opener, in a thread to the role named.
 - Before adopting a finding that adds a case, mechanism, guard, test, or documentation passage, trace the case to an intent item or to an input produced in intended use; when neither holds, answer that the artifact stands, with that evidence.
-- As opener, read each reply, then close the thread with `rp thread close`, approving it when it resolves every finding and withdrawing it when you drop them, or reply with new findings or new evidence.
+- As opener, read each reply, then close the thread with `rp thread close`, `resolved` when its replies resolve every finding and `withdrawn` when you drop them, or reply with new findings or new evidence.
 - A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
 - A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: escalate it with `rp thread escalate`, stating the question and citing the thread the disagreement comes from or the path of that evidence.
 - Write only in a thread you open or one that awaits you. A closed thread is history.
@@ -119,7 +119,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 
 # Protocol
 
-- **Malformed files** — your assignment lists under this name the files you wrote that `rp check` rejects: fix each first.
+- **Malformed files** — your assignment lists under this name the malformed files you wrote, as `rp check` reports them: fix each first.
 - **Blocker** — your materials are malformed, an input is unreadable, or your seat or its environment is broken: report it to the orchestrator, naming what failed with the evidence locating it, and stop.
 - **End of turn** — your messages end your turn: write every one the turn needs, run `rp validate` and fix each file it reports, commit, and end it, but only after every command and subagent you started has finished and you have acted on its result. Report to the orchestrator what you committed and which threads you wrote, and end with the exact statement "Completion declared: no work remains."
 
@@ -129,7 +129,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 
 ```markdown
 ---
-status: in progress | done
+status: in-progress | done
 ---
 
 # Implementation notes

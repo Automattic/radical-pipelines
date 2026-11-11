@@ -15,7 +15,7 @@ const at = () => realpathSync(root);
 const gitDir = (worktree) => realpathSync(git(worktree, "rev-parse", "--path-format=absolute", "--git-dir").trim());
 const worktreePaths = () => git(root, "worktree", "list", "--porcelain").split("\n").filter((line) => line.startsWith("worktree ")).map((line) => realpathSync(line.slice(9)));
 // Everything a plan may change: every ref, every worktree with its status, and every file in each worktree's
-// private git directory under rp/, the assignments and the step record among them.
+// private git directory under rp/, the assignments and the turn record among them.
 function snapshot() {
   return {
     refs: git(root, "for-each-ref", "--format=%(refname) %(objectname)").split("\n").filter(Boolean),
@@ -52,7 +52,7 @@ describe("rp next", () => {
       ["review lanes to build", () => { pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] }); writeFile("src/app.js", "export const a = 2;\n"); commitAll("code"); }],
     ];
     for (const [what, reach] of steps)
-      it(`with ${what}: no file, ref, worktree, assignment, or step record`, () => {
+      it(`with ${what}: no file, ref, worktree, assignment, or turn record`, () => {
         reach();
         const before = snapshot();
         assert.ok(actions(plan()).length);
@@ -61,16 +61,16 @@ describe("rp next", () => {
   });
 
   describe("names what each frontier line dispatches", () => {
-    it("lane: each lane's branch at the tip and its worktree under the worktree folder root, the hooks around its creation and no branch hook, and the role to wake there", () => {
-      conventions({ resources: { suite: { resource: "The suite.", profiles: ["spec-producer"] }, "browser tools": { resource: "A browser.", profiles: ["spec-producer", "implementer"] }, other: { resource: "X.", profiles: ["implementer"] } } });
+    it("production lane: each lane's branch at the tip and its worktree under the worktree folder root, the hooks around its creation and no branch hook, and the role to wake there", () => {
+      conventions({ resources: { suite: { text: "The suite.", profiles: ["spec-producer"] }, "browser tools": { text: "A browser.", profiles: ["spec-producer", "implementer"] }, other: { text: "X.", profiles: ["implementer"] } } });
       pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", model: "opus" }, lane("spec-producer", "b")] });
       const tip = head(), lines = plan();
-      assert.deepEqual(lines.slice(0, 2), [`frontier lane ${SPEC} a`, `frontier lane ${SPEC} b`]);
+      assert.deepEqual(lines.slice(0, 2), [`frontier produce spec a`, `frontier produce spec b`]);
       for (const [id, model] of [["a", "opus"], ["b", undefined]]) {
         const branch = `demo-spec-${id}`, role = `spec-producer-${id}`, path = join(at(), ".worktrees", branch);
         inOrder(lines, `hook before-creating-worktree ${role} ${path}`, `create-branch ${branch} ${tip}`, `create-worktree ${role} ${branch} ${path}`,
           `hook after-creating-worktree ${role} ${path}`, `hook before-spawning-agent ${role}`, `wake ${role} profile spec-producer`, `hook after-spawning-agent ${role}`,
-          `hook before-merging-lanes ${role}`, `hook after-merging-lanes ${role}`);
+          `hook before-landing-lane ${role}`, `hook after-landing-lane ${role}`);
         assert.deepEqual(wakeOf(lines, role), {
           profile: "spec-producer", lane: id, ...(model ? { model } : {}), phase: "1", worktree: path,
           assignment: join(gitDir(root), "worktrees", branch, "rp/spec-producer.md"), resources: ["suite", "browser tools"],
@@ -80,18 +80,18 @@ describe("rp next", () => {
       assert.ok(lines.includes("hook phase-started 1"));
     });
 
-    it("consolidate: the lanes to terminate first, their worktrees and branches to remove, and the root producer to wake on a fresh instance in the pipeline worktree", () => {
+    it("consolidate: the lanes to terminate first, their worktrees and branches to remove, and the artifact's producer to wake on a new instance in the pipeline worktree", () => {
       pipeline(0, { lanes: SPEC_LANES });
       apply();
       produceCandidates();
       const lines = plan();
-      assert.equal(lines[0], `frontier consolidate ${SPEC}`);
+      assert.equal(lines[0], `frontier consolidate spec`);
       for (const id of ["a", "b"]) {
         const role = `spec-producer-${id}`, path = laneWorktree(`demo-spec-${id}`);
         inOrder(lines, `hook before-terminating-agent ${role}`, `terminate ${role} profile spec-producer`, `terminate ${role} lane ${id}`, `hook after-terminating-agent ${role}`,
           `hook before-removing-worktree ${role} ${path}`, `remove-worktree ${role} ${path}`, `delete-branch demo-spec-${id}`, `hook after-removing-worktree ${role} ${path}`);
       }
-      assert.deepEqual(wakeOf(lines, "spec-producer"), { profile: "spec-producer", phase: "1", worktree: at(), assignment: join(gitDir(root), "rp/spec-producer.md"), resources: [], fresh: true });
+      assert.deepEqual(wakeOf(lines, "spec-producer"), { profile: "spec-producer", phase: "1", worktree: at(), assignment: join(gitDir(root), "rp/spec-producer.md"), resources: [], new: true });
       assert.deepEqual(lines.filter((line) => line.startsWith("hook ") && / spec-producer$/.test(line)), ["hook before-spawning-agent spec-producer", "hook after-spawning-agent spec-producer"]);
       apply();
       assert.deepEqual([git(root, "branch", "--list", "demo-spec-*"), worktreePaths()], ["", [at()]]);
@@ -105,18 +105,18 @@ describe("rp next", () => {
       thread(TO_SPEC);
       commitAll("thread");
       lines = plan();
-      assert.deepEqual([lines[0], actions(lines), wakeOf(lines, "spec-producer").worktree], [`frontier respond ${SPEC}`, [], at()]);
+      assert.deepEqual([lines[0], actions(lines), wakeOf(lines, "spec-producer").worktree], [`frontier respond spec`, [], at()]);
     });
 
-    it("review: each lane's branch at the change built from the tip, a worktree on it, and its reviewer to wake there with its first request", () => {
+    it("review: each lane's branch at the review head built from the tip, a worktree on it, and its reviewer to wake there with its first-turn template", () => {
       pipeline(3, { lanes: [lane("reviewer", "default"), lane("reviewer", "second")] });
       writeFile("src/app.js", "export const a = 2;\n");
       const tip = commitAll("code");
       const lines = apply();
       for (const id of ["default", "second"]) {
         const branch = `demo-review-${id}`, path = laneWorktree(branch), change = git(root, "rev-parse", branch).trim();
-        assert.ok(lines.includes(`create-branch ${branch} change`) && lines.includes(`create-worktree reviewer-${id} ${branch} ${path}`));
-        assert.deepEqual([git(root, "log", "-1", "--format=%s", change), git(root, "log", "-1", "--format=%s", `${change}^`)], ["rp review change\n", "rp review base\n"]);
+        assert.ok(lines.includes(`create-branch ${branch} review-head`) && lines.includes(`create-worktree reviewer-${id} ${branch} ${path}`));
+        assert.deepEqual([git(root, "log", "-1", "--format=%s", change), git(root, "log", "-1", "--format=%s", `${change}^`)], ["rp review head\n", "rp review base\n"]);
         assert.equal(git(root, "rev-parse", `${change}^^`).trim(), git(root, "merge-base", "main", tip).trim());
         assert.equal(git(root, "diff", tip, change, "--", ".", ":(exclude).pipelines"), "");
         assert.equal(head(path), change);
@@ -125,22 +125,22 @@ describe("rp next", () => {
       }
     });
 
-    it("INVALID: each role that writes a rejected file, where it sits, and each rejected file no role writes", () => {
-      conventions({ resources: { suite: { resource: "The suite.", profiles: ["spec-producer", "design-doc-producer", "implementer", "reviewer"] } } });
+    it("malformed: each role that writes a malformed file, where it sits, and each malformed file no role writes", () => {
+      conventions({ resources: { suite: { text: "The suite.", profiles: ["spec-producer", "design-doc-producer", "implementer", "reviewer"] } } });
       pipeline(3);
       const between = thread({ n: 1, ...TO_SPEC, status: "pending" });
       const review = thread({ n: 2, ...REVIEW(), status: "pending" });
       write(INTENT, withFrontmatter({ issue: 7, pins: "x" }, "\n# Intent\n"));
       commitAll("rejected files");
-      const STATUS = "status must be one of open | approved | withdrawn | answered | disagreement";
+      const STATUS = "status must be one of open | approved | resolved | withdrawn | escalated | answered";
       const lines = apply();
       assert.deepEqual(lines.filter((line) => line.startsWith("frontier ") || line.startsWith("fix ")), [
-        `frontier INVALID ${INTENT}: unexpected frontmatter key: pins`, `frontier INVALID ${between}: ${STATUS}`, `frontier INVALID ${review}: ${STATUS}`,
-        `fix INVALID ${INTENT}: unexpected frontmatter key: pins`,
+        `frontier malformed ${INTENT}: unexpected frontmatter key: pins`, `frontier malformed ${between}: ${STATUS}`, `frontier malformed ${review}: ${STATUS}`,
+        `fix malformed ${INTENT}: unexpected frontmatter key: pins`,
       ]);
       for (const role of ["spec-producer", "design-doc-producer"]) {
         assert.deepEqual([wakeOf(lines, role).worktree, wakeOf(lines, role).resources], [at(), ["suite"]]);
-        assert.match(readFileSync(wakeOf(lines, role).assignment, "utf8"), new RegExp(`## Malformed files\n\nINVALID ${between}: ${STATUS.replaceAll("|", "\\|")}\n`));
+        assert.match(readFileSync(wakeOf(lines, role).assignment, "utf8"), new RegExp(`## Malformed files\n\nmalformed ${between}: ${STATUS.replaceAll("|", "\\|")}\n`));
       }
       const reviewer = wakeOf(lines, "reviewer-default");
       assert.deepEqual([reviewer.worktree, reviewer.resources], [laneWorktree("demo-review-default"), []]);
@@ -148,11 +148,11 @@ describe("rp next", () => {
       assert.equal(wakeOf(lines, "implementer").worktree, at());
     });
 
-    it("INVALID on a file no role writes: the file to fix, and no role to wake", () => {
+    it("malformed on a file no role writes: the file to fix, and no role to wake", () => {
       pipeline(1);
       write(INTENT, withFrontmatter({ issue: 7, pins: "x" }, "\n# Intent\n"));
       commitAll("a rejected intent");
-      assert.deepEqual(plan(), [`frontier INVALID ${INTENT}: unexpected frontmatter key: pins`, `fix INVALID ${INTENT}: unexpected frontmatter key: pins`]);
+      assert.deepEqual(plan(), [`frontier malformed ${INTENT}: unexpected frontmatter key: pins`, `fix malformed ${INTENT}: unexpected frontmatter key: pins`]);
     });
 
     it("escalate and complete: the frontier alone", () => {
@@ -176,7 +176,7 @@ describe("rp next", () => {
       assert.deepEqual(after.refs.filter((ref) => !before.refs.includes(ref)).map((ref) => ref.split(" ")[0]), named);
       assert.deepEqual(before.refs.filter((ref) => !after.refs.includes(ref)), []);
       assert.deepEqual(after.worktrees.map(([path]) => path).slice(1), lines.filter((line) => line.startsWith("create-worktree ")).map((line) => line.split(" ").slice(3).join(" ")));
-      assert.deepEqual(after.worktrees[0][2].map(([name]) => name), ["step.json"]);
+      assert.deepEqual(after.worktrees[0][2].map(([name]) => name), ["turns.json"]);
       for (const id of ["a", "b"]) assert.equal(existsSync(wakeOf(lines, `reviewer-${id}`).assignment), true);
       assert.deepEqual([head(), git(root, "status", "--porcelain", "--untracked-files=all")], [tip, status]);
       const again = apply();
@@ -223,7 +223,7 @@ describe("rp next", () => {
       write(INTENT, `${read(INTENT)}More.\n`);
       commitAll("the intent changes");
       const before = snapshot();
-      const expected = [`frontier lane ${SPEC} a`, `frontier lane ${SPEC} b`, "hook before-merging-lanes spec-producer-a", "land spec-producer-a", "hook after-merging-lanes spec-producer-a"];
+      const expected = [`frontier produce spec a`, `frontier produce spec b`, "hook before-landing-lane spec-producer-a", "land spec-producer-a", "hook after-landing-lane spec-producer-a"];
       assert.deepEqual(apply(), expected);
       assert.deepEqual(snapshot(), before);
       landRole("spec-producer-a");
@@ -234,11 +234,11 @@ describe("rp next", () => {
     const repairs = [
       ["a production lane", [lane("spec-producer", "a")], 0, "spec-producer-a", "demo-spec-a", candidate("a"), withFrontmatter({ status: "done" }, "# a\n"), "carries no frontmatter", "# a\n"],
       ["a review lane", [lane("reviewer", "a")], 3, "reviewer-a", "demo-review-a", "threads/1-reviewer-a-implementer-implementation.md",
-        withFrontmatter({ status: "pending", ...REVIEW("a") }, "\n## reviewer-a — abc1234\n\nFindings.\n"), "status must be one of open | approved | withdrawn | answered | disagreement",
+        withFrontmatter({ status: "pending", ...REVIEW("a") }, "\n## reviewer-a — abc1234\n\nFindings.\n"), "status must be one of open | approved | resolved | withdrawn | escalated | answered",
         withFrontmatter({ status: "open", ...REVIEW("a") }, "\n## reviewer-a — abc1234\n\nFindings.\n")],
     ];
     for (const [what, lanes, upTo, role, branch, file, rejected, reason, repaired] of repairs)
-      it(`waking ${what} whose landing would reject a file it wrote in its worktree as it stands, its next landing bringing both turns`, () => {
+      it(`waking ${what} whose landing would bring a malformed file it wrote in its worktree as it stands, its next landing bringing both turns`, () => {
         pipeline(upTo, { lanes });
         apply();
         const wt = laneWorktree(branch), turn1 = commitIn(wt, { [file]: rejected }, "first turn");
@@ -247,9 +247,9 @@ describe("rp next", () => {
         write(INTENT, `${read(INTENT)}More.\n`);
         commitAll("the intent changes");
         const lines = apply();
-        assert.ok(lines.includes(`repair ${role} INVALID ${file}: ${reason}`), lines.join("\n"));
+        assert.ok(lines.includes(`repair ${role} malformed ${file}: ${reason}`), lines.join("\n"));
         assert.deepEqual([actions(lines), head(wt), wakeOf(lines, role).worktree], [[], turn1, wt]);
-        assert.match(readFileSync(wakeOf(lines, role).assignment, "utf8"), new RegExp(`${turn1}[\\s\\S]*INVALID ${file}: ${reason.replaceAll("|", "\\|")}`));
+        assert.match(readFileSync(wakeOf(lines, role).assignment, "utf8"), new RegExp(`${turn1}[\\s\\S]*malformed ${file}: ${reason.replaceAll("|", "\\|")}`));
         const turn2 = commitIn(wt, { [file]: repaired }, "repair");
         landRole(role);
         const unlanded = git(root, "cherry", "demo", turn2).split("\n").filter((line) => line.startsWith("+ ")).map((line) => line.slice(2));
@@ -313,10 +313,10 @@ describe("rp next", () => {
       });
   });
 
-  it("reads a step record it wrote, and stops naming one that is malformed", () => {
+  it("reads a turn record it wrote, and stops naming one that is malformed", () => {
     pipeline(1);
     apply();
-    const record = join(gitDir(root), "rp/step.json");
+    const record = join(gitDir(root), "rp/turns.json");
     assert.deepEqual(Object.keys(JSON.parse(readFileSync(record, "utf8"))), ["turns", "woke", "complete", "reported"]);
     const written = JSON.parse(readFileSync(record, "utf8"));
     assert.deepEqual(written.turns["design-doc-producer"], { worktree: at(), branch: "demo", commit: head() });
@@ -325,10 +325,10 @@ describe("rp next", () => {
     const malformed = [
       ["a phase that is no phase", { ...written, woke: ["1"] }, "woke: must be a list of phases"],
       ["a turn commit that is no full commit hash", { ...written, turns: { "design-doc-producer": { ...turn, commit: "abc1234" } } }, "turns.design-doc-producer.commit: must be a full commit hash"],
-      ["a reviewer's turn without its change", { ...written, turns: { "reviewer-default": turn } }, "turns.reviewer-default.change: must be a full commit hash"],
+      ["a reviewer's turn without its review head", { ...written, turns: { "reviewer-default": turn } }, "turns.reviewer-default.review-head: must be a full commit hash"],
     ];
     for (const [what, data, reason] of malformed) {
-      writeFile(".git/rp/step.json", `${JSON.stringify(data)}\n`);
+      writeFile(".git/rp/turns.json", `${JSON.stringify(data)}\n`);
       for (const args of [["next"], ["land", "--role", "reviewer-default"]])
         assert.match(run(args[0], abs(PIPELINE), ...args.slice(1)).stderr, new RegExp(`^rp: ${record.replaceAll(".", "\\.")}: ${reason}$`, "m"), what);
     }

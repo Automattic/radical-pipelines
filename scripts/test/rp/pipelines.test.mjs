@@ -7,9 +7,9 @@ import { describe, it } from "node:test";
 
 import { RP, commitAll, git, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
 
-const CONFIG = '{"target-phase": 4, "base": "main", "worktree-folder-root": ".worktrees"}\n';
+const CONFIG = '{"target-phase": 4, "base-branch": "main", "worktree-folder-root": ".worktrees"}\n';
 function recordPipeline(folder, issue, extra = "") {
-  writeFile(`${folder}/run-config.json`, CONFIG);
+  writeFile(`${folder}/config.json`, CONFIG);
   writeFile(`${folder}/0-intent/intent.md`, `---\nissue: ${issue}\nstarts-from: main\n---\n\n# Intent\n${extra}`);
 }
 const discover = (...args) => JSON.parse(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--json", ...args)).map(({ state, ref, folder, origins }) => ({ state, ref, folder, origins }));
@@ -37,7 +37,7 @@ describe("pipelines", () => {
     git(root, "checkout", "--quiet", "main");
   }
 
-  it("lists live pipelines at every branch tip and merged ones from the base", () => {
+  it("lists live pipelines at every branch tip and merged ones from the artifact base branch", () => {
     scenario();
     assert.deepEqual(discover(), [
       { state: "live", ref: "live", folder: ".pipelines/fresh-work", origins: ["issue 2", "starts-from main"] },
@@ -68,7 +68,7 @@ describe("pipelines", () => {
       { state: "live", ref: "live", commit: git(root, "rev-parse", "live").trim(), folder: ".pipelines/fresh-work", origins: ["issue 2", "starts-from main"] });
   });
 
-  it("decides live and merged against the --base branch's history, not each run-config.json's base", () => {
+  it("decides live and merged against the --base branch's history, not each config.json's base branch", () => {
     scenario();
     git(root, "branch", "release", "old");
     assert.deepEqual(JSON.parse(rp("pipelines", `${root}/.pipelines`, "--base", "release", "--json")).map(({ state, ref, folder }) => `${state} ${ref} ${folder}`), [
@@ -79,10 +79,10 @@ describe("pipelines", () => {
     ]);
   });
 
-  it("lists only the folders holding run-config.json, live and merged, whatever else a folder of the root holds", () => {
-    // Folders of the root without run-config.json, each with an intent naming issue 5 where it has one.
+  it("lists only the folders holding config.json, live and merged, whatever else a folder of the root holds", () => {
+    // Folders of the root without config.json, each with an intent naming issue 5 where it has one.
     const others = {
-      "run-config-md/run-config.md": '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n', "run-config-md/0-intent/intent.md": "---\nissue: 5\n---\n",
+      "run-config-md/run-config.md": '---\n{"format": 7, "target-phase": 4, "base-branch": "main"}\n---\n', "run-config-md/0-intent/intent.md": "---\nissue: 5\n---\n",
       "phase-folder/1-spec/spec.md": "# S\n", "phase-folder/0-intent/intent.md": "origin: issue 5\n",
       "prompt/prompt.md": "p\n", "base/base/0-intent/intent.md": "origin: issue 5\n", "intent-only/0-intent/intent.md": "---\nissue: 5\n---\n",
       "bin/env.mjs": "tooling\n", "README.md": "notes\n",
@@ -100,9 +100,9 @@ describe("pipelines", () => {
 
   // [what, the listed pipeline's files, its origins]
   const intents = [
-    ["a run-config.json check would reject", { "run-config.json": '{"workflow": "x"}\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, "issue 5"],
-    ["an intent whose origins are body lines only", { "run-config.json": CONFIG, "0-intent/intent.md": "origin: issue 5\n\n# I\n" }, ""],
-    ["malformed files discovery does not read", { "run-config.json": CONFIG, "0-intent/intent.md": "---\nissue: 5\n---\n", "threads/1-x.md": "status: nope\n", "1-spec/spec.md/x": "x\n" }, "issue 5"],
+    ["a config.json check would reject", { "config.json": '{"workflow": "x"}\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, "issue 5"],
+    ["an intent whose origins are body lines only", { "config.json": CONFIG, "0-intent/intent.md": "origin: issue 5\n\n# I\n" }, ""],
+    ["malformed files discovery does not read", { "config.json": CONFIG, "0-intent/intent.md": "---\nissue: 5\n---\n", "threads/1-x.md": "status: nope\n", "1-spec/spec.md/x": "x\n" }, "issue 5"],
   ];
   for (const [what, files, origins] of intents)
     it(`lists a pipeline with ${what}, reading only its intent's origins`, () => {
@@ -158,7 +158,7 @@ describe("pipelines", () => {
   for (const [what, files, message] of broken)
     it(`stops on a pipeline with ${what}, with and without --issue`, () => {
       git(root, "checkout", "--quiet", "-b", "broken", "main");
-      writeFile(".pipelines/broken/run-config.json", CONFIG);
+      writeFile(".pipelines/broken/config.json", CONFIG);
       for (const [rel, contents] of Object.entries(files)) writeFile(`.pipelines/broken/${rel}`, contents);
       commitAll("broken");
       for (const issue of [[], ["--issue", "5"]]) {
@@ -170,9 +170,9 @@ describe("pipelines", () => {
 
   it("reads an intent's origins from its frontmatter as the text written, in the order written", () => {
     git(root, "checkout", "--quiet", "-b", "p", "main");
-    writeFile(".pipelines/p/run-config.json", CONFIG);
+    writeFile(".pipelines/p/config.json", CONFIG);
     writeFile(".pipelines/p/0-intent/intent.md", "---\nre-attempts: old-slug\nissue: 0368\nstarts-from: 'feature/x'\n---\n\n# Intent\n");
-    writeFile(".pipelines/q/run-config.json", CONFIG);
+    writeFile(".pipelines/q/config.json", CONFIG);
     writeFile(".pipelines/q/0-intent/intent.md", '---\nissue: "#368"\n---\n');
     commitAll("pipelines");
     assert.deepEqual(discover(), [

@@ -12,11 +12,18 @@ Rewrite the frontmatter as the line `conventions: 7`.
 
 ### Entries
 
-Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, and a lane's brief the lane's text. Rewrite `Worktree folder root` as its value alone. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
+Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, its `subagents` its `subagent-model`, and a lane's brief the lane's text. Rewrite `Worktree folder root` as its value alone. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
+
+### Renames
+
+| Existing lifecycle hook | New heading           |
+| ----------------------- | --------------------- |
+| `before-merging-lanes`  | `before-landing-lane` |
+| `after-merging-lanes`   | `after-landing-lane`  |
 
 ### Additions
 
-- `Landing commit`, optional: the template of the commits `rp land` makes. Propose one that the commit format's examples follow, such as `{subject} (orchestrator)`.
+- `Landing commit format`, optional: the template of the commits `rp land` makes. Propose one that the commit format's examples follow, such as `{subject} (orchestrator)`.
 - `Variables`, optional: the placeholders the guardrail, resource, commit-format, and brief texts use (`setup.md` § Write).
 
 ## 6

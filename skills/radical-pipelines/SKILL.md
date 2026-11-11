@@ -5,7 +5,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
-> **If this session was compacted** (a summary of earlier conversation, a note that the session continues from one), the summary is not the pipeline's state. Follow this file again from the top and re-read every file it points to. A run under way resumes without triage: recompute its state with `rp check`, find the roles still running through `tools/<tool>.md`, land each when it ends its turn, and only then run `rp next`; spawn each role it wakes as a fresh instance.
+> **If this session was compacted** (a summary of earlier conversation, a note that the session continues from one), the summary is not the pipeline's state. Follow this file again from the top and re-read every file it points to. A run under way resumes without triage: recompute its state with `rp check`, find the roles still running through `tools/<tool>.md`, land each when it ends its turn, and only then run `rp next`; spawn each role it wakes as a new instance.
 
 ## Overview
 
@@ -25,9 +25,9 @@ You are the orchestrator. A pipeline is a set of artifacts, each owned by one ro
 | 1   | Spec           | `1-spec`           | `spec.md`; production-lane candidates in `lanes/<lane>/`              | `spec-producer`       |
 | 2   | Design doc     | `2-design-doc`     | `design-doc.md`; production-lane candidates in `lanes/<lane>/`        | `design-doc-producer` |
 | 3   | Implementation | `3-implementation` | `notes.md`; the code, tests, and documentation on the pipeline branch | `implementer`         |
-| 4   | Review         | `threads`          | One review thread per review lane, closed `approved`                  | `reviewer`            |
+| 4   | Review         | —                  | One review thread per review lane, in `threads/`, closed `approved`   | `reviewer`            |
 
-Threads between roles live in `threads/` at the pipeline folder root; `run-config.json` there holds the run configuration. The run follows `reference/run/loop.md`.
+Threads between roles live in `threads/` at the pipeline folder root; `config.json` there holds the pipeline configuration. The run follows `reference/run/loop.md`.
 
 ## Project conventions
 
