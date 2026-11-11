@@ -7,7 +7,7 @@ Tool mechanics live in the skill. Project facts live in the project files and re
 Find the repository's main root, even when running inside a worktree. Read in this order, from lowest to highest precedence:
 
 1. `tools/<active tool>.md` from the skill, when present: spawn, seat, address, terminate, health-loop, and model mechanics. When the skill has no file for the active tool, those mechanics come from the tool's section in `.rp.md`, and setup asks the owner for them.
-2. `.rp.md` from the main root: its frontmatter, its shared sections, and the active tool's section — `## <Tool>` inline, or the sidecar `.rp.<tool>.md` it names. Ignore other tools. A tool section written for a different tool than the active one counts as absent: offer setup for the active tool.
+2. `.rp.md` from the main root: its frontmatter, its shared sections, and the active tool's section, `## <Tool>`. Ignore other tools. A tool section written for a different tool than the active one counts as absent: offer setup for the active tool.
 3. `.rp.local.md` from the main root, when present. Apply it only after the completeness check below.
 
 ## Conventions

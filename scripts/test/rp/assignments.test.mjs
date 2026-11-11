@@ -354,8 +354,6 @@ describe("assignments", () => {
 
     it("the run's, and the same plan and assignment under every agentic tool, whatever .rp.md and its tool sections say", () => {
       writeFile(".rp.md", "---\nconventions: 7\n---\n\n## Shared conventions\n\n### Agents\n\n#### implementer\n\n- model: `sonnet`\n\n## opencode\n\n`sonnet` is `claude-agent/sonnet#xhigh`.\n");
-      writeFile(".rp.opencode.md", "| `haiku` | `claude-agent/haiku#xhigh` |\n");
-      writeFile(".rp.claude-code.md", "Use `sonnet` for `haiku`.\n");
       pipeline(2, { agents: { implementer: { model: "opus", "subagent-model": "haiku" } } });
       const under = (extra) => {
         const out = runWith(ECHO, ["next", abs(PIPELINE), "--apply"], { ...process.env, OPENCODE: "1", CLAUDECODE: "", ...extra });
