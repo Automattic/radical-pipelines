@@ -443,15 +443,15 @@ describe("assignments", () => {
 
     it("leaves text outside the placeholder grammar as written, template syntax included, and lists no facts", () => {
       const text = "{{agent}} {Agent} { role } {agent_name} {{#guardrails}} {{/guardrails}} {{^brief}} $1 {";
-      conventions({ variables: { agent: "{role}" }, guardrails: { raw: { text: `${text}\n{{commit-format}}`, profiles: ["implementer"] } }, "commit-format": "{{vocabulary}}" });
+      conventions({ variables: { agent: "{role}" }, guardrails: { raw: { text: `${text}\n{{commit-format}}`, profiles: ["implementer"] } }, "commit-format": "{{facts}}" });
       pipeline(2);
       const values = assign("implementer").values;
       assert.deepEqual(values.guardrails, ["### raw", "", `- rule: ${text}`, "  {{commit-format}}"]);
-      assert.deepEqual([values["commit-format"], values.facts], [["{{vocabulary}}"], ["none"]]);
+      assert.deepEqual([values["commit-format"], values.facts], [["{{facts}}"], ["none"]]);
     });
   });
 
-  describe("stop on a malformed run configuration, writing nothing", () => {
+  describe("stop on a malformed pipeline configuration, writing nothing", () => {
     // config.json in the pipeline worktree with `changes` over it, a key given as undefined removed.
     const configWith = (changes) => write("config.json", JSON.stringify({ ...JSON.parse(read("config.json")), ...changes }));
     const entry = (key, name, value) => configWith({ [key]: { [name]: value } });
@@ -469,7 +469,7 @@ describe("assignments", () => {
       ["a resource with an empty profiles list", () => entry("resources", "suite", { text: "The suite.", profiles: [] }), /config\.json: resources\.suite\.profiles: must be a non-empty list/],
       ["a guardrail with an unknown key", () => entry("guardrails", "tests", { text: "Run.", profile: ["implementer"] }), /config\.json: guardrails\.tests: unexpected key: profile/],
       ["a lane model that is no name", () => configWith({ agents: { reviewer: { lanes: { astra: { model: "" } } } } }), /config\.json: agents\.reviewer\.lanes\.astra\.model: must be a model name/],
-      ["a variable named like a vocabulary fact", () => entry("variables", "role", "{profile}"), /config\.json: variables\.role: a pipeline fact is not declared/],
+      ["a variable named like a pipeline fact", () => entry("variables", "role", "{profile}"), /config\.json: variables\.role: a pipeline fact is not declared/],
       ["a variable whose template names no pipeline fact", () => entry("variables", "agent", "{pipeline-slug}-{agent}"), /config\.json: variables\.agent: \{agent\} names no pipeline fact/],
       ["a variable name outside the grammar", () => entry("variables", "Agent", "{role}"), /config\.json: variables\."Agent": a variable name must match/],
       ["a variable with an empty template", () => entry("variables", "agent", ""), /config\.json: variables\.agent: must be a template/],
@@ -541,7 +541,7 @@ describe("assignments", () => {
       });
   });
 
-  it("are written for every role from a run configuration and the delivered templates, for every kind of turn", () => {
+  it("are written for every role from a pipeline configuration and the delivered templates, for every kind of turn", () => {
     const data = {
       "commit-format": "Use imperative mood.\n\nExamples:\n\n- `Add spec (spec-producer)`\n- `Fix bug Y (assisted)`",
       guardrails: {

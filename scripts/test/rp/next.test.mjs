@@ -238,7 +238,7 @@ describe("rp next", () => {
         withFrontmatter({ status: "open", ...REVIEW("a") }, "\n## reviewer-a — abc1234\n\nFindings.\n")],
     ];
     for (const [what, lanes, upTo, role, branch, file, rejected, reason, repaired] of repairs)
-      it(`waking ${what} whose landing would reject a file it wrote in its worktree as it stands, its next landing bringing both turns`, () => {
+      it(`waking ${what} whose landing would bring a malformed file it wrote in its worktree as it stands, its next landing bringing both turns`, () => {
         pipeline(upTo, { lanes });
         apply();
         const wt = laneWorktree(branch), turn1 = commitIn(wt, { [file]: rejected }, "first turn");

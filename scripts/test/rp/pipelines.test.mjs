@@ -37,7 +37,7 @@ describe("pipelines", () => {
     git(root, "checkout", "--quiet", "main");
   }
 
-  it("lists live pipelines at every branch tip and merged ones from the base", () => {
+  it("lists live pipelines at every branch tip and merged ones from the artifact base branch", () => {
     scenario();
     assert.deepEqual(discover(), [
       { state: "live", ref: "live", folder: ".pipelines/fresh-work", origins: ["issue 2", "starts-from main"] },
@@ -68,7 +68,7 @@ describe("pipelines", () => {
       { state: "live", ref: "live", commit: git(root, "rev-parse", "live").trim(), folder: ".pipelines/fresh-work", origins: ["issue 2", "starts-from main"] });
   });
 
-  it("decides live and merged against the --base branch's history, not each config.json's base", () => {
+  it("decides live and merged against the --base branch's history, not each config.json's base branch", () => {
     scenario();
     git(root, "branch", "release", "old");
     assert.deepEqual(JSON.parse(rp("pipelines", `${root}/.pipelines`, "--base", "release", "--json")).map(({ state, ref, folder }) => `${state} ${ref} ${folder}`), [

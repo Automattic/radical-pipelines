@@ -15,7 +15,7 @@ v4 keeps the promises and removes the structures that produced the failures.
 
 ## Principles
 
-1. **The intent is the only authority.** Everything after it is chosen by an agent and is negotiable among agents. The owner decides only what the intent means or demands.
+1. **The intent is the only authority.** Everything after it is chosen by a role and is negotiable among roles. The owner decides only what the intent means or demands.
 2. **Observe the present, assume the future.** A claim about what the system does today is observed: read it, run it, drive it, reproduce it. A claim about what the solution will do is assumed and labeled, and the implementer verifies it. Nobody but the implementer writes solution code.
 3. **Artifacts hold the final truth only.** Discussion, provenance, and superseded text live in threads and in history. An artifact is what a reader needs now.
 4. **Each role owns one artifact and answers for it.** A finding is addressed to the owner of what it questions. Nobody defends what they do not own.
@@ -96,7 +96,7 @@ A review lane approves by closing its thread `approved` at the commit its turn s
 
 There is no helper profile. Every role delegates bounded work to its tool's subagents, in its own worktree, on the model its tool finds by the subagent model name its assignment gives, and remains responsible for the result. The pipeline configuration names that model per profile and lane, as the project's **Agents** convention writes it; without one, or when the tool finds none, it is the role's own model.
 
-Roles persist within a phase when the tool allows it and are replaced by a new instance when it does not. A new instance reads the same files and continues. Roles are fresh across phases: the design doc's producer is never the spec's.
+Roles persist within a phase when the tool allows it and are replaced by a new instance when it does not. A new instance reads the same files and continues. Each phase's roles are new instances: the design doc's producer is never the spec's.
 
 **Assignments.** A role's prompt is a file, not a message: before every turn, `rp next --apply` fills the role's template from the pipeline and its configuration and writes it to `<profile>.md` in the assignment folder of the role's worktree, `git rev-parse --git-path rp/` — inside the worktree's private git directory, outside the tree — so the orchestrator copies nothing into it; every other file prepared for the role, such as the diff a reviewer reads on a later turn, lives beside the assignment, private to that worktree; the message that starts a turn is exactly `Read your assignment: <absolute path>.`, naming that file so whoever reads the role's conversation sees which one; applying also records each woken role's turn, which `rp land` reads, so the orchestrator reads no assignment. The profile, which is the role's system prompt, names that path and tells the role to reread it after a compaction: a compaction summarizes a role's messages but keeps its system prompt and its working directory, so the role can always reread its seat, materials, rules, and subagent model. No two instances of one profile share a worktree.
 
@@ -143,7 +143,7 @@ Everything about a pipeline is computed from its tree at any commit, as in v3, w
 - **Net change.** The diff from the merge-base to the tip outside the pipelines folder: what the reviewer reads.
 - **Stale.** An artifact or approval whose required input is unpinned or has a different identity now. An approval is also stale when the tip's code differs from the approved commit's by anything other than clean merges of the base branch: `rp check` merges the merge-base of the tip and the base branch into the approved commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict outside the pipelines folder or a difference makes it stale. A review lane is approved when its latest thread to the implementer is closed `approved` and fresh.
 - **Missing.** An absent artifact; `notes.md` is also missing until its `status` is `done`.
-- **Awaiting.** An `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
+- **Awaiting.** An `open` thread awaits its opener when its recipient wrote the last message, and its recipient otherwise.
 - **Frontier.** `rp check` prints the first that holds:
   1. a malformed pipeline file: `malformed <path>: <reason>`; nothing is computed from a malformed file, and the orchestrator wakes its author with the `malformed` lines under **Malformed files** in its assignment, which the role fixes first;
   2. a thread with status `escalated`: `escalate <thread>`;

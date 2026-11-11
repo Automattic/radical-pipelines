@@ -22,7 +22,7 @@ function same(setups, command) {
   return first;
 }
 
-describe("the run configuration", () => {
+describe("the pipeline configuration", () => {
   useRepo();
 
   it("is all rp check, rp next, and rp land read of the project's conventions: the main checkout's .rp.md and .rp.local.md, absent, present, or edited between commands, change nothing they print or write", () => {

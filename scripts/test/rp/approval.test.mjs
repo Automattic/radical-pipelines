@@ -50,7 +50,7 @@ describe("approval freshness", () => {
     ["the repeated lines of a neighboring function", () => writeFile("src/f.js", FUNCTIONS({ a: "return 0;", c: "return 0;" }))],
     ["the start of the file, shifting line numbers", () => writeFile("src/f.js", `// header\n${FUNCTIONS()}`)],
   ])
-    it(`stays fresh after a clean merge of a base that changed ${what}`, () => {
+    it(`stays fresh after a clean merge of a base branch that changed ${what}`, () => {
       approvedEdit();
       onBase(change);
       git(root, "merge", "--quiet", "--no-edit", "main");
@@ -58,7 +58,7 @@ describe("approval freshness", () => {
       assert.deepEqual(frontier(), ["complete"]);
     });
 
-  it("stays fresh when the base moves and the tip has not merged it", () => {
+  it("stays fresh when the base branch moves and the tip has not merged it", () => {
     approvedEdit();
     onBase(() => writeFile("src/f.js", FUNCTIONS({ a: "return 0;" })));
     assert.deepEqual(review(), { lane: "default", approved: true });
@@ -105,7 +105,7 @@ describe("approval freshness", () => {
       assert.deepEqual(review(), stale ? { lane: "default", approved: false, stale } : { lane: "default", approved: true });
     });
 
-  it("prints the net change as <base>..<tip> and the approval's reasons", () => {
+  it("prints the net change as <merge-base>..<tip> and the approval's reasons", () => {
     approvedEdit();
     onBase(() => writeFile("src/other.js", "x\n"));
     git(root, "merge", "--quiet", "--no-edit", "main");
@@ -117,7 +117,7 @@ describe("approval freshness", () => {
     assert.ok(lines.includes(`review default stale ${INTENT} code`));
   });
 
-  it("uses the merge-base with the base config.json names", () => {
+  it("uses the merge-base with the base branch config.json names", () => {
     pipeline(3);
     git(root, "branch", "release", "main");
     onBase(() => writeFile("src/main-only.js", "x\n"));
@@ -125,7 +125,7 @@ describe("approval freshness", () => {
     assert.equal(check()["net-change"], `${git(root, "rev-parse", "release").trim()}..${head()}`);
   });
 
-  it("stops the check when the base does not resolve", () => {
+  it("stops the check when the base branch does not resolve", () => {
     pipeline(3);
     configure({ base: "missing" });
     const out = run("check", abs(P("")));
@@ -154,7 +154,7 @@ describe("approval freshness", () => {
     assert.deepEqual(review(), { lane: "default", approved: false, stale: [INTENT, "0-intent/proposal-1.md"] });
   });
 
-  it("stays fresh when merging the approved commit with the base conflicts only inside the pipelines folder root", () => {
+  it("stays fresh when merging the approved commit with the merge-base conflicts only inside the pipelines folder root", () => {
     approvedEdit();
     onBase(() => writeFile(P(NOTES), withFrontmatter({ status: "done" }, "\n# Notes the base holds\n")));
     const { "approved-commit": reviewed } = JSON.parse(read("certification/threads/1-reviewer-default-implementer-implementation.md.json"));

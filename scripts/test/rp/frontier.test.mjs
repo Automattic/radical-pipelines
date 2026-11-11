@@ -191,7 +191,7 @@ describe("frontier", () => {
       assert.deepEqual(check().frontier, [{ action: "respond", target: "design-doc", threads: [], changed: [SPEC] }]);
     });
 
-    it("responds on an artifact with threads awaiting its owner, listing them", () => {
+    it("responds on an artifact with threads awaiting its owner as their recipient, listing them", () => {
       pipeline(3);
       thread(TO_SPEC);
       thread({ n: 2, ...REVIEW(), recipient: "spec-producer", about: "spec" });
@@ -247,7 +247,7 @@ describe("frontier", () => {
       assert.deepEqual(frontier(), ["complete"]);
     });
 
-    it("a message by owner leaves the thread awaiting its owner", () => {
+    it("a message by owner leaves the thread awaiting its recipient", () => {
       pipeline(3);
       thread({ ...TO_SPEC, messages: [["design-doc-producer", "aaaaaaa"], ["spec-producer", "bbbbbbb"], ["owner", "ccccccc"]] });
       assert.deepEqual(frontier(), [`respond spec`]);

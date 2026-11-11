@@ -47,7 +47,7 @@ describe("review lanes", () => {
   useRepo();
 
   describe("are built from the pipeline tip", () => {
-    it("as a change whose tree holds the code, the intent, later inputs, and the lane's own threads only", () => {
+    it("as a review head whose tree holds the code, the intent, later inputs, and the lane's own threads only", () => {
       scenario();
       apply();
       assert.deepEqual(files(built("a").reviewHead), [
@@ -59,7 +59,7 @@ describe("review lanes", () => {
       ]);
     });
 
-    it("on a review base holding the base's code and the same pipeline files, on the merge-base, with no pipeline commit in its history", () => {
+    it("on a review base holding the merge-base's code and the same pipeline files, on the merge-base, with no pipeline commit in its history", () => {
       const tip = scenario();
       apply();
       const { base, reviewHead: change } = built("a");
@@ -126,7 +126,7 @@ describe("review lanes", () => {
       assert.equal(readFileSync(abs(".pipelines/bin/env.mjs"), "utf8"), "unstaged env\n");
     });
 
-    it("following the base merged into the pipeline branch after the pipeline started", () => {
+    it("following the base branch merged into the pipeline branch after the pipeline started", () => {
       scenario();
       git(root, "checkout", "--quiet", "main");
       writeFile("src/base.js", "export const b = 1;\n");
@@ -141,7 +141,7 @@ describe("review lanes", () => {
       assert.equal(git(root, "diff", "--stat", base, change, "--", "src/base.js"), "");
     });
 
-    it("as an empty change when the net change is empty", () => {
+    it("as a review head changing nothing when the net change is empty", () => {
       pipeline(3, { lanes: LANES });
       apply();
       const { base, reviewHead: change } = built("a");
@@ -162,7 +162,7 @@ describe("review lanes", () => {
       assert.deepEqual(files(built("c").reviewHead).filter((path) => path.startsWith(PIPELINE)), [`${PIPELINE}/0-intent/intent.md`]);
     });
 
-    it("again once the last turn's commits landed, moving the lane's worktree to the new change", () => {
+    it("again once the last turn's commits landed, moving the lane's worktree to the new review head", () => {
       scenario();
       apply();
       const wt = laneWorktree("demo-review-a"), first = built("a").reviewHead;
@@ -246,7 +246,7 @@ describe("review lanes", () => {
       assert.deepEqual(reviewOf(), { lane: "a", approved: false, stale: ["0-intent/intent.md"] });
     });
 
-    it("stale on a later input that reached the pipeline branch after its change was built", () => {
+    it("stale on a later input that reached the pipeline branch after its review head was built", () => {
       pipeline(3, { lanes: [lane("reviewer", "a")] });
       writeFile("src/app.js", "export const a = 2;\n");
       commitAll("work");

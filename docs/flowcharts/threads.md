@@ -1,19 +1,19 @@
 # A thread's lifecycle
 
-This chart mirrors [`reference/run/state.md`](../../skills/radical-pipelines/reference/run/state.md) § Threads and the thread rules in the agent profiles: a role that consumes an artifact opens a thread to its owner, each message ends its author's turn, and the frontier wakes whichever party the thread awaits. A reviewer opens threads to the implementer only; the implementer carries a finding that questions a requirement or a design decision to that clause's owner in a thread of its own.
+This chart mirrors [`reference/run/state.md`](../../skills/radical-pipelines/reference/run/state.md) § Threads and the thread rules in the agent profiles: a role that consumes an artifact opens a thread to its owner, the thread's recipient, each message ends its author's turn, and the frontier wakes whichever party the thread awaits. A reviewer opens threads to the implementer only; the implementer carries a finding that questions a requirement or a design decision to that clause's owner in a thread of its own.
 
 ```mermaid
 flowchart TD
-    OPEN["A consuming role finds a problem and opens a thread to the owner with rp thread open, its findings the body"] --> AW1["The thread awaits its owner; rp check names respond artifact"]
-    AW1 --> OWNER["The orchestrator wakes the owner, which reads its artifact, inputs, and the thread"]
+    OPEN["A consuming role finds a problem and opens a thread to the artifact's owner with rp thread open, its findings the body"] --> AW1["The thread awaits its recipient; rp check names respond artifact"]
+    AW1 --> OWNER["The orchestrator wakes the recipient, which reads its artifact, inputs, and the thread"]
     OWNER --> OWNS{"Does the finding concern what it owns?"}
-    OWNS -->|No| NAME["It replies naming the owner"]
+    OWNS -->|No| NAME["It replies naming the role that owns it"]
     NAME --> REOPEN["The opener reopens the finding in a thread to the role named"]
     REOPEN --> AW1
     OWNS -->|Yes| ANSWER["It commits the artifact changes and replies with rp thread reply to each finding: what changed and in which commit, or why it stands"]
     ANSWER --> AW2["The thread awaits its opener; the orchestrator wakes it"]
     AW2 --> READ{"The opener reads the reply"}
-    READ -->|Resolved| CLOSED["The opener closes it approved or withdrawn with rp thread close"]
+    READ -->|Resolved| CLOSED["The opener closes it with rp thread close: approved for a review thread, resolved for any other, or withdrawn"]
     READ -->|New findings or evidence| AGAIN["It replies"]
     AGAIN --> AW1
     READ -->|A position repeated without new evidence| DIS{"What is disputed?"}

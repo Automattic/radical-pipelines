@@ -321,7 +321,7 @@ With `--apply`, `next` prints the plan and, unless it names a turn to land, carr
 3. It creates each worktree.
 4. It writes each woken role's assignment (§ Assignments), its turn commit the tip of its worktree, and then the turn record.
 
-It changes no other ref or worktree, leaves the pipeline branch where it is, changes no file in the pipeline worktree's tree, and starts, messages, or stops no agent. A failed action stops it with `rp: next --apply: <action>: <reason>`; the actions before it stay done, and applying again, once the cause is repaired, plans and applies only what remains. An assignment written again for an unchanged turn is byte-identical.
+It changes no other ref or worktree, leaves the pipeline branch where it is, changes no file in the pipeline worktree's tree, and starts, messages, or stops no role. A failed action stops it with `rp: next --apply: <action>: <reason>`; the actions before it stay done, and applying again, once the cause is repaired, plans and applies only what remains. An assignment written again for an unchanged turn is byte-identical.
 
 ### Review lanes
 

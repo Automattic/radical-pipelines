@@ -208,9 +208,9 @@ At every run start, the orchestrator copies the conventions `rp` reads — the w
 | Artifact storage       | Whether artifacts live in the project's repository or a fork, and the artifact base branch | Yes      |
 | Worktree folder root   | Where worktrees live                                                                       | Yes      |
 | Landing commit format  | The template of the commits `rp` makes when it lands a turn                                | No       |
-| Commit format          | How agents write commits                                                                   | No       |
+| Commit format          | How roles write commits                                                                    | No       |
 | PR format              | How pull request titles and descriptions are written                                       | No       |
-| Guardrails             | Rules the project's agents must satisfy                                                    | No       |
+| Guardrails             | Rules the project's roles must satisfy                                                     | No       |
 | Resources              | What every role may run and use — environments, services, accounts, data — and how         | No       |
 | Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
 | Agents                 | The model of each profile — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` — and of its subagents, production lanes for the two producers, and review lanes for `reviewer` | No |

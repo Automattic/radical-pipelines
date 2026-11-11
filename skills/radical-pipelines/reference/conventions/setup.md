@@ -79,7 +79,7 @@ Wait for confirmation, then re-run `git remote -v` and confirm the assignment.
 - **Upstream branch format**: the name of the cherry-pick branch pushed to `upstream` as the PR source. Can be derived from the pipeline slug.
 - **Upstream commit format**: the message format used for the cherry-picked clean commits. Should follow upstream's contribution guidelines. Can be derived from the fork's commit format.
 
-These are consulted by the orchestrator only, at PR time. They are never passed down to agents.
+These are consulted by the orchestrator only, at PR time. They are never passed down to roles.
 
 Suggested defaults:
 
