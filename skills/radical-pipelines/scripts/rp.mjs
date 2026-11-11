@@ -650,7 +650,7 @@ export function parseRole(role) {
   return match ? { profile: match[1], lane: match[2] } : null;
 }
 
-// A production lane's role: one that may name a closed thread of an earlier run, never a live one.
+// A production lane's role: a lane of `spec-producer` or `design-doc-producer`.
 const isProductionLane = (role) => { const parsed = parseRole(role); return parsed.lane !== null && parsed.profile !== "reviewer"; };
 // A review thread: one a review lane opens to the implementer.
 export const isReview = (thread) => parseRole(thread.opener).profile === "reviewer" && thread.owner === IMPLEMENTATION.owner;
@@ -692,7 +692,7 @@ export function parseThread(name, contents) {
   if (thread.opener === thread.owner) invalid("opener and owner must differ");
   if ((thread.owner === "owner") !== OWNER_STATUSES.includes(thread.status))
     invalid(`${OWNER_STATUSES.join(" and ")} are the statuses of a thread to owner, and only of it`);
-  if (["open", "disagreement"].includes(thread.status) && [thread.opener, thread.owner].some(isProductionLane)) invalid("production lanes open no threads");
+  if ([thread.opener, thread.owner].some(isProductionLane)) invalid("production lanes open no threads");
   if (name !== `${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`) invalid(`thread file name must be ${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`);
   thread.messages = [];
   let fence = null;
