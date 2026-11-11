@@ -63,7 +63,7 @@ State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts
 
 A project may configure **production lanes** for the spec and the design doc: named lanes, each with a model and an optional brief, that write candidates in parallel. The producer then consolidates them into the artifact. What every lane reached is kept; what only one lane reached is a question, answered by observing whether intended use produces it. Two independent readings of the intent show both what one reading missed and what it added.
 
-The review runs one **review lane** per configured `reviewer` lane, each with its brief when it has one, and every lane must approve. Lanes are configured in the project's `.rp.md`, in its shared conventions or in an agentic tool's section, and each pipeline's configuration records the ones the owner confirmed. Setup proposes two, without a brief, on models from different providers. Each reviewer gets the request a developer would: review the code on this branch, which addresses this issue, and report anything wrong, missing, risky, or more than the issue needs.
+The review runs one **review lane** per configured `reviewer` lane, each with its brief when it has one, and every lane must approve. Lanes are configured in the project's `.rp.md`, and each pipeline's configuration records the ones the owner confirmed. Setup proposes two, without a brief, on models from different providers. Each reviewer gets the request a developer would: review the code on this branch, which addresses this issue, and report anything wrong, missing, risky, or more than the issue needs.
 
 ### What the owner is asked
 
@@ -140,7 +140,7 @@ Plugin skills are namespaced by the plugin name in Claude Code (not by the marke
 
 A long run outlives its context: when Claude Code compacts a session, it re-attaches the first 5,000 tokens of the skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage: recompute the state with `rp check`, find the roles still running, land each when it ends its turn, and only then plan the next step, waking each role as a new instance. No hook is needed.
 
-The orchestrator seats each role in its worktree by spawning it from that directory, so the **Worktree folder root** must be inside the repository; `.worktrees/` qualifies. Models in the **Agents** convention are Claude Code aliases (`opus`, `sonnet`, `haiku`, `fable`); map any other name to an alias in a `## Claude Code` section of `.rp.md`, which the orchestrator spawns roles on. A role whose subagent model is no alias runs its subagents on its own model. A role's permission prompt reaches you in the orchestrator's session.
+The orchestrator seats each role in its worktree by spawning it from that directory, so the **Worktree folder root** must be inside the repository; `.worktrees/` qualifies. Models in the **Models** convention are Claude Code aliases (`opus`, `sonnet`, `haiku`, `fable`), or names `.rp.md` maps to one for Claude Code, which the orchestrator spawns roles on. A role whose subagent model is no alias runs its subagents on its own model. A role's permission prompt reaches you in the orchestrator's session.
 
 The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
@@ -174,7 +174,7 @@ The orchestrator drives roles with opencode's own primitives: it creates each ro
 - **Skill registration and re-supply.** The `radical-pipelines` skill is invokable, and a session that activated it gets it back after opencode's context compaction.
 - **Profile registration.** RP's four agent profiles register as the subagents `radical-pipelines/<profile>`.
 
-A role's permission request reaches you in opencode's interface; answer it there. Models in the **Agents** convention are `provider/model[#variant]` strings, names an `## opencode` section of `.rp.md` maps to one, or names opencode's model search finds, such as `sonnet`. A role finds its subagent model by its name through that search, its own provider's first.
+A role's permission request reaches you in opencode's interface; answer it there. Models in the **Models** convention are `provider/model[#variant]` strings, names `.rp.md` maps to one for opencode, or names opencode's model search finds, such as `sonnet`. A role finds its subagent model by its name through that search, its own provider's first.
 
 The full behavior, and what opencode covers natively, is documented in [docs/opencode-plugin.md](./docs/opencode-plugin.md).
 
@@ -197,7 +197,7 @@ opencode reports plugin ids, not versions, so RP carries its version in its id: 
 
 The skill is generic: each project records its conventions in a committed `.rp.md`, prose a person reads and edits. Its frontmatter is the one line `conventions: <version>`, the conventions version — currently 7 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. Every convention is a prose section below it. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
-At every run start, the orchestrator copies the conventions `rp` reads — the worktree folder root, the landing commit format, and what every role's assignment carries: commit format, guardrails, resources, and variables — verbatim into the pipeline's `config.json`, beside the target phase, the base branch, and the agents the owner confirmed. `rp` reads that file and never `.rp.md`: it places lane worktrees, shapes the commits it makes, and writes each assignment from it. Editing `.rp.md` therefore changes no run under way, and a merged pipeline keeps the conventions it ran under.
+At every run start, the orchestrator copies the conventions `rp` reads — the worktree folder root and what every role's assignment carries: commit format, guardrails, resources, and variables — verbatim into the pipeline's `config.json`, beside the target phase, the base branch, and the lanes and models the owner confirmed. `rp` reads that file and never `.rp.md`: it places lane worktrees, shapes the commits it makes, and writes each assignment from it. Editing `.rp.md` therefore changes no run under way, and a merged pipeline keeps the conventions it ran under.
 
 | Convention             | What it covers                                                                             | Required |
 | ---------------------- | ------------------------------------------------------------------------------------------ | -------- |
@@ -207,17 +207,17 @@ At every run start, the orchestrator copies the conventions `rp` reads — the w
 | Pipelines folder root  | Where pipeline folders live                                                                | No       |
 | Artifact storage       | Whether artifacts live in the project's repository or a fork, and the artifact base branch | Yes      |
 | Worktree folder root   | Where worktrees live                                                                       | Yes      |
-| Landing commit format  | The template of the commits `rp` makes when it lands a turn                                | No       |
-| Commit format          | How roles write commits                                                                    | No       |
+| Commit format          | How roles and the orchestrator write commits                                               | No       |
 | PR format              | How pull request titles and descriptions are written                                       | No       |
 | Guardrails             | Rules the project's roles must satisfy                                                     | No       |
 | Resources              | What every role may run and use — environments, services, accounts, data — and how         | No       |
 | Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
-| Agents                 | The model of each profile — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` — and of its subagents, production lanes for the two producers, and review lanes for `reviewer` | No |
+| Lanes                  | The production lanes of the two producers and the review lanes of `reviewer`, with their briefs | No |
+| Models                 | The model of each profile and lane, and of its subagents                                   | No       |
 | Variables              | Placeholders the guardrail, resource, commit-format, and brief texts use, such as `{agent}`, each a template over pipeline facts such as `{pipeline-slug}` and `{role}` | No |
 | Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
 
-A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. Its Agents entries override the models on that working copy. At a run start, what it overrides of the conventions `rp` reads and of the models goes to `config.local.json` beside `config.json`, which setup has Git ignore, so no commit holds it. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
+A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`; a pipeline's configuration records the conventions with those overrides applied. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; `.rp.md` may override or extend them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
 A guardrail binds the profiles its entry names, and the reviewer evaluates it against the change. A role reports a blocker when something it was given fails it — its materials, its worktree, or the worktree's environment; the orchestrator repairs it and wakes the role again.
 

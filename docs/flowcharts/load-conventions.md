@@ -5,7 +5,7 @@ This chart mirrors [`reference/conventions/load.md`](../../skills/radical-pipeli
 ```mermaid
 flowchart TD
     A["Find the repository's main root, even from a worktree"] --> B["Read the skill's tools/tool.md"]
-    B --> C["Read .rp.md: its frontmatter, shared sections, and the active tool's section"]
+    B --> C["Read .rp.md"]
     C --> H{"Conventions version"}
     H -->|No .rp.md| I["Offer Fresh setup"]
     H -->|Absent or older| J["Offer Migration through the changelog"]
@@ -18,7 +18,7 @@ flowchart TD
     M -->|No| STOP["Stop and explain what is missing"]
     M -->|Yes| SETUP["Run setup; write the confirmed .rp.md"]
     SETUP --> C
-    K -->|Yes| G["Merge .rp.local.md overrides in memory"]
+    K -->|Yes| G["Apply .rp.local.md's overrides"]
     G --> T{"tools/tool.md lists setup actions?"}
     T -->|Yes| TA["Perform them, confirming any action that writes files"]
     TA --> TR{"Every requirement met?"}

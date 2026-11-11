@@ -19,7 +19,6 @@ Paths are relative to the pipeline folder.
 | Path | Contents | Written by |
 | --- | --- | --- |
 | `config.json` | The pipeline configuration (§ Pipeline configuration) | You |
-| `config.local.json` | This clone's overrides of the pipeline configuration, never committed (§ Pipeline configuration) | You |
 | `0-intent/intent.md` | The intent (`../entries/intent-format.md`) | You, on the owner's approval |
 | `0-intent/constraint-<n>.md`, `0-intent/proposal-<n>.md`, `0-intent/failure-<n>.md` | Later input (`../entries/intent-format.md` § Later input) | You, on the owner's approval |
 | `1-spec/spec.md` | The spec | `spec-producer` |
@@ -96,22 +95,19 @@ cites: <thread path | evidence path>
 
 ## Pipeline configuration
 
-The pipeline configuration is `config.json` at the pipeline folder root, one JSON object in the schema of `../../scripts/README.md` § `config.json`: the configuration the tree is produced under, and everything `rp` reads about the pipeline. `config.local.json` beside it holds what this clone overrides, in the schema of `../../scripts/README.md` § `config.local.json`; no commit holds it.
+The pipeline configuration is `config.json` at the pipeline folder root, one JSON object in the schema of `../../scripts/README.md` § `config.json`: the configuration the tree is produced under, and everything `rp` reads about the pipeline.
 
-Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand then; at no other moment write either from those files:
+Record it at every run start from the conventions as they stand then, `.rp.local.md`'s overrides applied, and at no other moment from them:
 
-- `config.json`:
-  - `worktree-folder-root`, `landing-commit-format`, `commit-format`, `guardrails`, `resources`, and `variables`: what `.rp.md` states, replacing what an earlier run start recorded. A convention `.rp.md` does not set is absent.
-  - `target-phase`: the phase the run continues through, 1 to 4.
-  - `base-branch`: the branch of the unmerged pipeline it started from, else the artifact base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
-  - `agents`: the models, subagent models, lanes, and briefs the owner confirmed.
-  - Keep `target-phase`, `base-branch`, and `agents` as they are unless the owner asks to change them, while confirming the run or during it.
-  - `owner-directions`: the owner's directions for the run, one entry per direction. Keep every earlier entry.
-- `config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane the run has. When it would hold nothing, write no file and remove an existing one.
+- `worktree-folder-root`, `commit-format`, `guardrails`, `resources`, and `variables`: what the conventions state, replacing what an earlier run start recorded. A convention they do not set is absent.
+- `landing-commit-format`: the template of the commits `rp land` makes, holding `{subject}` where each commit's subject goes, as the Commit format convention has your commits read; absent when it says nothing of them.
+- `target-phase`: the phase the run continues through, 1 to 4.
+- `base-branch`: the branch of the unmerged pipeline it started from, else the artifact base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
+- `lanes` and `models`: the lanes, briefs, models, and subagent models the owner confirmed.
+- Keep `target-phase`, `base-branch`, `lanes`, and `models` as they are unless the owner asks to change them, while confirming the run or during it.
+- `owner-directions`: the owner's directions for the run, one entry per direction. Keep every earlier entry.
 
-Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit format, and each variable's template. Record every guardrail and resource under its name, with the profiles its entry lists. Never summarize or reword.
-
-A model or subagent model the owner asks for, for a profile or lane, while confirming a run or during it, holds on this clone for the rest of that run. Record it in `config.json`'s `agents`. Drop that field's override for that profile or lane from `config.local.json`: leave it out when you record the file, or remove it when the owner asks during the run. Every other override stays, including the other field of the same entry.
+Copy each text and value character for character as the conventions write it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, and each variable's template. Record every guardrail and resource under its name, with the profiles it binds. Never summarize or reword.
 
 A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. A lane without a brief covers its profile's whole scope. Lane ids start with a lowercase letter or digit and continue with those or hyphens. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
 
@@ -143,7 +139,7 @@ A profile's lanes are production lanes for `spec-producer` and `design-doc-produ
    - phase 4 → `review <lane>` for each lane not approved or with a thread awaiting its reviewer.
 4. Otherwise → `complete`.
 
-Below the frontier, `rp check` lists the threads awaiting each woken role and the changed inputs of each stale artifact. A missing or malformed configuration, a `config.local.json` Git tracks, a certification it cannot read, a base branch that does not resolve, or no merge-base stops the command.
+Below the frontier, `rp check` lists the threads awaiting each woken role and the changed inputs of each stale artifact. A missing or malformed configuration, a certification it cannot read, a base branch that does not resolve, or no merge-base stops the command.
 
 ## Discovery
 

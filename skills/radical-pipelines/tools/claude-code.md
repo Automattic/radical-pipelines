@@ -29,7 +29,7 @@ A finished role needs none. Stop a running role with `TaskStop` and its agent ID
 
 ## Models
 
-Pass as `model` the alias (`opus`, `sonnet`, `haiku`, `fable`) the model name the plan names resolves to: the alias the project's `## Claude Code` section maps the name to, else the name itself.
+Pass as `model` the alias (`opus`, `sonnet`, `haiku`, `fable`) the model name the plan names resolves to: the alias `.rp.md` maps the name to for Claude Code, else the name itself.
 
 ## Unverified
 

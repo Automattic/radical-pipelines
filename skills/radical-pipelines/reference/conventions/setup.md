@@ -12,7 +12,7 @@ Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, add
 
 ## Fresh setup
 
-Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only. When the skill ships no `tools/<tool>.md`, interview its mechanics and record them in the tool section.
+Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only. When the skill ships no `tools/<tool>.md`, interview its mechanics.
 
 ### Issues (required)
 
@@ -42,7 +42,7 @@ Running Radical Pipelines creates three kinds of files that need a home:
 
 - The project-level `.rp.md` config file (the conventions captured during this setup).
 - The pipelines folder containing the pipeline folders and their phase artifacts.
-- `.gitignore` entries for the worktree folder root and each pipeline's `config.local.json`.
+- A `.gitignore` entry for the worktree folder root.
 
 They can live either in the project's repository alongside the code, or in a separate fork. The fork option is used when the project does not accept these kinds of commits, or when the owner wants to keep the pipeline workflow private.
 
@@ -98,11 +98,7 @@ Capture:
 
 ### Commit format (optional)
 
-The format every assignment carries. Capture one example. Suggested: `<commit-description> (<profile>)`.
-
-### Landing commit format (optional)
-
-The template of the commits `rp land` makes, holding `{subject}`, the imperative subject `rp` writes for each. Absent, a commit has the subject alone. Suggested: one the Commit format's examples follow, such as `{subject} (orchestrator)`.
+The format of the roles' commits and of yours, which `rp land` makes; every assignment carries it. Capture one example. Suggested: `<commit-description> (<profile>)`, your profile being `orchestrator`.
 
 ### PR format (optional)
 
@@ -110,19 +106,23 @@ The pull request title and description template, required sections, style, and a
 
 ### Guardrails (optional)
 
-Checks and judgment rules the project's work must satisfy. Offer to inspect the project and test each rule. Capture the entries defined in `guardrails.md`.
+Checks and judgment rules the project's work must satisfy. Offer to inspect the project and test each rule. Capture each as `guardrails.md` defines it.
 
 ### Resources (optional)
 
-Offer to inspect the project. Capture the entries defined in `resources.md`.
+Offer to inspect the project. Capture each as `resources.md` defines it.
 
 ### Lifecycle hooks (optional)
 
 Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the owner selects.
 
-### Agents (optional)
+### Lanes (optional)
 
-Defaults for profile models and lanes (`agents.md`). Propose two `reviewer` lanes without a brief, `default` and a second one, on models from different providers.
+Defaults for each profile's lanes (`lanes.md`). Propose two `reviewer` lanes without a brief, `default` and a second one.
+
+### Models (optional)
+
+Defaults for each profile's and lane's models (`models.md`). Propose models from different providers for the two `reviewer` lanes.
 
 ### Health monitoring (optional)
 
@@ -132,12 +132,12 @@ The recurring health loop's interval and stall threshold. Offer the defaults in 
 
 Keep `.rp.md` to the conventions above. Include other discovered facts or instructions only at the owner's explicit request; under-specification is safe.
 
-Write every convention as a prose section in the form `load.md` § Conventions gives, each value and text as the owner gave it. When a guardrail, resource, commit-format, or brief text uses a placeholder that names no pipeline fact, offer to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose, when one does.
+Write each convention as a section headed by its name, each value and text as the owner gave it. When a guardrail, resource, commit-format, or brief text uses a placeholder that names no pipeline fact, offer to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose, when one does.
 
 1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
 2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
-3. On the artifact base branch, write `.rp.md`: the frontmatter `conventions: 7`, then shared fact sections and a section headed by the active tool's name for its project facts.
-4. With permission, append to `.gitignore` the worktree folder root's entry and `<pipelines folder root>/*/config.local.json`.
+3. On the artifact base branch, write `.rp.md`: the frontmatter `conventions: 7`, then the conventions.
+4. With permission, append the worktree folder root's entry to `.gitignore`.
 5. Commit the approved `.rp.md` on that branch, co-committing `.gitignore` when changed. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
 6. Report whether `.rp.md` was created or updated and whether setup is complete.
 
