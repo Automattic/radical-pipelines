@@ -7,11 +7,8 @@ import { after, before, describe, it } from "node:test";
 
 import {
   DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, RP, SPEC, TO_OWNER, TO_SPEC,
-  abs, commitAll, commitIn, conventions, git, ignore, land, landRole, lane, laneWorktree, later, pipeline, read, remove, revise, root, thread, useRepo, wakeOf, withFrontmatter, write, writeFile,
+  abs, commitAll, commitIn, configure, conventions, git, ignore, land, landRole, lane, laneWorktree, later, pipeline, read, remove, revise, root, thread, useRepo, wakeOf, withFrontmatter, write, writeFile,
 } from "./fixture.mjs";
-
-// The pipeline worktree's config.local.json, holding `data`.
-const local = (data) => write("config.local.json", `${JSON.stringify(data, null, 2)}\n`);
 
 // A copy of `rp` in a skill folder of its own, beside `templates` by name. The tests own these templates, so they
 // assert the values `rp` fills, never the delivered templates' wording.
@@ -296,65 +293,48 @@ describe("assignments", () => {
       assert.deepEqual(assign("implementer").values["commit-format"], ["An imperative subject line."]);
     });
 
-    it("with each one config.local.json holds replacing the committed one or added by name, in assignments, lane worktrees, and landing commits, and config.json's alone without it", () => {
-      const bothRules = ["### tests", "", "- rule: Run the tests.", "", "### docs", "", "- rule: Follow the glossary."];
-      conventions({
-        guardrails: { tests: { text: "Run the tests.", profiles: ["spec-producer"] }, docs: { text: "Follow the glossary.", profiles: ["spec-producer"] } },
-        resources: { env: { text: "Use {agent} at {host}.", profiles: ["spec-producer"] } },
-        variables: { agent: "{pipeline-slug}-{role}", host: "{role}.example" },
-        "commit-format": "Committed.", "landing-commit-format": "{subject} (committed)",
-      });
+    it("the worktree folder root, the commit format, and the landing commit format it records, in lane worktrees, assignments, and landing commits", () => {
+      conventions({ "worktree-folder-root": ".elsewhere", "commit-format": "Committed.", "landing-commit-format": "{subject} (committed)" });
+      ignore(".elsewhere/");
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
-      ignore(".local-worktrees/");
-      local({
-        "worktree-folder-root": ".local-worktrees", "landing-commit-format": "{subject} (local)", "commit-format": "Local.",
-        guardrails: { tests: { text: "Run the local tests.", profiles: ["spec-producer"] } },
-        resources: { browser: { text: "A local browser.", profiles: ["spec-producer"] } },
-        variables: { agent: "local-{role}" },
-      });
-      const values = assign("spec-producer-a").values, wt = join(realpathSync(root), ".local-worktrees/demo-spec-a");
-      assert.deepEqual(values.worktree, [wt]);
-      assert.deepEqual(values.guardrails, ["### tests", "", "- rule: Run the local tests.", ...bothRules.slice(3)]);
-      assert.deepEqual(values.resources, ["### env", "", "- resource: Use local-spec-producer-a at spec-producer-a.example.", "", "### browser", "", "- resource: A local browser."]);
-      assert.deepEqual(values["commit-format"], ["Local."]);
+      const values = assign("spec-producer-a").values, wt = join(realpathSync(root), ".elsewhere/demo-spec-a");
+      assert.deepEqual([values.worktree, values["commit-format"]], [[wt], ["Committed."]]);
       commitIn(wt, { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
       landRole("spec-producer-a");
-      assert.deepEqual(git(root, "log", "--first-parent", "-2", "--format=%s").trim().split("\n"), ["Certify spec lane a candidate (local)", "Merge spec lane a (local)"]);
-      remove("config.local.json");
-      const consolidation = assign("spec-producer").values;
-      assert.deepEqual([consolidation.guardrails, consolidation.resources, consolidation["commit-format"]],
-        [bothRules, ["### env", "", "- resource: Use demo-spec-producer at spec-producer.example."], ["Committed."]]);
-      write(SPEC, "# Spec\n");
-      commitAll("Consolidate the spec");
-      landRole("spec-producer");
-      assert.equal(git(root, "log", "-1", "--format=%s").trim(), "Certify spec (committed)");
+      assert.deepEqual(git(root, "log", "--first-parent", "-2", "--format=%s").trim().split("\n"), ["Certify spec lane a candidate (committed)", "Merge spec lane a (committed)"]);
     });
   });
 
-  describe("names models as the run writes them", () => {
-    const AGENTS = {
-      "spec-producer": { model: "opus", "subagent-model": "sonnet", lanes: { a: { model: "sonnet" }, b: { "subagent-model": "openai/gpt-6-astra#high" } } },
-      reviewer: { model: "opus", lanes: { astra: { model: "astra", "subagent-model": "luna" }, default: {} } },
-    };
+  describe("names models as config.json writes them", () => {
+    // A woken role's model and subagent model, null where it has none.
+    const models = (role) => { const { model, values } = assign(role); return [model, values["subagent-model"][0] ?? null]; };
 
-    it("a lane's model and subagent model, else its profile's, or none and no model line", () => {
-      pipeline(0, { agents: AGENTS });
-      const a = assign("spec-producer-a"), b = assign("spec-producer-b");
-      assert.deepEqual([a.model, a.values["subagent-model"]], ["sonnet", ["sonnet"]]);
-      assert.deepEqual([b.model, b.values["subagent-model"]], ["opus", ["openai/gpt-6-astra#high"]]);
-      pipeline(2, { agents: AGENTS });
-      const implementer = assign("implementer");
-      assert.deepEqual([implementer.model, implementer.values["subagent-model"]], [null, []]);
-      pipeline(3, { agents: AGENTS });
-      for (const [id, model, subagents] of [["astra", "astra", ["luna"]], ["default", "opus", []]]) {
-        const request = assign(`reviewer-${id}`);
-        assert.deepEqual([request.model, request.values["subagent-model"]], [model, subagents]);
-      }
+    it("for each of a role's model and subagent model, its role name's entry, else its profile's, or none and no model line", () => {
+      const lanes = ["a", "b", "c", "d"].map((id) => lane("spec-producer", id));
+      const config = {
+        lanes: [...lanes, lane("reviewer", "x"), lane("reviewer", "y")],
+        models: {
+          "spec-producer": { model: "opus", "subagent-model": "sonnet" },
+          "spec-producer-a": { model: "astra" }, "spec-producer-b": { "subagent-model": "openai/gpt-6-astra#high" }, "spec-producer-c": { model: "astra", "subagent-model": "luna" },
+          implementer: { model: "opus" }, "reviewer-x": { model: "astra", "subagent-model": "luna" },
+        },
+      };
+      pipeline(0, config);
+      assert.deepEqual(["a", "b", "c", "d"].map((id) => models(`spec-producer-${id}`)),
+        [["astra", "sonnet"], ["opus", "openai/gpt-6-astra#high"], ["astra", "luna"], ["opus", "sonnet"]]);
+      pipeline(1, config);
+      assert.deepEqual(models("design-doc-producer"), [null, null]);
+      pipeline(2, config);
+      assert.deepEqual(models("implementer"), ["opus", null]);
+      pipeline(3, config);
+      assert.deepEqual([models("reviewer-x"), models("reviewer-y")], [["astra", "luna"], [null, null]]);
+      pipeline(3, { models: { reviewer: { model: "opus" }, "reviewer-default": { "subagent-model": "luna" } } });
+      assert.deepEqual(models("reviewer-default"), ["opus", "luna"]);
     });
 
-    it("the run's, and the same plan and assignment under every agentic tool, whatever .rp.md and its tool sections say", () => {
-      writeFile(".rp.md", "---\nconventions: 7\n---\n\n## Shared conventions\n\n### Agents\n\n#### implementer\n\n- model: `sonnet`\n\n## opencode\n\n`sonnet` is `claude-agent/sonnet#xhigh`.\n");
-      pipeline(2, { agents: { implementer: { model: "opus", "subagent-model": "haiku" } } });
+    it("config.json's, and the same plan and assignment under every agentic tool, whatever .rp.md and its tool sections say", () => {
+      writeFile(".rp.md", "---\nconventions: 7\n---\n\n## Shared conventions\n\n### Models\n\n#### implementer\n\n- model: `sonnet`\n\n## opencode\n\n`sonnet` is `claude-agent/sonnet#xhigh`.\n");
+      pipeline(2, { models: { implementer: { model: "opus", "subagent-model": "haiku" } } });
       const under = (extra) => {
         const out = runWith(ECHO, ["next", abs(PIPELINE), "--apply"], { ...process.env, OPENCODE: "1", CLAUDECODE: "", ...extra });
         assert.equal(out.status, 0, out.stderr);
@@ -366,28 +346,6 @@ describe("assignments", () => {
       assert.ok(opencode[1].equals(claudeCode[1]));
       assert.deepEqual(sections(opencode[1].toString())["subagent-model"], ["haiku"]);
       assert.match(opencode[0], /^wake implementer model opus$/m);
-    });
-
-    it("with each model and subagent model config.local.json gives replacing the committed one of its lane or profile, field by field, the default review lane's included, and the committed ones where it gives none", () => {
-      const agents = { "spec-producer": { model: "opus", "subagent-model": "sonnet", lanes: { a: { model: "sonnet" }, b: {}, c: { "subagent-model": "luna" } } },
-        "design-doc-producer": { model: "opus", "subagent-model": "sonnet" }, implementer: { model: "opus", "subagent-model": "sonnet" } };
-      const overrides = { agents: { "spec-producer": { model: "local-opus", "subagent-model": "local-sonnet", lanes: { b: { model: "local-b", "subagent-model": "local-b-sub" } } },
-        implementer: { "subagent-model": "local-sonnet" }, reviewer: { lanes: { default: { model: "local-default" } } } } };
-      const models = (role) => { const { model, values } = assign(role); return [model, values["subagent-model"][0] ?? null]; };
-      const lanes = () => ["a", "b", "c"].map((id) => models(`spec-producer-${id}`));
-      local(overrides);
-      pipeline(0, { agents });
-      assert.deepEqual(lanes(), [["sonnet", "local-sonnet"], ["local-b", "local-b-sub"], ["local-opus", "luna"]]);
-      remove("config.local.json");
-      assert.deepEqual(lanes(), [["sonnet", "sonnet"], ["opus", "sonnet"], ["opus", "luna"]]);
-      local(overrides);
-      pipeline(1, { agents });
-      assert.deepEqual(models("design-doc-producer"), ["opus", "sonnet"]);
-      pipeline(2, { agents });
-      assert.deepEqual(models("implementer"), ["opus", "local-sonnet"]);
-      pipeline(3, { agents });
-      assert.deepEqual(models("reviewer-default"), ["local-default", null]);
-      assert.equal(spawnSync("git", ["grep", "--quiet", "local-", "HEAD"], { cwd: root }).status, 1);
     });
   });
 
@@ -454,7 +412,7 @@ describe("assignments", () => {
     const configWith = (changes) => write("config.json", JSON.stringify({ ...JSON.parse(read("config.json")), ...changes }));
     const entry = (key, name, value) => configWith({ [key]: { [name]: value } });
     // [what, how config.json is broken, what the message names]: each stops rp check, rp next, and rp land.
-    const committed = [
+    const configurations = [
       ["an empty worktree folder root", () => configWith({ "worktree-folder-root": " " }), /config\.json: worktree-folder-root: must be a folder/],
       ["a landing commit template without {subject}", () => configWith({ "landing-commit-format": "(orchestrator)" }), /config\.json: landing-commit-format: must hold \{subject\}/],
       ["a landing commit template naming another placeholder", () => configWith({ "landing-commit-format": "{subject} ({role})" }), /config\.json: landing-commit-format: \{role\} names no part of a landing commit/],
@@ -466,31 +424,21 @@ describe("assignments", () => {
       ["a guardrail without profiles", () => entry("guardrails", "tests", { text: "Run." }), /config\.json: guardrails\.tests\.profiles: must be a non-empty list of profiles/],
       ["a resource with an empty profiles list", () => entry("resources", "suite", { text: "The suite.", profiles: [] }), /config\.json: resources\.suite\.profiles: must be a non-empty list/],
       ["a guardrail with an unknown key", () => entry("guardrails", "tests", { text: "Run.", profile: ["implementer"] }), /config\.json: guardrails\.tests: unexpected key: profile/],
-      ["a lane model that is no name", () => configWith({ agents: { reviewer: { lanes: { astra: { model: "" } } } } }), /config\.json: agents\.reviewer\.lanes\.astra\.model: must be a model name/],
+      ["a lane's model that is no name", () => configWith({ models: { "reviewer-a": { model: "" } } }), /config\.json: models\.reviewer-a\.model: must be a model name/],
+      ["models for a lane the run does not have", () => configWith({ models: { "reviewer-b": { model: "opus" } } }), /config\.json: models\.reviewer-b: names no profile and no lane the run has/],
       ["a variable named like a pipeline fact", () => entry("variables", "role", "{profile}"), /config\.json: variables\.role: a pipeline fact is not declared/],
       ["a variable whose template names no pipeline fact", () => entry("variables", "agent", "{pipeline-slug}-{agent}"), /config\.json: variables\.agent: \{agent\} names no pipeline fact/],
       ["a variable name outside the grammar", () => entry("variables", "Agent", "{role}"), /config\.json: variables\."Agent": a variable name must match/],
       ["a variable with an empty template", () => entry("variables", "agent", ""), /config\.json: variables\.agent: must be a template/],
     ];
-    // [what config.local.json holds, what the message names]: each stops rp next and rp land, and rp check reads none.
-    const locals = [
-      ["the target phase", { "target-phase": 3 }, /config\.local\.json: unexpected key: target-phase/],
-      ["a lane's brief", { agents: { reviewer: { lanes: { a: { brief: "Look closer." } } } } }, /config\.local\.json: agents\.reviewer\.lanes\.a: unexpected key: brief/],
-      ["a model for a lane the run does not have", { agents: { reviewer: { lanes: { b: { model: "opus" } } } } }, /config\.local\.json: agents\.reviewer\.lanes\.b: a lane the run does not have/],
-      ["a malformed entry", { resources: { browser: { text: "A browser.", profiles: ["builder"] } } }, /config\.local\.json: resources\.browser\.profiles: "builder" is no profile/],
-      ["no JSON", "artifact-storage: fork\n", /config\.local\.json: not valid JSON/],
-    ];
-    const cases = [...committed.map(([what, breakIt, message]) => [`on ${what}`, breakIt, message, true]),
-      ...locals.map(([what, data, message]) => [`on a config.local.json holding ${what}`, () => typeof data === "string" ? write("config.local.json", data) : local(data), message, false])];
-    for (const [what, breakIt, message, checkStops] of cases)
-      it(what, () => {
+    for (const [what, breakIt, message] of configurations)
+      it(`on ${what}`, () => {
         conventions({ guardrails: { tests: { text: "Run.", profiles: ["implementer"] } } });
         pipeline(2, { lanes: [lane("reviewer", "a")] });
         const { path, text } = assign("implementer");
         breakIt();
         for (const args of [["next", abs(PIPELINE), "--apply"], ["land", abs(PIPELINE), "--role", "implementer"], ["check", abs(PIPELINE)]]) {
           const out = runWith(ECHO, args);
-          if (args[0] === "check" && !checkStops) { assert.equal(out.status, 0, out.stderr); continue; }
           assert.deepEqual([out.status, out.stdout], [1, ""]);
           assert.match(out.stderr, message);
         }
@@ -548,14 +496,18 @@ describe("assignments", () => {
       },
       resources: { "test suite and scripts": { text: "The repository's test suite and scripts.", profiles: ["spec-producer", "design-doc-producer", "implementer", "reviewer"] } },
     };
-    const agents = {
-      "spec-producer": { model: "opus", "subagent-model": "sonnet", lanes: { demands: { brief: "Read the intent for what it demands.", model: "opus" }, omits: { brief: "Read the intent for what it leaves out.", model: "sonnet" } } },
-      "design-doc-producer": { model: "opus", "subagent-model": "sonnet" },
-      implementer: { model: "opus", "subagent-model": "sonnet" },
-      reviewer: { lanes: { default: { model: "opus", "subagent-model": "sonnet" }, astra: { model: "astra", "subagent-model": "luna" } } },
+    const demandsBrief = "Read the intent for what it demands.";
+    const config = {
+      lanes: [{ profile: "spec-producer", id: "demands", brief: demandsBrief }, { profile: "spec-producer", id: "omits", brief: "Read the intent for what it leaves out." },
+        { profile: "reviewer", id: "default" }, { profile: "reviewer", id: "astra" }],
+      models: {
+        "spec-producer": { model: "opus", "subagent-model": "sonnet" }, "spec-producer-omits": { model: "sonnet" },
+        "design-doc-producer": { model: "opus", "subagent-model": "sonnet" },
+        implementer: { model: "opus", "subagent-model": "sonnet" },
+        "reviewer-default": { model: "opus", "subagent-model": "sonnet" }, "reviewer-astra": { model: "astra", "subagent-model": "luna" },
+      },
     };
     conventions(data);
-    const config = { agents };
     const commitFormat = data["commit-format"].split("\n");
     const carried = (key, field, name) => `- ${field}: ${data[key][name].text}`;
     // The delivered template's assignment for a role: written, holding the command that runs rp and each of `values`.
@@ -566,9 +518,9 @@ describe("assignments", () => {
     };
     pipeline(0, config);
     const demands = assign("spec-producer-demands").values;
-    assert.deepEqual([demands.brief, demands.guardrails, demands["subagent-model"]], [[agents["spec-producer"].lanes.demands.brief], ["none"], ["sonnet"]]);
+    assert.deepEqual([demands.brief, demands.guardrails, demands["subagent-model"]], [[demandsBrief], ["none"], ["sonnet"]]);
     assert.deepEqual([demands.resources.at(-1), demands["commit-format"]], [carried("resources", "resource", "test suite and scripts"), commitFormat]);
-    assert.equal(delivered("spec-producer-demands", [agents["spec-producer"].lanes.demands.brief, ...commitFormat.filter(Boolean)]), "opus");
+    assert.equal(delivered("spec-producer-demands", [demandsBrief, ...commitFormat.filter(Boolean)]), "opus");
     assert.equal(delivered("spec-producer-omits", ["sonnet"]), "sonnet");
     for (const id of ["demands", "omits"]) {
       commitIn(laneWorktree(`demo-spec-${id}`), { [`1-spec/lanes/${id}/spec.md`]: `# ${id}\n` }, `Add ${id} candidate (spec-producer)`);
@@ -585,11 +537,12 @@ describe("assignments", () => {
     thread({ n: 1, ...TO_SPEC, opener: "implementer", about: "spec", recipient: "spec-producer", messages: [["implementer", head()], ["spec-producer", head()]] });
     commitAll("a stale notes and an answered thread");
     delivered("implementer", [`${in_(realpathSync(root), DESIGN)} — changed since`, in_(realpathSync(root), "threads/1-implementer-spec-producer-spec.md")]);
-    local({ resources: { ticket: { text: "Open {ticket}.", profiles: ["implementer"] } } });
+    conventions({ ...data, resources: { ...data.resources, ticket: { text: "Open {ticket}.", profiles: ["implementer"] } } });
+    configure(config);
     write(NOTES, withFrontmatter({ status: "done", owner: "me" }, "\n# Notes\n"));
-    commitAll("a malformed notes");
+    commitAll("a malformed notes and a resource with a placeholder");
     delivered("implementer", [`malformed ${NOTES}: unexpected frontmatter key: owner`, "Open {ticket}.", "`{pipeline-slug}`: demo"]);
-    remove("config.local.json");
+    conventions(data);
     thread({ n: 1, ...TO_SPEC, opener: "implementer", status: "resolved", messages: [["implementer", head()], ["spec-producer", head()]] });
     pipeline(3, config);
     for (const [id, model, subagents] of [["default", "opus", "sonnet"], ["astra", "astra", "luna"]])
