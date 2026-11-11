@@ -70,7 +70,7 @@ describe("approval freshness", () => {
     assert.throws(() => git(root, "merge", "--quiet", "--no-edit", "main"));
     writeFile("src/f.js", FUNCTIONS({ b: "return 2;" }));
     commitAll("resolve keeping ours");
-    assert.deepEqual(review(), { lane: "default", approved: false, codeChanged: true });
+    assert.deepEqual(review(), { lane: "default", approved: false, "code-changed": true });
     assert.deepEqual(frontier(), ["review default"]);
   });
 
@@ -85,7 +85,7 @@ describe("approval freshness", () => {
       approvedEdit();
       change();
       commitAll("implementer");
-      assert.deepEqual(review(), { lane: "default", approved: false, codeChanged: true });
+      assert.deepEqual(review(), { lane: "default", approved: false, "code-changed": true });
       assert.deepEqual(frontier(), ["review default"]);
     });
 
@@ -117,12 +117,12 @@ describe("approval freshness", () => {
     assert.ok(lines.includes(`review default stale ${INTENT} code`));
   });
 
-  it("uses the merge-base with the base run-config.json names", () => {
+  it("uses the merge-base with the base config.json names", () => {
     pipeline(3);
     git(root, "branch", "release", "main");
     onBase(() => writeFile("src/main-only.js", "x\n"));
     configure({ base: "release" });
-    assert.equal(check().netChange, `${git(root, "rev-parse", "release").trim()}..${head()}`);
+    assert.equal(check()["net-change"], `${git(root, "rev-parse", "release").trim()}..${head()}`);
   });
 
   it("stops the check when the base does not resolve", () => {
@@ -130,19 +130,19 @@ describe("approval freshness", () => {
     configure({ base: "missing" });
     const out = run("check", abs(P("")));
     assert.equal(out.status, 1);
-    assert.match(out.stderr, /base does not resolve to a commit: missing/);
+    assert.match(out.stderr, /base-branch does not resolve to a commit: missing/);
   });
 
   it("is no approval when the clone lacks the approved commit, whatever its pins", () => {
     pipeline(3);
     const path = approve();
     const { inputs } = JSON.parse(read(`certification/${path}.json`));
-    write(`certification/${path}.json`, JSON.stringify({ inputs, reviewed: "1".repeat(40) }));
+    write(`certification/${path}.json`, JSON.stringify({ inputs, "approved-commit": "1".repeat(40) }));
     assert.deepEqual(review(), { lane: "default", approved: false });
     assert.equal(rp("check", abs(P(""))).split("\n").find((line) => line.startsWith("review ")), "review default unapproved");
     write(INTENT, `${read(INTENT)}Changed.\n`);
     assert.deepEqual(review(), { lane: "default", approved: false });
-    assert.deepEqual(frontier(), [`respond ${SPEC}`]);
+    assert.deepEqual(frontier(), [`respond spec`]);
   });
 
   it("without certification, is stale on each required input and its code is not judged", () => {
@@ -157,7 +157,7 @@ describe("approval freshness", () => {
   it("stays fresh when merging the approved commit with the base conflicts only inside the pipelines folder root", () => {
     approvedEdit();
     onBase(() => writeFile(P(NOTES), withFrontmatter({ status: "done" }, "\n# Notes the base holds\n")));
-    const { reviewed } = JSON.parse(read("certification/threads/1-reviewer-default-implementer-implementation.md.json"));
+    const { "approved-commit": reviewed } = JSON.parse(read("certification/threads/1-reviewer-default-implementer-implementation.md.json"));
     const merged = spawnSync("git", ["merge-tree", "--write-tree", "--name-only", "--no-messages", reviewed, "main"], { cwd: root, encoding: "utf8" });
     assert.deepEqual([merged.status, merged.stdout.split("\n").slice(1).filter(Boolean)], [1, [P(NOTES)]]);
     git(root, "merge", "--quiet", "--no-edit", "-X", "ours", "main");
@@ -166,11 +166,11 @@ describe("approval freshness", () => {
 
   it("compares code outside the pipelines folder root that is the pipeline folder's parent, whatever .rp.md says", () => {
     writeFile(".rp.md", "### Pipelines folder root\n\n`elsewhere/`\n");
-    const files = { "run-config.json": '{"target-phase": 4, "base": "main", "worktree-folder-root": ".worktrees"}\n', "0-intent/intent.md": "# I\n", "1-spec/spec.md": "# S\n" };
+    const files = { "config.json": '{"target-phase": 4, "base-branch": "main", "worktree-folder-root": ".worktrees"}\n', "0-intent/intent.md": "# I\n", "1-spec/spec.md": "# S\n" };
     for (const [rel, contents] of Object.entries(files)) writeFile(`work/pipes/demo/${rel}`, contents);
     const turn = commitAll("pipeline");
     const approval = "work/pipes/demo/threads/1-reviewer-default-implementer-implementation.md";
-    writeFile(approval, withFrontmatter({ status: "approved", opener: "reviewer-default", owner: "implementer", artifact: "implementation" }, `\n## reviewer-default — ${turn}\n`));
+    writeFile(approval, withFrontmatter({ status: "approved", opener: "reviewer-default", recipient: "implementer", about: "implementation" }, `\n## reviewer-default — ${turn}\n`));
     certifyAt(turn, "threads/1-reviewer-default-implementer-implementation.md", { folder: "work/pipes/demo" });
     writeFile("work/pipes/other.md", "inside the root\n");
     commitAll("inside");
@@ -178,6 +178,6 @@ describe("approval freshness", () => {
     assert.deepEqual(reviews(), [{ lane: "default", approved: true }]);
     writeFile(".pipelines/x.md", "outside the root\n");
     commitAll("outside");
-    assert.deepEqual(reviews(), [{ lane: "default", approved: false, codeChanged: true }]);
+    assert.deepEqual(reviews(), [{ lane: "default", approved: false, "code-changed": true }]);
   });
 });

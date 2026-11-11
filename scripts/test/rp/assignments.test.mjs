@@ -10,8 +10,8 @@ import {
   abs, commitAll, commitIn, conventions, git, ignore, land, landRole, lane, laneWorktree, later, pipeline, read, remove, revise, root, thread, useRepo, wakeOf, withFrontmatter, write, writeFile,
 } from "./fixture.mjs";
 
-// The pipeline worktree's run-config.local.json, holding `data`.
-const local = (data) => write("run-config.local.json", `${JSON.stringify(data, null, 2)}\n`);
+// The pipeline worktree's config.local.json, holding `data`.
+const local = (data) => write("config.local.json", `${JSON.stringify(data, null, 2)}\n`);
 
 // A copy of `rp` in a skill folder of its own, beside `templates` by name. The tests own these templates, so they
 // assert the values `rp` fills, never the delivered templates' wording.
@@ -28,8 +28,8 @@ function skillWith(templates, name = null) {
 }
 // A template naming itself under `## template`, then each flag that holds as a `## <flag>` heading, and each value
 // alone under its own `## <name>` heading.
-const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
-  "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "vocabulary"];
+const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "merge-base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
+  "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "facts"];
 const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "threads", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
 const echo = (name, values, flags = []) => `${["## template", name, ...flags.flatMap((flag) => [`{{#${flag}}}`, `## ${flag}`, `{{/${flag}}}`]),
@@ -81,7 +81,7 @@ describe("assignments", () => {
   useRepo();
 
   describe("of a producer or the implementer, for the turn the frontier gives it", () => {
-    it("produce: its template, the mode, the root's later inputs, and the pipeline worktree's seat and tip", () => {
+    it("produce: its template, the mode, the artifact's later inputs, and the pipeline worktree's seat and tip", () => {
       pipeline(1);
       write("0-intent/constraint-1.md", later(DESIGN));
       write("0-intent/proposal-2.md", later(DESIGN));
@@ -116,7 +116,7 @@ describe("assignments", () => {
       const at = realpathSync(root);
       assert.equal(readFileSync(path, "utf8"), text);
       assert.deepEqual([values.mode, flagsOf(values), values["turn-commit"], values["base-branch"]], [["Respond"], ["respond"], [tip], ["main"]]);
-      assert.deepEqual(values.base, [git(root, "merge-base", "main", tip).trim()]);
+      assert.deepEqual(values["merge-base"], [git(root, "merge-base", "main", tip).trim()]);
       assert.deepEqual(values["later-inputs"], [in_(at, "0-intent/constraint-1.md")]);
       assert.deepEqual(values["changed-inputs"], [`${in_(at, DESIGN)} — changed since ${notesChanged}`]);
       assert.deepEqual(values.threads, [in_(at, awaiting)]);
@@ -174,7 +174,7 @@ describe("assignments", () => {
       assert.deepEqual(assign("spec-producer-b").values.brief, []);
     });
 
-    it("consolidate: every lane's candidate in the pipeline worktree, and the root to write", () => {
+    it("consolidate: every lane's candidate in the pipeline worktree, and the artifact to write", () => {
       pipeline(1, { lanes: [{ profile: "design-doc-producer", id: "x" }, { profile: "design-doc-producer", id: "y" }] });
       for (const id of ["x", "y"]) {
         write(`2-design-doc/lanes/${id}/design-doc.md`, `# ${id}\n`);
@@ -188,7 +188,7 @@ describe("assignments", () => {
 
     const refusals = [
       ["a detached pipeline worktree", () => { pipeline(1); git(root, "checkout", "--quiet", "--detach"); }, /has no branch checked out/],
-      ["a base that does not resolve", () => pipeline(1, { targetPhase: 3, base: "gone" }), /base does not resolve to a commit: gone/],
+      ["a base that does not resolve", () => pipeline(1, { targetPhase: 3, base: "gone" }), /base-branch does not resolve to a commit: gone/],
     ];
     for (const [what, setup, message] of refusals)
       it(`stops on ${what}, writing no assignment`, () => {
@@ -213,7 +213,7 @@ describe("assignments", () => {
     }
     const changeOf = (id) => git(root, "rev-parse", `demo-review-${id}`).trim();
 
-    it("first turn: the branch, the review base and change built from the tip, every later input, the brief or none, and no thread", () => {
+    it("first turn: the branch, the review base and review head built from the tip, every later input, the brief or none, and no thread", () => {
       reviewable();
       thread({ n: 4, status: "withdrawn", ...REVIEW("a"), messages: [["reviewer-a", "abc1234"]] });
       commitAll("an earlier review, withdrawn");
@@ -230,7 +230,7 @@ describe("assignments", () => {
       assert.match(out.stderr, /templates\/reviewer-first\.md:1: \{\{thread\}\} has no value/);
     });
 
-    it("later turn: the lane's open review thread awaiting it, and the diff from the change its last message names to this turn's change", () => {
+    it("later turn: the lane's open review thread awaiting it, and the diff from the commit its last message names to this turn's review head", () => {
       reviewable();
       assign("reviewer-a");
       const wt = laneWorktree("demo-review-a"), first = changeOf("a");
@@ -254,20 +254,20 @@ describe("assignments", () => {
     });
   });
 
-  it("lists as malformed files the INVALID lines of the files each role writes, wakes only those roles, and gives a reviewer the repair request", () => {
+  it("lists as malformed files the malformed lines of the files each role writes, wakes only those roles, and gives a reviewer the repair template", () => {
     pipeline(3);
     write(NOTES, withFrontmatter({ status: "done", owner: "me" }, "\n# Notes\n"));
     const rejected = thread({ n: 2, ...REVIEW("default"), status: "pending" });
     const toOwner = thread({ n: 3, ...TO_OWNER, status: "pending" });
     const tip = commitAll("malformed files");
-    const STATUS = "status must be one of open | approved | withdrawn | answered | disagreement";
+    const STATUS = "status must be one of open | approved | resolved | withdrawn | escalated | answered";
     const implementer = assign("implementer").values;
-    assert.deepEqual(implementer["malformed-files"], [`INVALID ${NOTES}: unexpected frontmatter key: owner`, `INVALID ${rejected}: ${STATUS}`]);
+    assert.deepEqual(implementer["malformed-files"], [`malformed ${NOTES}: unexpected frontmatter key: owner`, `malformed ${rejected}: ${STATUS}`]);
     assert.deepEqual([implementer.mode, implementer.threads, implementer["changed-inputs"]], [["Respond"], ["none"], ["none"]]);
-    assert.deepEqual(assign("spec-producer").values["malformed-files"], [`INVALID ${toOwner}: ${STATUS}`]);
+    assert.deepEqual(assign("spec-producer").values["malformed-files"], [`malformed ${toOwner}: ${STATUS}`]);
     const wt = laneWorktree("demo-review-default"), change = git(root, "rev-parse", "demo-review-default").trim();
     const { path, values: request } = assign("reviewer-default");
-    assert.deepEqual([request.template, request["malformed-files"]], [["reviewer-repair"], [`INVALID ${rejected}: ${STATUS}`]]);
+    assert.deepEqual([request.template, request["malformed-files"]], [["reviewer-repair"], [`malformed ${rejected}: ${STATUS}`]]);
     assert.deepEqual([request["turn-commit"], request["pipeline-folder"]], [[change], [in_(wt, "")]]);
     assert.notEqual(change, tip);
     assert.equal(existsSync(join(dirname(path), "reviewer.diff")), false);
@@ -276,8 +276,8 @@ describe("assignments", () => {
   });
 
   describe("carries the run's conventions", () => {
-    const GUARDRAILS = { tests: { rule: "Run the tests.", profiles: ["implementer", "reviewer"] }, docs: { rule: "Follow the glossary.\n\n- Every term.", profiles: ["implementer"] } };
-    const RESOURCES = { suite: { resource: "The suite.", profiles: ["spec-producer", "design-doc-producer", "implementer", "reviewer"] } };
+    const GUARDRAILS = { tests: { text: "Run the tests.", profiles: ["implementer", "reviewer"] }, docs: { text: "Follow the glossary.\n\n- Every term.", profiles: ["implementer"] } };
+    const RESOURCES = { suite: { text: "The suite.", profiles: ["spec-producer", "design-doc-producer", "implementer", "reviewer"] } };
     const BOTH_GUARDRAILS = ["### tests", "", "- rule: Run the tests.", "", "### docs", "", "- rule: Follow the glossary.", "", "  - Every term."];
 
     it("each guardrail and resource whose profiles include the role's, under its name with its text, the same in every lane, or none", () => {
@@ -296,20 +296,20 @@ describe("assignments", () => {
       assert.deepEqual(assign("implementer").values["commit-format"], ["An imperative subject line."]);
     });
 
-    it("with each one run-config.local.json holds replacing the committed one or added by name, in assignments, lane worktrees, and landing commits, and run-config.json's alone without it", () => {
+    it("with each one config.local.json holds replacing the committed one or added by name, in assignments, lane worktrees, and landing commits, and config.json's alone without it", () => {
       const bothRules = ["### tests", "", "- rule: Run the tests.", "", "### docs", "", "- rule: Follow the glossary."];
       conventions({
-        guardrails: { tests: { rule: "Run the tests.", profiles: ["spec-producer"] }, docs: { rule: "Follow the glossary.", profiles: ["spec-producer"] } },
-        resources: { env: { resource: "Use {agent} at {host}.", profiles: ["spec-producer"] } },
+        guardrails: { tests: { text: "Run the tests.", profiles: ["spec-producer"] }, docs: { text: "Follow the glossary.", profiles: ["spec-producer"] } },
+        resources: { env: { text: "Use {agent} at {host}.", profiles: ["spec-producer"] } },
         variables: { agent: "{pipeline-slug}-{role}", host: "{role}.example" },
-        "commit-format": "Committed.", "landing-commit": "{subject} (committed)",
+        "commit-format": "Committed.", "landing-commit-format": "{subject} (committed)",
       });
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       ignore(".local-worktrees/");
       local({
-        "worktree-folder-root": ".local-worktrees", "landing-commit": "{subject} (local)", "commit-format": "Local.",
-        guardrails: { tests: { rule: "Run the local tests.", profiles: ["spec-producer"] } },
-        resources: { browser: { resource: "A local browser.", profiles: ["spec-producer"] } },
+        "worktree-folder-root": ".local-worktrees", "landing-commit-format": "{subject} (local)", "commit-format": "Local.",
+        guardrails: { tests: { text: "Run the local tests.", profiles: ["spec-producer"] } },
+        resources: { browser: { text: "A local browser.", profiles: ["spec-producer"] } },
         variables: { agent: "local-{role}" },
       });
       const values = assign("spec-producer-a").values, wt = join(realpathSync(root), ".local-worktrees/demo-spec-a");
@@ -320,7 +320,7 @@ describe("assignments", () => {
       commitIn(wt, { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
       landRole("spec-producer-a");
       assert.deepEqual(git(root, "log", "--first-parent", "-2", "--format=%s").trim().split("\n"), ["Certify spec lane a candidate (local)", "Merge spec lane a (local)"]);
-      remove("run-config.local.json");
+      remove("config.local.json");
       const consolidation = assign("spec-producer").values;
       assert.deepEqual([consolidation.guardrails, consolidation.resources, consolidation["commit-format"]],
         [bothRules, ["### env", "", "- resource: Use demo-spec-producer at spec-producer.example."], ["Committed."]]);
@@ -333,8 +333,8 @@ describe("assignments", () => {
 
   describe("names models as the run writes them", () => {
     const AGENTS = {
-      "spec-producer": { model: "opus", subagents: "sonnet", lanes: { a: { model: "sonnet" }, b: { subagents: "openai/gpt-6-astra#high" } } },
-      reviewer: { model: "opus", lanes: { astra: { model: "astra", subagents: "luna" }, default: {} } },
+      "spec-producer": { model: "opus", "subagent-model": "sonnet", lanes: { a: { model: "sonnet" }, b: { "subagent-model": "openai/gpt-6-astra#high" } } },
+      reviewer: { model: "opus", lanes: { astra: { model: "astra", "subagent-model": "luna" }, default: {} } },
     };
 
     it("a lane's model and subagent model, else its profile's, or none and no model line", () => {
@@ -356,7 +356,7 @@ describe("assignments", () => {
       writeFile(".rp.md", "---\nconventions: 7\n---\n\n## Shared conventions\n\n### Agents\n\n#### implementer\n\n- model: `sonnet`\n\n## opencode\n\n`sonnet` is `claude-agent/sonnet#xhigh`.\n");
       writeFile(".rp.opencode.md", "| `haiku` | `claude-agent/haiku#xhigh` |\n");
       writeFile(".rp.claude-code.md", "Use `sonnet` for `haiku`.\n");
-      pipeline(2, { agents: { implementer: { model: "opus", subagents: "haiku" } } });
+      pipeline(2, { agents: { implementer: { model: "opus", "subagent-model": "haiku" } } });
       const under = (extra) => {
         const out = runWith(ECHO, ["next", abs(PIPELINE), "--apply"], { ...process.env, OPENCODE: "1", CLAUDECODE: "", ...extra });
         assert.equal(out.status, 0, out.stderr);
@@ -370,17 +370,17 @@ describe("assignments", () => {
       assert.match(opencode[0], /^wake implementer model opus$/m);
     });
 
-    it("with each model and subagent model run-config.local.json gives replacing the committed one of its lane or profile, field by field, the default review lane's included, and the committed ones where it gives none", () => {
-      const agents = { "spec-producer": { model: "opus", subagents: "sonnet", lanes: { a: { model: "sonnet" }, b: {}, c: { subagents: "luna" } } },
-        "design-doc-producer": { model: "opus", subagents: "sonnet" }, implementer: { model: "opus", subagents: "sonnet" } };
-      const overrides = { agents: { "spec-producer": { model: "local-opus", subagents: "local-sonnet", lanes: { b: { model: "local-b", subagents: "local-b-sub" } } },
-        implementer: { subagents: "local-sonnet" }, reviewer: { lanes: { default: { model: "local-default" } } } } };
+    it("with each model and subagent model config.local.json gives replacing the committed one of its lane or profile, field by field, the default review lane's included, and the committed ones where it gives none", () => {
+      const agents = { "spec-producer": { model: "opus", "subagent-model": "sonnet", lanes: { a: { model: "sonnet" }, b: {}, c: { "subagent-model": "luna" } } },
+        "design-doc-producer": { model: "opus", "subagent-model": "sonnet" }, implementer: { model: "opus", "subagent-model": "sonnet" } };
+      const overrides = { agents: { "spec-producer": { model: "local-opus", "subagent-model": "local-sonnet", lanes: { b: { model: "local-b", "subagent-model": "local-b-sub" } } },
+        implementer: { "subagent-model": "local-sonnet" }, reviewer: { lanes: { default: { model: "local-default" } } } } };
       const models = (role) => { const { model, values } = assign(role); return [model, values["subagent-model"][0] ?? null]; };
       const lanes = () => ["a", "b", "c"].map((id) => models(`spec-producer-${id}`));
       local(overrides);
       pipeline(0, { agents });
       assert.deepEqual(lanes(), [["sonnet", "local-sonnet"], ["local-b", "local-b-sub"], ["local-opus", "luna"]]);
-      remove("run-config.local.json");
+      remove("config.local.json");
       assert.deepEqual(lanes(), [["sonnet", "sonnet"], ["opus", "sonnet"], ["opus", "luna"]]);
       local(overrides);
       pipeline(1, { agents });
@@ -394,13 +394,13 @@ describe("assignments", () => {
   });
 
   describe("expands placeholders in the texts they carry", () => {
-    const FACTS = "{pipeline-slug} {role} {profile} [{lane}] {worktree} {branch} {base}";
+    const FACTS = "{pipeline-slug} {role} {profile} [{lane}] {worktree} {branch} {merge-base}";
 
-    it("each vocabulary fact, the base as the Base of the role's turn commit, and each declared variable to the role's value, a lane's brief included, and lists no vocabulary", () => {
+    it("each pipeline fact, the merge-base of the role's turn commit, and each declared variable to the role's value, a lane's brief included, and lists no facts", () => {
       conventions({
         variables: { agent: "{pipeline-slug}-{role}" },
-        guardrails: { facts: { rule: FACTS, profiles: ["implementer", "reviewer", "spec-producer"] } },
-        resources: { env: { resource: "The environment `{agent}`.", profiles: ["implementer", "reviewer", "spec-producer"] } },
+        guardrails: { facts: { text: FACTS, profiles: ["implementer", "reviewer", "spec-producer"] } },
+        resources: { env: { text: "The environment `{agent}`.", profiles: ["implementer", "reviewer", "spec-producer"] } },
         "commit-format": "End with ({role}).",
       });
       pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", brief: "Read {branch} for {agent}." }] });
@@ -414,79 +414,79 @@ describe("assignments", () => {
       assert.notEqual(baseOf(head(lane)), git(root, "rev-parse", "main").trim());
       assert.deepEqual(assign("spec-producer-a").values.guardrails.at(-1), `- rule: demo spec-producer-a spec-producer [a] ${lane} demo-spec-a ${baseOf(head(lane))}`);
       assert.deepEqual(spec.resources.at(-1), "- resource: The environment `demo-spec-producer-a`.");
-      assert.deepEqual([spec["commit-format"], spec.vocabulary], [["End with (spec-producer-a)."], ["none"]]);
+      assert.deepEqual([spec["commit-format"], spec.facts], [["End with (spec-producer-a)."], ["none"]]);
       pipeline(2, { lanes: [{ profile: "reviewer", id: "astra" }] });
       const implementer = assign("implementer").values, at = realpathSync(root);
       assert.deepEqual(implementer.guardrails.at(-1), `- rule: demo implementer implementer [] ${at} demo ${baseOf(head())}`);
-      assert.deepEqual([implementer.resources.at(-1), implementer.vocabulary], ["- resource: The environment `demo-implementer`.", ["none"]]);
+      assert.deepEqual([implementer.resources.at(-1), implementer.facts], ["- resource: The environment `demo-implementer`.", ["none"]]);
       pipeline(3, { lanes: [{ profile: "reviewer", id: "astra" }] });
       const request = assign("reviewer-astra").values, wt = laneWorktree("demo-review-astra");
       assert.deepEqual(request.guardrails.at(-1), `- rule: demo reviewer-astra reviewer [astra] ${wt} demo-review-astra ${baseOf(head(wt))}`);
-      assert.deepEqual([request.resources.at(-1), request.vocabulary], ["- resource: The environment `demo-reviewer-astra`.", ["none"]]);
+      assert.deepEqual([request.resources.at(-1), request.facts], ["- resource: The environment `demo-reviewer-astra`.", ["none"]]);
     });
 
-    it("keeps a placeholder that names neither as written, and then lists each vocabulary fact with the role's value", () => {
-      conventions({ resources: { ticket: { resource: "Open {ticket} for {role}.", profiles: ["implementer", "reviewer"] } } });
+    it("keeps a placeholder that names neither as written, and then lists each pipeline fact with the role's value", () => {
+      conventions({ resources: { ticket: { text: "Open {ticket} for {role}.", profiles: ["implementer", "reviewer"] } } });
       pipeline(2);
       const values = assign("implementer").values, at = realpathSync(root);
       assert.deepEqual(values.resources.at(-1), "- resource: Open {ticket} for implementer.");
-      assert.deepEqual(values.vocabulary, ["- `{pipeline-slug}`: demo", "- `{role}`: implementer", "- `{profile}`: implementer", "- `{lane}`:", `- \`{worktree}\`: ${at}`, "- `{branch}`: demo",
-        `- \`{base}\`: ${git(root, "merge-base", "main", "HEAD").trim()}`]);
+      assert.deepEqual(values.facts, ["- `{pipeline-slug}`: demo", "- `{role}`: implementer", "- `{profile}`: implementer", "- `{lane}`:", `- \`{worktree}\`: ${at}`, "- `{branch}`: demo",
+        `- \`{merge-base}\`: ${git(root, "merge-base", "main", "HEAD").trim()}`]);
       pipeline(3);
-      assert.ok(assign("reviewer-default").values.vocabulary.includes("- `{lane}`: default"));
+      assert.ok(assign("reviewer-default").values.facts.includes("- `{lane}`: default"));
       pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", brief: "Explore {ticket}." }] });
       remove(SPEC);
       commitAll("a lane whose brief alone keeps a placeholder");
       const lane = assign("spec-producer-a").values;
-      assert.deepEqual([lane.brief, lane.resources, lane.vocabulary[1]], [["Explore {ticket}."], ["none"], "- `{role}`: spec-producer-a"]);
+      assert.deepEqual([lane.brief, lane.resources, lane.facts[1]], [["Explore {ticket}."], ["none"], "- `{role}`: spec-producer-a"]);
     });
 
-    it("leaves text outside the placeholder grammar as written, template syntax included, and lists no vocabulary", () => {
+    it("leaves text outside the placeholder grammar as written, template syntax included, and lists no facts", () => {
       const text = "{{agent}} {Agent} { role } {agent_name} {{#guardrails}} {{/guardrails}} {{^brief}} $1 {";
-      conventions({ variables: { agent: "{role}" }, guardrails: { raw: { rule: `${text}\n{{commit-format}}`, profiles: ["implementer"] } }, "commit-format": "{{vocabulary}}" });
+      conventions({ variables: { agent: "{role}" }, guardrails: { raw: { text: `${text}\n{{commit-format}}`, profiles: ["implementer"] } }, "commit-format": "{{vocabulary}}" });
       pipeline(2);
       const values = assign("implementer").values;
       assert.deepEqual(values.guardrails, ["### raw", "", `- rule: ${text}`, "  {{commit-format}}"]);
-      assert.deepEqual([values["commit-format"], values.vocabulary], [["{{vocabulary}}"], ["none"]]);
+      assert.deepEqual([values["commit-format"], values.facts], [["{{vocabulary}}"], ["none"]]);
     });
   });
 
   describe("stop on a malformed run configuration, writing nothing", () => {
-    // run-config.json in the pipeline worktree with `changes` over it, a key given as undefined removed.
-    const configWith = (changes) => write("run-config.json", JSON.stringify({ ...JSON.parse(read("run-config.json")), ...changes }));
+    // config.json in the pipeline worktree with `changes` over it, a key given as undefined removed.
+    const configWith = (changes) => write("config.json", JSON.stringify({ ...JSON.parse(read("config.json")), ...changes }));
     const entry = (key, name, value) => configWith({ [key]: { [name]: value } });
-    // [what, how run-config.json is broken, what the message names]: each stops rp check, rp next, and rp land.
+    // [what, how config.json is broken, what the message names]: each stops rp check, rp next, and rp land.
     const committed = [
-      ["an empty worktree folder root", () => configWith({ "worktree-folder-root": " " }), /run-config\.json: worktree-folder-root: must be a folder/],
-      ["a landing commit template without {subject}", () => configWith({ "landing-commit": "(orchestrator)" }), /run-config\.json: landing-commit: must hold \{subject\}/],
-      ["a landing commit template naming another placeholder", () => configWith({ "landing-commit": "{subject} ({role})" }), /run-config\.json: landing-commit: \{role\} names no part of a landing commit/],
-      ["an empty commit format", () => configWith({ "commit-format": "" }), /run-config\.json: commit-format: must be a text/],
-      ["a guardrail without its text", () => entry("guardrails", "tests", { profiles: ["implementer"] }), /run-config\.json: guardrails\.tests\.rule: must be a text/],
-      ["a resource whose text holds no line", () => entry("resources", "suite", { resource: " \n ", profiles: ["implementer"] }), /run-config\.json: resources\.suite\.resource: must be a text/],
-      ["a resource whose text is a list of lines", () => entry("resources", "test suite", { resource: ["a", "b"], profiles: ["implementer"] }), /run-config\.json: resources\."test suite"\.resource: must be a text/],
-      ["a guardrail whose profiles name another", () => entry("guardrails", "tests", { rule: "Run.", profiles: ["implementer", "implementor"] }), /run-config\.json: guardrails\.tests\.profiles: "implementor" is no profile/],
-      ["a guardrail without profiles", () => entry("guardrails", "tests", { rule: "Run." }), /run-config\.json: guardrails\.tests\.profiles: must be a non-empty list of profiles/],
-      ["a resource with an empty profiles list", () => entry("resources", "suite", { resource: "The suite.", profiles: [] }), /run-config\.json: resources\.suite\.profiles: must be a non-empty list/],
-      ["a guardrail with an unknown key", () => entry("guardrails", "tests", { rule: "Run.", profile: ["implementer"] }), /run-config\.json: guardrails\.tests: unexpected key: profile/],
-      ["a lane model that is no name", () => configWith({ agents: { reviewer: { lanes: { astra: { model: "" } } } } }), /run-config\.json: agents\.reviewer\.lanes\.astra\.model: must be a model name/],
-      ["a variable named like a vocabulary fact", () => entry("variables", "role", "{profile}"), /run-config\.json: variables\.role: a vocabulary fact is not declared/],
-      ["a variable whose template names no vocabulary fact", () => entry("variables", "agent", "{pipeline-slug}-{agent}"), /run-config\.json: variables\.agent: \{agent\} names no vocabulary fact/],
-      ["a variable name outside the grammar", () => entry("variables", "Agent", "{role}"), /run-config\.json: variables\."Agent": a variable name must match/],
-      ["a variable with an empty template", () => entry("variables", "agent", ""), /run-config\.json: variables\.agent: must be a template/],
+      ["an empty worktree folder root", () => configWith({ "worktree-folder-root": " " }), /config\.json: worktree-folder-root: must be a folder/],
+      ["a landing commit template without {subject}", () => configWith({ "landing-commit-format": "(orchestrator)" }), /config\.json: landing-commit-format: must hold \{subject\}/],
+      ["a landing commit template naming another placeholder", () => configWith({ "landing-commit-format": "{subject} ({role})" }), /config\.json: landing-commit-format: \{role\} names no part of a landing commit/],
+      ["an empty commit format", () => configWith({ "commit-format": "" }), /config\.json: commit-format: must be a text/],
+      ["a guardrail without its text", () => entry("guardrails", "tests", { profiles: ["implementer"] }), /config\.json: guardrails\.tests\.text: must be a text/],
+      ["a resource whose text holds no line", () => entry("resources", "suite", { text: " \n ", profiles: ["implementer"] }), /config\.json: resources\.suite\.text: must be a text/],
+      ["a resource whose text is a list of lines", () => entry("resources", "test suite", { text: ["a", "b"], profiles: ["implementer"] }), /config\.json: resources\."test suite"\.text: must be a text/],
+      ["a guardrail whose profiles name another", () => entry("guardrails", "tests", { text: "Run.", profiles: ["implementer", "implementor"] }), /config\.json: guardrails\.tests\.profiles: "implementor" is no profile/],
+      ["a guardrail without profiles", () => entry("guardrails", "tests", { text: "Run." }), /config\.json: guardrails\.tests\.profiles: must be a non-empty list of profiles/],
+      ["a resource with an empty profiles list", () => entry("resources", "suite", { text: "The suite.", profiles: [] }), /config\.json: resources\.suite\.profiles: must be a non-empty list/],
+      ["a guardrail with an unknown key", () => entry("guardrails", "tests", { text: "Run.", profile: ["implementer"] }), /config\.json: guardrails\.tests: unexpected key: profile/],
+      ["a lane model that is no name", () => configWith({ agents: { reviewer: { lanes: { astra: { model: "" } } } } }), /config\.json: agents\.reviewer\.lanes\.astra\.model: must be a model name/],
+      ["a variable named like a vocabulary fact", () => entry("variables", "role", "{profile}"), /config\.json: variables\.role: a pipeline fact is not declared/],
+      ["a variable whose template names no pipeline fact", () => entry("variables", "agent", "{pipeline-slug}-{agent}"), /config\.json: variables\.agent: \{agent\} names no pipeline fact/],
+      ["a variable name outside the grammar", () => entry("variables", "Agent", "{role}"), /config\.json: variables\."Agent": a variable name must match/],
+      ["a variable with an empty template", () => entry("variables", "agent", ""), /config\.json: variables\.agent: must be a template/],
     ];
-    // [what run-config.local.json holds, what the message names]: each stops rp next and rp land, and rp check reads none.
+    // [what config.local.json holds, what the message names]: each stops rp next and rp land, and rp check reads none.
     const locals = [
-      ["the target phase", { "target-phase": 3 }, /run-config\.local\.json: unexpected key: target-phase/],
-      ["a lane's brief", { agents: { reviewer: { lanes: { a: { brief: "Look closer." } } } } }, /run-config\.local\.json: agents\.reviewer\.lanes\.a: unexpected key: brief/],
-      ["a model for a lane the run does not have", { agents: { reviewer: { lanes: { b: { model: "opus" } } } } }, /run-config\.local\.json: agents\.reviewer\.lanes\.b: a lane the run does not have/],
-      ["a malformed entry", { resources: { browser: { resource: "A browser.", profiles: ["builder"] } } }, /run-config\.local\.json: resources\.browser\.profiles: "builder" is no profile/],
-      ["no JSON", "artifact-storage: fork\n", /run-config\.local\.json: not valid JSON/],
+      ["the target phase", { "target-phase": 3 }, /config\.local\.json: unexpected key: target-phase/],
+      ["a lane's brief", { agents: { reviewer: { lanes: { a: { brief: "Look closer." } } } } }, /config\.local\.json: agents\.reviewer\.lanes\.a: unexpected key: brief/],
+      ["a model for a lane the run does not have", { agents: { reviewer: { lanes: { b: { model: "opus" } } } } }, /config\.local\.json: agents\.reviewer\.lanes\.b: a lane the run does not have/],
+      ["a malformed entry", { resources: { browser: { text: "A browser.", profiles: ["builder"] } } }, /config\.local\.json: resources\.browser\.profiles: "builder" is no profile/],
+      ["no JSON", "artifact-storage: fork\n", /config\.local\.json: not valid JSON/],
     ];
     const cases = [...committed.map(([what, breakIt, message]) => [`on ${what}`, breakIt, message, true]),
-      ...locals.map(([what, data, message]) => [`on a run-config.local.json holding ${what}`, () => typeof data === "string" ? write("run-config.local.json", data) : local(data), message, false])];
+      ...locals.map(([what, data, message]) => [`on a config.local.json holding ${what}`, () => typeof data === "string" ? write("config.local.json", data) : local(data), message, false])];
     for (const [what, breakIt, message, checkStops] of cases)
       it(what, () => {
-        conventions({ guardrails: { tests: { rule: "Run.", profiles: ["implementer"] } } });
+        conventions({ guardrails: { tests: { text: "Run.", profiles: ["implementer"] } } });
         pipeline(2, { lanes: [lane("reviewer", "a")] });
         const { path, text } = assign("implementer");
         breakIt();
@@ -545,21 +545,21 @@ describe("assignments", () => {
     const data = {
       "commit-format": "Use imperative mood.\n\nExamples:\n\n- `Add spec (spec-producer)`\n- `Fix bug Y (assisted)`",
       guardrails: {
-        tests: { rule: "Run `npm test` and confirm it passes.", profiles: ["implementer", "reviewer"] },
-        documentation: { rule: "Follow `AGENTS.md` and `docs/glossary.md`, the canonical vocabulary.", profiles: ["implementer", "reviewer"] },
+        tests: { text: "Run `npm test` and confirm it passes.", profiles: ["implementer", "reviewer"] },
+        documentation: { text: "Follow `AGENTS.md` and `docs/glossary.md`, the canonical vocabulary.", profiles: ["implementer", "reviewer"] },
       },
-      resources: { "test suite and scripts": { resource: "The repository's test suite and scripts.", profiles: ["spec-producer", "design-doc-producer", "implementer", "reviewer"] } },
+      resources: { "test suite and scripts": { text: "The repository's test suite and scripts.", profiles: ["spec-producer", "design-doc-producer", "implementer", "reviewer"] } },
     };
     const agents = {
-      "spec-producer": { model: "opus", subagents: "sonnet", lanes: { demands: { brief: "Read the intent for what it demands.", model: "opus" }, omits: { brief: "Read the intent for what it leaves out.", model: "sonnet" } } },
-      "design-doc-producer": { model: "opus", subagents: "sonnet" },
-      implementer: { model: "opus", subagents: "sonnet" },
-      reviewer: { lanes: { default: { model: "opus", subagents: "sonnet" }, astra: { model: "astra", subagents: "luna" } } },
+      "spec-producer": { model: "opus", "subagent-model": "sonnet", lanes: { demands: { brief: "Read the intent for what it demands.", model: "opus" }, omits: { brief: "Read the intent for what it leaves out.", model: "sonnet" } } },
+      "design-doc-producer": { model: "opus", "subagent-model": "sonnet" },
+      implementer: { model: "opus", "subagent-model": "sonnet" },
+      reviewer: { lanes: { default: { model: "opus", "subagent-model": "sonnet" }, astra: { model: "astra", "subagent-model": "luna" } } },
     };
     conventions(data);
     const config = { agents };
     const commitFormat = data["commit-format"].split("\n");
-    const carried = (key, field, name) => `- ${field}: ${data[key][name][field]}`;
+    const carried = (key, field, name) => `- ${field}: ${data[key][name].text}`;
     // The delivered template's assignment for a role: written, holding the command that runs rp and each of `values`.
     const delivered = (role, values, at = abs(PIPELINE)) => {
       const { text, model } = assign(role, at, RP);
@@ -584,15 +584,15 @@ describe("assignments", () => {
     write(NOTES, withFrontmatter({ status: "done" }, "\n# Notes\n"));
     land(NOTES);
     revise(DESIGN);
-    thread({ n: 1, ...TO_SPEC, opener: "implementer", artifact: "spec", owner: "spec-producer", messages: [["implementer", head()], ["spec-producer", head()]] });
+    thread({ n: 1, ...TO_SPEC, opener: "implementer", about: "spec", recipient: "spec-producer", messages: [["implementer", head()], ["spec-producer", head()]] });
     commitAll("a stale notes and an answered thread");
     delivered("implementer", [`${in_(realpathSync(root), DESIGN)} — changed since`, in_(realpathSync(root), "threads/1-implementer-spec-producer-spec.md")]);
-    local({ resources: { ticket: { resource: "Open {ticket}.", profiles: ["implementer"] } } });
+    local({ resources: { ticket: { text: "Open {ticket}.", profiles: ["implementer"] } } });
     write(NOTES, withFrontmatter({ status: "done", owner: "me" }, "\n# Notes\n"));
     commitAll("a malformed notes");
-    delivered("implementer", [`INVALID ${NOTES}: unexpected frontmatter key: owner`, "Open {ticket}.", "`{pipeline-slug}`: demo"]);
-    remove("run-config.local.json");
-    thread({ n: 1, ...TO_SPEC, opener: "implementer", status: "approved", messages: [["implementer", head()], ["spec-producer", head()]] });
+    delivered("implementer", [`malformed ${NOTES}: unexpected frontmatter key: owner`, "Open {ticket}.", "`{pipeline-slug}`: demo"]);
+    remove("config.local.json");
+    thread({ n: 1, ...TO_SPEC, opener: "implementer", status: "resolved", messages: [["implementer", head()], ["spec-producer", head()]] });
     pipeline(3, config);
     for (const [id, model, subagents] of [["default", "opus", "sonnet"], ["astra", "astra", "luna"]])
       assert.equal(delivered(`reviewer-${id}`, [`\`${subagents}\``, carried("guardrails", "rule", "documentation"), carried("resources", "resource", "test suite and scripts")]), model);
@@ -605,7 +605,7 @@ describe("assignments", () => {
     delivered("reviewer-default", ["reviewer.diff", in_(wt, review)]);
     write(review, read(review).replace("status: open", "status: pending"));
     commitAll("a rejected review thread");
-    delivered("reviewer-default", [`INVALID ${review}: status must be`, in_(wt, "")]);
+    delivered("reviewer-default", [`malformed ${review}: status must be`, in_(wt, "")]);
     assert.match(readFileSync(git(wt, "rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.md").trim(), "utf8"), new RegExp(`, at \`${head(wt)}\``));
   });
 });
@@ -622,7 +622,7 @@ describe("assignments in a repository and a skill whose paths hold a space and a
     }, "the skill's folder");
   });
 
-  it("state the command that runs rp, which runs from the role's worktree as written and acts as the role, in each seat and each reviewer request, and show each path to read as written", () => {
+  it("state the command that runs rp, which runs from the role's worktree as written and acts as the role, in each seat and each reviewer template, and show each path to read as written", () => {
     // `rp <command>` run from the role's worktree as its assignment's values state it, `input` on its standard input.
     const asStated = (values, command, input) => {
       const out = spawnSync("sh", ["-c", `${values.rp[0]} ${command} ${values["pipeline-folder-arg"][0]} --role ${values.role[0]}`], { cwd: values.worktree[0], encoding: "utf8", input });
@@ -637,14 +637,14 @@ describe("assignments in a repository and a skill whose paths hold a space and a
     assert.equal(asStated(lane, "validate"), "accepted: every file of spec-producer-a\n");
     pipeline(2);
     const implementer = assign("implementer", abs(PIPELINE), script).values;
-    const opened = asStated(implementer, "thread open --artifact spec --body -", "Findings.\n").trimEnd();
+    const opened = asStated(implementer, "thread open --about spec --body -", "Findings.\n").trimEnd();
     assert.deepEqual([dirname(opened), readFileSync(opened, "utf8").match(/^opener: (.*)$/m)[1]], [in_(realpathSync(root), "threads"), "implementer"]);
     assert.equal(asStated(implementer, "validate"), "accepted: every file of implementer\n");
     rmSync(opened);
     pipeline(3);
     const first = assign("reviewer-default", abs(PIPELINE), script).values, wt = laneWorktree("demo-review-default");
     assert.deepEqual(first.template, ["reviewer-first"]);
-    const review = asStated(first, "thread open --artifact implementation --body -", "Findings.\n").trimEnd();
+    const review = asStated(first, "thread open --about implementation --body -", "Findings.\n").trimEnd();
     assert.equal(review, in_(wt, "threads/1-reviewer-default-implementer-implementation.md"));
     commitIn(wt, {}, "review");
     landRole("reviewer-default");
@@ -657,6 +657,6 @@ describe("assignments in a repository and a skill whose paths hold a space and a
     commitAll("a rejected review thread");
     const repair = assign("reviewer-default", abs(PIPELINE), script).values;
     assert.deepEqual(repair.template, ["reviewer-repair"]);
-    assert.match(asStated(repair, "validate"), /^INVALID threads\/1-reviewer-default-implementer-implementation\.md: status must be one of /);
+    assert.match(asStated(repair, "validate"), /^malformed threads\/1-reviewer-default-implementer-implementation\.md: status must be one of /);
   });
 });

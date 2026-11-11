@@ -51,12 +51,12 @@ Your subagents run on your own model.
 Commit your review with this commit format:
 
 {{commit-format}}
-{{#vocabulary}}
+{{#facts}}
 
 A name in braces left in this request is a placeholder: replace it with the value it stands for, from these values of your turn:
 
-{{vocabulary}}
-{{/vocabulary}}
+{{facts}}
+{{/facts}}
 
 When your worktree, your branch, or a file this assignment names is broken or missing, report what failed and stop.
 

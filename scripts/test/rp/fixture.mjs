@@ -32,7 +32,7 @@ export function rp(...args) {
 }
 export const abs = (rel) => join(root, rel);
 export const check = (...args) => JSON.parse(rp("check", abs(PIPELINE), "--json", ...args));
-// The frontier as `<action> <target>` lines.
+// The frontier as `<action>[ <target>][ <lane>]` lines.
 export const frontier = (...args) => check(...args).frontier.map((entry) => [entry.action, entry.target, entry.lane].filter(Boolean).join(" "));
 
 export function writeFile(rel, contents) {
@@ -58,18 +58,18 @@ export function agentsOf(lanes = [], agents = {}) {
 // ignores, with `data` over them by key. Each test starts with none but the worktree folder root.
 let recorded = {};
 export function conventions(data = {}) { recorded = data; }
-// The run configuration, `run-config.json`: the target phase, the base, the recorded conventions, the run's agents, and
+// The pipeline configuration, `config.json`: the target phase, the base branch, the recorded conventions, the agents, and
 // `extra` keys, written as given.
 export function configure({ targetPhase = 4, base = "main", lanes, agents, ...extra } = {}) {
   const runAgents = lanes || agents ? { agents: agentsOf(lanes, agents) } : {};
-  write("run-config.json", `${JSON.stringify({ "target-phase": targetPhase, base, "worktree-folder-root": ".worktrees", ...recorded, ...runAgents, ...extra }, null, 2)}\n`);
+  write("config.json", `${JSON.stringify({ "target-phase": targetPhase, "base-branch": base, "worktree-folder-root": ".worktrees", ...recorded, ...runAgents, ...extra }, null, 2)}\n`);
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 
 // A file with a YAML frontmatter holding `values`, one `<key>: <value>` line each, above `body`.
 export const withFrontmatter = (values, body = "") => `---\n${Object.entries(values).map(([key, value]) => `${key}: ${value}`).join("\n")}\n---\n${body}`;
-// A later input targeting `target`.
-export const later = (target, body = "") => withFrontmatter({ target }, body);
+// A later input targeting `target`, artifact paths written as the artifacts' names, as in `spec#spec-requirement-1`.
+export const later = (target, body = "") => withFrontmatter({ target: target.split(",").map((item) => item.trim().replace(/^[^#\s]+/, (path) => NAMES[path] ?? path)).join(", ") }, body);
 // The certification of a file in the working tree, parsed, or null when it has none.
 export function certification(rel) {
   try { return JSON.parse(readFileSync(abs(P(`certification/${rel}.json`)), "utf8")); }
@@ -77,6 +77,8 @@ export function certification(rel) {
 }
 
 export const UPSTREAM = { [SPEC]: [INTENT], [DESIGN]: [SPEC], [NOTES]: [SPEC, DESIGN] };
+// The name later inputs and threads give each artifact.
+export const NAMES = { [SPEC]: "spec", [DESIGN]: "design-doc", [NOTES]: "implementation" };
 const LATER = /^0-intent\/(?:constraint|proposal|failure)-[1-9]\d*\.md$/;
 // Certifies the file at `rel`, built directly as landing certifies it, in the working tree of `worktree`: each required
 // input of its kind pinned at its identity in the tree of the commit `at`, and on an approval, a thread, the commit
@@ -89,8 +91,8 @@ export function certifyAt(at, rel, { folder = PIPELINE, worktree = root } = {}) 
     .map((target) => target.trim().replace(/^["']|["']$/g, "").replace(/#.*$/, ""));
   const approval = rel.startsWith("threads/");
   const root_ = Object.keys(UPSTREAM).find((artifact) => rel === artifact || rel.startsWith(`${artifact.split("/")[0]}/lanes/`));
-  const required = approval ? [INTENT, ...laterInputs] : [...UPSTREAM[root_], ...(rel === root_ ? laterInputs.filter((path) => targets(path).includes(rel)) : [])];
-  const certified = { inputs: required.map((path) => `${path}@${id(path)}`).sort(), ...(approval ? { reviewed: git(worktree, "rev-parse", "HEAD").trim() } : {}) };
+  const required = approval ? [INTENT, ...laterInputs] : [...UPSTREAM[root_], ...(rel === root_ ? laterInputs.filter((path) => targets(path).includes(NAMES[rel])) : [])];
+  const certified = { inputs: required.map((path) => `${path}@${id(path)}`).sort(), ...(approval ? { "approved-commit": git(worktree, "rev-parse", "HEAD").trim() } : {}) };
   const path = join(worktree, folder, `certification/${rel}.json`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(certified, null, 2)}\n`);
@@ -115,17 +117,17 @@ export function commitAll(subject = "work") {
 
 // A thread file, named from its frontmatter; messages are [author, commit] pairs. A thread to owner cites `cites`.
 // Returns its pipeline-relative path.
-export function thread({ n = 1, status = "open", opener, owner, artifact, messages, name, cites = "threads/0-cited.md" } = {}) {
-  const path = `threads/${name ?? `${n}-${opener}-${owner}-${artifact}.md`}`;
+export function thread({ n = 1, status = "open", opener, recipient, about, messages, name, cites = "threads/0-cited.md" } = {}) {
+  const path = `threads/${name ?? `${n}-${opener}-${recipient}-${about}.md`}`;
   const body = (messages ?? [[opener, "abc1234"]]).map(([author, commit]) => `## ${author} — ${commit}\n\nFindings.\n`).join("\n");
-  write(path, withFrontmatter({ status, opener, owner, artifact, ...(owner === "owner" ? { cites } : {}) }, `\n${body}`));
+  write(path, withFrontmatter({ status, opener, recipient, about, ...(recipient === "owner" ? { cites } : {}) }, `\n${body}`));
   return path;
 }
 // The parties of each thread kind used across tests.
-export const TO_SPEC = { opener: "design-doc-producer", owner: "spec-producer", artifact: "spec" };
-export const TO_DESIGN = { opener: "implementer", owner: "design-doc-producer", artifact: "design-doc" };
-export const REVIEW = (lane = "default") => ({ opener: `reviewer-${lane}`, owner: "implementer", artifact: "implementation" });
-export const TO_OWNER = { opener: "spec-producer", owner: "owner", artifact: "intent", status: "disagreement" };
+export const TO_SPEC = { opener: "design-doc-producer", recipient: "spec-producer", about: "spec" };
+export const TO_DESIGN = { opener: "implementer", recipient: "design-doc-producer", about: "design-doc" };
+export const REVIEW = (lane = "default") => ({ opener: `reviewer-${lane}`, recipient: "implementer", about: "implementation" });
+export const TO_OWNER = { opener: "spec-producer", recipient: "owner", about: "intent", status: "escalated" };
 // A review thread closed approved by a turn that started at HEAD, landed, certified at that commit, and committed.
 export function approve(laneId = "default", n = 1) {
   const head = git(root, "rev-parse", "HEAD").trim();
@@ -160,11 +162,11 @@ export function newRepo(folder = null) {
 }
 
 // Each test in a new repository on `demo`, in the subfolder `folder` of its temporary folder when given, whose Git
-// ignores `.worktrees` and `run-config.local.json`, as setup has a project's ignore them, with no conventions recorded.
+// ignores `.worktrees` and `config.local.json`, as setup has a project's ignore them, with no conventions recorded.
 export function useRepo(folder = null) {
   beforeEach(() => {
     root = newRepo(folder);
-    writeFile(".git/info/exclude", ".worktrees/\nrun-config.local.json\n");
+    writeFile(".git/info/exclude", ".worktrees/\nconfig.local.json\n");
     recorded = {};
     writeFile("src/app.js", "export const a = 1;\n");
     commitAll("base");

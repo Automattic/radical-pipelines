@@ -10,8 +10,8 @@ import {
 const candidate = (id) => `1-spec/lanes/${id}/spec.md`;
 const head = () => git(root, "rev-parse", "HEAD").trim();
 const subjects = (range) => git(root, "log", "--first-parent", "--format=%s", range).split("\n").filter(Boolean);
-// The step record and the assignment `rp next --apply` wrote for `role`, by the plan `lines` printed.
-const written = (lines, role) => [readFileSync(git(root, "rev-parse", "--path-format=absolute", "--git-path", "rp/step.json").trim(), "utf8"),
+// The turn record and the assignment `rp next --apply` wrote for `role`, by the plan `lines` printed.
+const written = (lines, role) => [readFileSync(git(root, "rev-parse", "--path-format=absolute", "--git-path", "rp/turns.json").trim(), "utf8"),
   readFileSync(wakeOf(lines, role).assignment, "utf8")];
 // What `rp next --apply` prints and writes for the spec's first lane.
 const applied = () => { const lines = apply(); return [lines, ...written(lines, "spec-producer-a")]; };
@@ -28,7 +28,7 @@ describe("the run configuration", () => {
   it("is all rp check, rp next, and rp land read of the project's conventions: the main checkout's .rp.md and .rp.local.md, absent, present, or edited between commands, change nothing they print or write", () => {
     ignore(".rp.md");
     ignore(".rp.local.md");
-    conventions({ "landing-commit": "{subject} (orchestrator)", guardrails: { tests: { rule: "Run the tests.", profiles: ["spec-producer"] } } });
+    conventions({ "landing-commit-format": "{subject} (orchestrator)", guardrails: { tests: { text: "Run the tests.", profiles: ["spec-producer"] } } });
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     // The main checkout's .rp.md and .rp.local.md: absent, in prose, or holding conventions data in a JSON frontmatter.
     const projectFiles = [
@@ -38,7 +38,7 @@ describe("the run configuration", () => {
         writeFile(".rp.local.md", "# Local overrides\n\n### Guardrails\n\n#### tests\n\nProfiles: spec-producer\n\nRun the local tests.\n");
       },
       () => {
-        writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 7, "worktree-folder-root": ".data", "landing-commit": "{subject} (data)", guardrails: { tests: { rule: "Run the data tests.", profiles: ["spec-producer"] } } })}\n---\n`);
+        writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 7, "worktree-folder-root": ".data", "landing-commit-format": "{subject} (data)", guardrails: { tests: { text: "Run the data tests.", profiles: ["spec-producer"] } } })}\n---\n`);
         writeFile(".rp.local.md", `---\n${JSON.stringify({ "commit-format": "Local data." })}\n---\n`);
       },
     ];
@@ -56,11 +56,11 @@ describe("the run configuration", () => {
 
   it("holds the owner's directions, which change nothing rp check, rp next, and rp land print or write, whether it holds some, none, or no list", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
-    const config = JSON.parse(read("run-config.json"));
+    const config = JSON.parse(read("config.json"));
     const directions = [
-      () => write("run-config.json", JSON.stringify({ ...config, "owner-directions": ["Keep the pipeline branch local.", "Start from `v4`."] })),
-      () => write("run-config.json", JSON.stringify({ ...config, "owner-directions": [] })),
-      () => write("run-config.json", JSON.stringify(config)),
+      () => write("config.json", JSON.stringify({ ...config, "owner-directions": ["Keep the pipeline branch local.", "Start from `v4`."] })),
+      () => write("config.json", JSON.stringify({ ...config, "owner-directions": [] })),
+      () => write("config.json", JSON.stringify(config)),
     ];
     same(directions, () => run("check", abs(PIPELINE), "--json"));
     same(directions, () => run("next", abs(PIPELINE)));
@@ -74,21 +74,21 @@ describe("the run configuration", () => {
     });
   });
 
-  it("is what rp check reads alone: the frontier and each phase's state are the same with run-config.local.json present or absent", () => {
+  it("is what rp check reads alone: the frontier and each phase's state are the same with config.local.json present or absent", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a"), lane("reviewer", "b")], agents: { "spec-producer": { model: "opus" } } });
     apply();
     commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n" }, "candidate");
     landRole("spec-producer-a");
     const locals = [
-      () => remove("run-config.local.json"),
-      () => write("run-config.local.json", JSON.stringify({ "commit-format": "Local.", agents: { "spec-producer": { model: "local" }, reviewer: { lanes: { b: { model: "local" } } } } })),
+      () => remove("config.local.json"),
+      () => write("config.local.json", JSON.stringify({ "commit-format": "Local.", agents: { "spec-producer": { model: "local" }, reviewer: { lanes: { b: { model: "local" } } } } })),
     ];
-    assert.match(same(locals, () => rp("check", abs(PIPELINE))), /^frontier consolidate 1-spec\/spec\.md$/m);
+    assert.match(same(locals, () => rp("check", abs(PIPELINE))), /^frontier consolidate spec$/m);
     same(locals, () => rp("check", abs(PIPELINE), "--json"));
   });
 
-  describe("is beside run-config.local.json, which Git never tracks", () => {
-    const LOCAL = `${PIPELINE}/run-config.local.json`;
+  describe("is beside config.local.json, which Git never tracks", () => {
+    const LOCAL = `${PIPELINE}/config.local.json`;
     const stops = (args) => {
       const out = run(...args);
       assert.deepEqual([out.status, out.stdout], [1, ""], `${args.join(" ")}: ${out.stderr}`);
@@ -105,7 +105,7 @@ describe("the run configuration", () => {
     for (const [what, track] of tracked)
       it(`stops rp check, rp next, and rp land when ${what}, naming it`, () => {
         pipeline(0, { lanes: [lane("spec-producer", "a")] });
-        write("run-config.local.json", "{}\n");
+        write("config.local.json", "{}\n");
         apply();
         track();
         for (const args of commands()) assert.equal(stops(args), `rp: ${LOCAL}: tracked by Git\n`);
@@ -115,7 +115,7 @@ describe("the run configuration", () => {
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();
       const wt = laneWorktree("demo-spec-a");
-      writeFileSync(join(wt, PIPELINE, "run-config.local.json"), "{}\n");
+      writeFileSync(join(wt, PIPELINE, "config.local.json"), "{}\n");
       git(wt, "add", "--force", LOCAL);
       commitIn(wt, { [candidate("a")]: "# Candidate\n" }, "a turn that commits the local file");
       const before = head();
@@ -125,7 +125,7 @@ describe("the run configuration", () => {
 
     it("stops rp check --ref on a commit that holds it, and nothing once a commit removes it", () => {
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
-      write("run-config.local.json", "{}\n");
+      write("config.local.json", "{}\n");
       for (const args of commands().slice(0, 2)) assert.equal(run(...args).status, 0);
       git(root, "add", "--force", LOCAL);
       const holding = commitAll("commit the local file");
