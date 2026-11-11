@@ -1,6 +1,6 @@
 # Lifecycle hooks
 
-At each configured moment of a run, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`. A worktree's hooks also know the role the worktree is for, the pipeline worktree being for every role without a lane; an agent's hooks know the role, and a spawned role's resources are those its plan names (`../run/loop.md`).
+At each configured moment of a run, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`. A worktree's hooks also know the role the worktree is for, the pipeline worktree being for every role without a lane; a spawning or terminating hook knows the role, and a spawned role's resources are those its plan names (`../run/loop.md`).
 
 Report a failed instruction to the owner and continue. When the failed instruction is marked **blocking**, stop the run through close-out; if you are already closing out, continue with the remaining close-out actions. `run-ended` still fires.
 
@@ -17,14 +17,14 @@ Report a failed instruction to the owner and continue. When the failed instructi
 | `after-creating-worktree`      | A worktree is created or recreated                                                                      |
 | `before-removing-worktree`     | A worktree is about to be removed                                                                       |
 | `after-removing-worktree`      | A worktree is removed                                                                                   |
-| `before-spawning-agent`        | An agent is about to be spawned                                                                         |
-| `after-spawning-agent`         | An agent is spawned                                                                                     |
-| `before-terminating-agent`     | An agent is about to be terminated                                                                      |
-| `after-terminating-agent`      | An agent is terminated                                                                                  |
+| `before-spawning-agent`        | A role is about to be spawned                                                                           |
+| `after-spawning-agent`         | A role is spawned                                                                                       |
+| `before-terminating-agent`     | A role is about to be terminated                                                                        |
+| `after-terminating-agent`      | A role is terminated                                                                                    |
 | `phase-started`                | Work on a phase begins or resumes                                                                       |
 | `phase-completed`              | A phase becomes complete, phase 0 included, before the next dispatch                                    |
-| `before-merging-lanes`         | A lane branch's commits are about to land on the pipeline branch, merged or cherry-picked               |
-| `after-merging-lanes`          | A lane branch's commits landed on the pipeline branch                                                   |
+| `before-landing-lane`          | A lane branch's commits are about to land on the pipeline branch, merged or cherry-picked               |
+| `after-landing-lane`           | A lane branch's commits landed on the pipeline branch                                                   |
 | `escalation-raised`            | A pending owner escalation is surfaced                                                                  |
 | `run-ended`                    | The run stops: target phase complete, owner escalation pending, owner cancellation, or failure           |
 | `before-opening-pr`            | The owner asks to open a pull request, before any work                                                  |

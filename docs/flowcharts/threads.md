@@ -21,7 +21,7 @@ flowchart TD
     OBS -->|Yes| CLOSED
     OBS -->|No| REVISE["The clause falls: its owner revises the artifact"]
     REVISE --> AW2
-    DIS -->|What the intent means or demands| ESC["Either party (the implementer, on a review thread) escalates with rp thread escalate, citing this thread: a thread to owner about intent, status disagreement"]
+    DIS -->|What the intent means or demands| ESC["Either party (the implementer, on a review thread) escalates with rp thread escalate, citing this thread: a thread to owner about intent, status escalated"]
     ESC --> OE["Owner escalation"]
     CLOSED --> HIST["The closed thread stays as history; a refuted case gains a line under Considered and not required"]
 ```

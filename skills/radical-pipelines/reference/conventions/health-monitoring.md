@@ -25,12 +25,12 @@ Each issue occurrence gets two recovery attempts before escalation; a success re
 
 | Issue                 | First                                                                 | Second                                   |
 | --------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
-| Stalled role          | Ask once for status                                                   | Terminate; spawn a fresh instance        |
-| Dead role             | Terminate any remaining session; spawn a fresh instance               | Do it once more                          |
-| Login or API-key error| Swap to an authenticated model the project's **Agents** convention names | Spawn a fresh instance on the new model  |
+| Stalled role          | Ask once for status                                                   | Terminate; spawn a new instance          |
+| Dead role             | Terminate any remaining session; spawn a new instance                 | Do it once more                          |
+| Login or API-key error| Swap to an authenticated model the project's **Agents** convention names | Spawn a new instance on the new model    |
 | Network failure       | Retry the call                                                        | Wait one interval and retry              |
 
-Spawn a fresh instance with the one-line message of `../run/loop.md` § Waking a role; its assignment is already written. A replaced role's work waits for the new instance.
+Spawn a new instance with the one-line message of `../run/loop.md` § Waking a role; its assignment is already written. A replaced role's work waits for the new instance.
 
 ## Escalation
 

@@ -10,7 +10,7 @@ Call `Agent` with `subagent_type` set to the plugin's `<profile>` agent, `name` 
 
 A role starts in your current shell directory. Before every spawn or message, `cd` into the role's worktree; send; then `cd` back. Seat roles only this way: `EnterWorktree` and `ExitWorktree` move your whole session, and `isolation: worktree` creates a new worktree. The **Worktree folder root** must be inside the repository; `.worktrees/` qualifies.
 
-## Wake
+## Resume
 
 Call `SendMessage` with the role's agent ID and the message. A finished role resumes in the background with its history; a running role receives it mid-task.
 

@@ -56,7 +56,7 @@ Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n
 
 ```markdown
 ---
-target: <path relative to the pipeline folder>[#<id>][, …]
+target: <artifact>[#<id>][, …]
 origin: issue <canonical reference> | <URL of the source> | <path of the thread it answers>
 ---
 
@@ -69,11 +69,11 @@ A failure states what was run, where, and the result as the owner put it, and po
 
 Set `target` by what the statement concerns:
 
-| Concerns                         | Target                        |
-| -------------------------------- | ----------------------------- |
-| product behavior, documentation  | `3-implementation/notes.md`   |
-| requirements                     | `1-spec/spec.md`              |
-| mechanisms                       | `2-design-doc/design-doc.md`  |
-| a named clause                   | that clause                   |
+| Concerns                         | Target                          |
+| -------------------------------- | ------------------------------- |
+| product behavior, documentation  | `implementation`                |
+| requirements                     | `spec`                          |
+| mechanisms                       | `design-doc`                    |
+| a named clause                   | `<artifact>#<id>`, that clause  |
 
-A target may name an artifact that does not exist yet. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory.
+For an owner escalation, record the answer defined in `../run/state.md` § Owner territory.

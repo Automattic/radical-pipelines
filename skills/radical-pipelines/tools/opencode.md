@@ -11,10 +11,10 @@ Verify that `opencode api GET /api/plugin` lists `radical-pipelines@<version>`, 
 A role is a child session of yours; its session ID is its address.
 
 1. Create it: `opencode api POST /api/session -d '{"parentID":"'"$OPENCODE_SESSION_ID"'","title":"<pipeline slug> <profile>[ <lane>]","agent":"radical-pipelines/<profile>"}'`. The response's `data.id` is its session ID.
-2. Seat it: `opencode api POST /api/session/<session ID>/move -d '{"directory":"<worktree absolute path>"}'`. It stays seated across wakes.
+2. Seat it: `opencode api POST /api/session/<session ID>/move -d '{"directory":"<worktree absolute path>"}'`. It stays seated across turns.
 3. Start it: call `subagent` with `agent` `radical-pipelines/<profile>`, `sessionID`, `model`, a short `description`, the message that starts the turn as `prompt`, and `background: true`.
 
-## Wake
+## Resume
 
 Call `subagent` with the role's `sessionID`, `agent`, `model`, a short `description`, the message as `prompt`, and `background: true`. A running role receives it at its next step; a finished role continues with its context.
 

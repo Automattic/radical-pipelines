@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are the rules a project's agents must satisfy — prose a profile follows, or a check it runs.
+Guardrails are the rules a project's roles must satisfy — prose a profile follows, or a check it runs.
 
 ## Format
 
