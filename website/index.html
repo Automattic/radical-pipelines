@@ -94,7 +94,7 @@
               <span class="grad">pipelines of them</span>.
             </h1>
             <p class="lede">
-              One task, five phases, a different team of agents in each. Every
+              One task, five phases, one agent answering for each artifact. Every
               phase writes a file you can read, fix, and re-run from.
             </p>
             <div class="hero-actions">
@@ -105,7 +105,7 @@
             </div>
             <ul class="hero-stats">
               <li><strong>5</strong><span>phases</span></li>
-              <li><strong>15</strong><span>agent profiles</span></li>
+              <li><strong>4</strong><span>agent profiles</span></li>
               <li><strong>2</strong><span>CLIs supported</span></li>
             </ul>
           </div>
@@ -116,17 +116,15 @@
                 <span class="card-title">~/repo/.pipelines/1234-fix-checkout</span>
               </div>
               <pre class="term-body"><span class="cmd">$ find . -type f</span>
+<span class="file done">./config.json</span>
 <span class="file done">./0-intent/intent.md</span>
-<span class="file done">./1-spec/spec-research.md</span>
 <span class="file done">./1-spec/spec.md</span>
-<span class="file done">./1-spec/spec-review-1.md</span>
-<span class="file done">./2-design-doc/design-doc-research.md</span>
 <span class="file done">./2-design-doc/design-doc.md</span>
-<span class="file done">./2-design-doc/design-doc-review-1.md</span>
-<span class="file active">./3-build/build-plan.md</span>
+<span class="file done">./3-implementation/notes.md</span>
+<span class="file active">./threads/1-reviewer-default-implementer-implementation.md</span>
 <span class="cmd2">$ git log --oneline .</span>
-<span class="log">a1b2c3d  Add build plan (build-plan-producer)</span>
-<span class="log">e4f5g6h  Add design doc review (design-doc-reviewer)</span>
+<span class="log">a1b2c3d  Open review thread (reviewer)</span>
+<span class="log">e4f5g6h  Fix the checkout total (implementer)</span>
 <span class="log">i7j8k9l  Add design doc (design-doc-producer)</span>
 <span class="log">m0n1o2p  Add spec (spec-producer)</span>
 <span class="log dim">…</span></pre>
@@ -186,11 +184,11 @@
             </div>
             <div class="prop">
               <h4>Restartable from any phase</h4>
-              <p>Bad spec? Fix the spec. Bad plan? Fix the plan. Re-run from that point, not from zero.</p>
+              <p>Bad spec? Fix the spec. Bad design? Fix the design doc. Everything downstream catches up from there.</p>
             </div>
             <div class="prop">
-              <h4>More tokens where it matters</h4>
-              <p>Adversarial reviewers, parallel writers, cross-provider runs. Spend compute on the risky surfaces.</p>
+              <h4>Redundancy where it pays</h4>
+              <p>Parallel lanes on different models write the spec and design doc. Several reviewers judge the change. Set once per project.</p>
             </div>
           </div>
         </div>
@@ -226,10 +224,11 @@
           </div>
 
           <p class="caption center">
-            Reconstructed log of a real pipeline run, sped up. Every phase pairs
-            its producing agents with an adversarial reviewer; both commit their artifacts
-            (<code>spec.md</code>, <code>spec-review-1.md</code>, …) so
-            the team can see what got pushed back on and why.
+            Reconstructed log of a pipeline run, sped up. Each agent commits the
+            artifact it owns, and a reviewer who never saw the discussion judges
+            the finished change against the intent. Pushback lives in thread files
+            (<code>threads/1-reviewer-default-…</code>), so the team can see what
+            got pushed back on and why.
             <a class="caption-link" href="https://github.com/Automattic/radical-pipelines#claude-code-plugin-install" target="_blank" rel="noopener">Run it yourself →</a>
           </p>
         </div>
@@ -250,8 +249,8 @@
               <p>Patch the phase that failed. Every future run benefits.</p>
             </article>
             <article>
-              <h3>Tests and docs by default</h3>
-              <p>Built into the pipeline. Stop relying on whoever's driving.</p>
+              <h3>The whole change, reviewed against the intent</h3>
+              <p>Code, tests, and docs ship together and are judged against what you asked for.</p>
             </article>
             <article>
               <h3>Visible before the PR</h3>
@@ -277,7 +276,7 @@
             </div>
             <div>
               <h3>Tooling caught up.</h3>
-              <p>Claude Code and opencode already ship skills, agents, worktrees. We build on top.</p>
+              <p>Claude Code and opencode already ship skills, subagents, worktrees, schedules. We build on top.</p>
             </div>
           </div>
         </div>
@@ -301,7 +300,8 @@
               <h3>opencode</h3>
               <div class="install-cmd">
                 <pre><code>// ~/.config/opencode/opencode.json
-{ "plugins": ["github:Automattic/radical-pipelines"] }
+{ "plugins": ["github:Automattic/radical-pipelines"],
+  "experimental": { "schedules": true, "subagent_depth": 2 } }
 
 opencode service restart</code></pre>
                 <span class="install-aside">a config edit, then one restart</span>

@@ -34,7 +34,7 @@ function parseSkillFrontmatter(source) {
   for (const line of match[1].split(/\r?\n/)) {
     const field = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
     if (!field) continue;
-    frontmatter[field[1]] = field[2].trim().replace(/^["']|["']$/g, "");
+    frontmatter[field[1]] = field[2].trim().replace(/^(["'])(.*)\1$/, "$2");
   }
 
   return {

@@ -7,158 +7,85 @@
 
   const phases = [
     {
-      phase: 'phase 1',
       task: 'spec-producer',
       reads: ['intent.md'],
-      writes: ['spec-research.md', 'spec.md'],
+      bash: ['npm run dev  # reproduce the checkout bug'],
+      writes: ['spec.md'],
+      commit: 'Add spec (spec-producer)',
       runMs: 2000,
-      sec: 212,
-      tokens: '33.7k',
-      treeIdx: [1, 2],
+      sec: 236,
+      tokens: '35.2k',
+      treeIdx: [1],
     },
     {
-      phase: 'phase 1',
-      task: 'spec-reviewer',
-      reads: ['intent.md', 'spec-research.md', 'spec.md'],
-      writes: ['spec-review-1.md'],
-      runMs: 1100,
-      sec: 41,
-      tokens: '7.8k',
-      treeIdx: [3],
-      verdict: 'approved',
-    },
-    {
-      phase: 'phase 2',
       task: 'design-doc-producer',
-      reads: ['spec.md', 'spec-research.md'],
-      writes: ['design-doc-research.md', 'design-doc.md'],
-      runMs: 2000,
-      sec: 258,
-      tokens: '43.5k',
-      treeIdx: [4, 5],
+      reads: ['spec.md'],
+      writes: ['design-doc.md'],
+      commit: 'Add design doc (design-doc-producer)',
+      runMs: 1800,
+      sec: 241,
+      tokens: '41.8k',
+      treeIdx: [2],
     },
     {
-      phase: 'phase 2',
-      task: 'design-doc-reviewer',
-      reads: ['spec.md', 'spec-research.md', 'design-doc-research.md', 'design-doc.md'],
-      writes: ['design-doc-review-1.md'],
-      runMs: 1000,
-      sec: 47,
-      tokens: '9.2k',
-      treeIdx: [6],
-      verdict: 'approved',
-    },
-    {
-      phase: 'phase 3',
-      task: 'build-plan-producer',
+      task: 'implementer',
       reads: ['spec.md', 'design-doc.md'],
-      writes: ['build-plan.md', 'tasks/build-task-1.md', 'tasks/build-task-2.md'],
-      runMs: 1300,
+      writes: ['src/checkout.ts (+96)', 'src/checkout.test.ts (+71)', 'README.md (updated)', 'notes.md'],
+      bash: ['npm test'],
+      commit: 'Fix the checkout total (implementer)',
+      runMs: 2200,
+      sec: 498,
+      tokens: '72.4k',
+      treeIdx: [3, 4],
+    },
+    {
+      task: 'reviewer default',
+      reads: ['intent.md', 'spec.md', 'notes.md', 'net change'],
+      action: 'Reviewing…',
+      bash: ['npm test', 'npm run dev  # drive the checkout'],
+      writes: ['threads/1-reviewer-default-implementer-implementation.md'],
+      commit: 'Open review thread (reviewer)',
+      runMs: 1400,
+      sec: 133,
+      tokens: '18.9k',
+      treeIdx: [5],
+      note: 'finding → implementer: a retry guard no intent outcome needs',
+    },
+    {
+      task: 'implementer',
+      reads: ['threads/1-reviewer-default-implementer-implementation.md'],
+      writes: ['src/checkout.ts (−38)', 'notes.md'],
+      bash: ['npm test'],
+      commit: 'Remove the retry guard (implementer)',
+      runMs: 1100,
       sec: 74,
-      tokens: '11.7k',
-      treeIdx: [7],
+      tokens: '9.6k',
+      treeIdx: [],
+      note: 'replied: changed in 7c1d9e2',
     },
     {
-      phase: 'phase 3',
-      task: 'build-plan-reviewer',
-      reads: ['build-plan.md', 'design-doc.md'],
-      writes: ['build-plan-review-1.md'],
+      task: 'reviewer default',
+      reads: ['threads/1-reviewer-default-implementer-implementation.md', 'net change'],
+      action: 'Verifying…',
+      bash: ['npm test'],
+      writes: [],
+      commit: 'Approve the change (reviewer)',
       runMs: 900,
-      sec: 38,
-      tokens: '6.4k',
-      treeIdx: [8],
-      verdict: 'approved',
-    },
-    {
-      phase: 'phase 3',
-      task: 'build-worker-tdd',
-      reads: ['tasks/build-task-1.md'],
-      writes: ['src/orchestrator.ts (+218)', 'src/orchestrator.test.ts (+162)'],
-      runMs: 1900,
-      sec: 412,
-      tokens: '64.1k',
-      treeIdx: [9, 11],
-      bash: ['npm test', 'git commit -m "Add orchestrator (build-worker-tdd)"'],
-      // The report names the commits above and lands in a commit of its own.
-      then: { writes: ['tasks/build-task-1-report-1.md'], bash: ['git commit -m "Report build-task-1 attempt 1 (build-worker-tdd)"'] },
-    },
-    {
-      phase: 'phase 3',
-      task: 'build-reviewer',
-      reads: ['src/orchestrator.ts', 'tasks/build-task-1-report-1.md', 'build-plan.md'],
-      writes: ['build-review-1.md'],
-      runMs: 1100,
-      sec: 96,
-      tokens: '14.3k',
-      treeIdx: [10],
-      verdict: 'approved',
-    },
-    {
-      phase: 'phase 4',
-      task: 'document-plan-producer',
-      reads: ['tasks/build-task-1-report-1.md', 'spec.md'],
-      writes: ['document-plan.md', 'tasks/document-task-1.md'],
-      runMs: 1100,
-      sec: 61,
-      tokens: '9.4k',
-      treeIdx: [12],
-    },
-    {
-      phase: 'phase 4',
-      task: 'document-plan-reviewer',
-      reads: ['document-plan.md', 'tasks/build-task-1-report-1.md'],
-      writes: ['document-plan-review-1.md'],
-      runMs: 850,
-      sec: 33,
-      tokens: '5.6k',
-      treeIdx: [13],
-      verdict: 'approved',
-    },
-    {
-      phase: 'phase 4',
-      task: 'document-worker',
-      reads: ['tasks/document-task-1.md', 'README.md'],
-      writes: ['README.md (updated)', 'docs/orchestrator.md'],
-      runMs: 1200,
-      sec: 89,
-      tokens: '8.7k',
-      treeIdx: [14, 16],
-      bash: ['git commit -m "Document the orchestrator (document-worker)"'],
-      then: { writes: ['tasks/document-task-1-report-1.md'], bash: ['git commit -m "Report document-task-1 attempt 1 (document-worker)"'] },
-    },
-    {
-      phase: 'phase 4',
-      task: 'document-reviewer',
-      reads: ['README.md', 'docs/orchestrator.md', 'tasks/document-task-1-report-1.md'],
-      writes: ['document-review-1.md'],
-      runMs: 800,
-      sec: 31,
-      tokens: '4.9k',
-      treeIdx: [15],
-      verdict: 'approved',
+      sec: 41,
+      tokens: '6.3k',
+      treeIdx: [],
+      note: 'status: closed: approved',
     },
   ];
 
   const pendingTree = [
     '0-intent/intent.md',
-    '1-spec/spec-research.md',
     '1-spec/spec.md',
-    '1-spec/spec-review-1.md',
-    '2-design-doc/design-doc-research.md',
     '2-design-doc/design-doc.md',
-    '2-design-doc/design-doc-review-1.md',
-    '3-build/build-plan.md',
-    '3-build/build-plan-review-1.md',
-    'src/orchestrator.ts + test',
-    '3-build/build-review-1.md',
-    '3-build/tasks/build-task-1-report-1.md',
-    '4-document/document-plan.md',
-    '4-document/document-plan-review-1.md',
-    'README.md, docs/',
-    '4-document/document-review-1.md',
-    '4-document/tasks/document-task-1-report-1.md',
+    'src/checkout.ts + test, README.md',
+    '3-implementation/notes.md',
+    'threads/1-reviewer-default-implementer-implementation.md',
   ];
-  // Tree indices: a worker commits its work, then its report; the phase review comes after both.
 
   const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -230,13 +157,10 @@
 
     // Spinner line for the main action
     const spinLine = line(logEl, 'cc-sub running', '');
-    await spinFor(spinLine, p.runMs, '  ' + (p.verdict ? 'Reviewing…' : 'Writing ' + p.writes[0]));
+    await spinFor(spinLine, p.runMs, '  ' + (p.action || 'Writing ' + p.writes[0]));
 
-    // Replace spinner with done writes
+    // Replace spinner with commands run and files written
     spinLine.remove();
-    for (const w of p.writes) {
-      line(logEl, 'cc-sub done', '  ⎿  Wrote ' + w);
-    }
     const runBash = async (cmds) => {
       for (const b of cmds) {
         const lb = line(logEl, 'cc-sub bash', '');
@@ -246,12 +170,12 @@
       }
     };
     if (p.bash) await runBash(p.bash);
-    if (p.then) {
-      for (const w of p.then.writes) line(logEl, 'cc-sub done', '  ⎿  Wrote ' + w);
-      await runBash(p.then.bash);
+    for (const w of p.writes) {
+      line(logEl, 'cc-sub done', '  ⎿  Wrote ' + w);
     }
-    if (p.verdict) {
-      line(logEl, 'cc-sub verdict', '  ⎿  verdict: ' + p.verdict);
+    await runBash(['git commit -m "' + p.commit + '"']);
+    if (p.note) {
+      line(logEl, 'cc-sub verdict', '  ⎿  ' + p.note);
     }
 
     // Done line with timing
@@ -286,11 +210,12 @@
       line(logEl, 'cc-sub done', '  ⎿  Preparing worktree (new branch \'1234-fix-checkout\')');
       line(logEl, 'cc-sub done', '  ⎿  HEAD is now at eda5064');
       line(logEl, 'cc-sub done', '  ⎿  Captured issue #1234 → 0-intent/intent.md (phase 0 · intent)');
+      line(logEl, 'cc-sub done', '  ⎿  Wrote config.json (target: review)');
       line(logEl, 'cc-spacer', '');
 
       // Tree header
       pendingTree.forEach((f, i) => addPendingFile(f, i));
-      // Phase 0 is the raw intent — an input, already in place, not produced by an agent.
+      // Phase 0 is the intent the orchestrator records on the owner's approval, not produced by a role.
       commitPending(0);
 
       await sleep(reduced ? 50 : 800);
@@ -302,7 +227,7 @@
       line(
         logEl,
         'cc-summary',
-        '● Pipeline complete · 5 phases · 17 artifacts · 23m 12s total'
+        '● Pipeline complete · review approved · 1 thread · 20m 23s total'
       );
       autoScroll();
 

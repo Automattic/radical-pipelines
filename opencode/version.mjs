@@ -25,8 +25,7 @@ function readPackageVersion(packageJsonPath = DEFAULT_PACKAGE_JSON_PATH) {
 }
 
 /**
- * The plugin's free-form id, surfaced verbatim by `GET /api/plugin` and by
- * `rp_status`. Read once at module load from `package.json` — never from a
+ * The plugin's free-form id, surfaced verbatim by `GET /api/plugin`. Read once at module load from `package.json` — never from a
  * network call — so it never goes stale relative to the installed package.
  */
 const PLUGIN_ID = `radical-pipelines@${readPackageVersion()}`;

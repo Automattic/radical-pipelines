@@ -1,83 +1,40 @@
 # The opencode plugin
 
-How the opencode plugin behaves once installed, and the design decisions behind that behavior. Installation and the short behavior summary live in the README's [opencode plugin install](../README.md#opencode-plugin-install) section.
+What the opencode plugin does once installed, and why each piece is still plugin code. Installation lives in the README's [opencode plugin install](../README.md#opencode-plugin-install) section.
+
+Verified against opencode v2.2.5.
+
+## What opencode covers natively
+
+The orchestrator drives roles with opencode's own primitives, as [`tools/opencode.md`](../skills/radical-pipelines/tools/opencode.md) states. [Native primitives](./research/native-primitives.md) lists what each tool provides. These were checked against the installed binary and are exercised by the integration suite's native-roles checks:
+
+- **Spawn and seat.** The `subagent` tool always creates its child at the parent's location. The orchestrator instead creates the child session itself through the API, with `parentID` set to its own session (`$OPENCODE_SESSION_ID` in the shell), and moves that session to the worktree. It then starts it with `subagent` and that `sessionID`. A moved idle session switches location without a model call, and the location holds across wakes.
+- **Wake.** `subagent` with `sessionID` reaches a running or finished child. opencode accepts only children of the calling session.
+- **Turn end and failure.** A background run posts `<subagent sessionID=… state=completed|error|cancelled>` with the final reply to the parent.
+- **Termination.** `POST /api/session/<id>/interrupt` stops a running session and keeps it, so the role's transcript survives; it returns `interrupted: false` for an idle one. `GET /api/session?parentID=<id>` lists a role's subagents to interrupt them too. Deleting a session would destroy the transcript, so nothing deletes one.
+- **Health ticks.** The `opencode.schedule_create` Code Mode tool wakes the calling session on an interval. It requires `experimental.schedules`. Session state is read through `opencode api`.
+- **Delegation by roles.** `experimental.subagent_depth` defaults to 1, which stops a role from spawning subagents. The setup actions require at least 2.
+
+### Gaps accepted
+
+- **Permission requests.** A child's permission request reaches the owner in opencode's interface, never the parent agent. The binary notifies the parent only when a run ends. The orchestrator sees pending requests on its health ticks through `GET /api/session/<id>/permission` and treats such a role as blocked. It does not answer them.
+- **Tool scoping.** The plugin registers no tools, so a role reaches no plugin code. A role's `subagent` follow-ups reach only its own children. Its shell could still call `opencode api`, which no profile directs it to do.
+- **Messages from roles.** opencode has no tool for a child to message its parent or a sibling mid-run. v4 roles report only through their final reply.
 
 ## Skill registration and re-supply
 
-The `radical-pipelines` skill is invokable — the plugin registers the packaged skills with their source paths and content.
+The plugin registers the packaged skills with their source paths and content, so the `radical-pipelines` skill can be invoked.
 
-A session that activated the skill gets it back after opencode's context compaction, which summarizes the transcript and drops an activated skill with it. Every model request shows the plugin the session's active context, and the plugin records the activation it sees there — a successful `skill` tool call, or the skill attached to a prompt. A request that no longer carries a recorded activation is continuing from a checkpoint, and the plugin re-supplies the skill's body as system text, as Claude Code does for invoked skills; the skill's own opening instruction then makes the session follow the skill again and recompute state. Once the session activates the skill again, the re-supply stops.
+opencode's compaction summarizes the transcript and drops an activated skill with it, and it re-injects nothing ([compaction](https://opencode.ai/v2/docs/compaction/)). The plugin fills that gap. Every model request shows it the session's active context, and it records each activation it sees there: a successful `skill` tool call, or the skill attached to a prompt. If a request no longer carries a recorded activation, the session is continuing from a checkpoint. The plugin then re-supplies the skill's body as system text, as Claude Code does for invoked skills, and the skill's opening instruction makes the session recompute its state. Once the session activates the skill again, the re-supply stops.
 
-What a checkpoint sealed is in no request, so a session's stored history is read once — shared by requests that arrive meanwhile, and again on the next request when it fails or the server is unreachable, recording `skill.resupply.unreadable` and serving what the session's requests have shown meanwhile; a malformed history is a failed read, never an empty one. A deleted session's record is dropped and the records are capped.
+A checkpoint seals history away from every request, so the plugin reads a session's stored history once. Requests that arrive during the read share it. If the read fails or the server is unreachable, the plugin reads again on the next request and meanwhile serves what the requests have shown. A malformed history counts as a failed read, never as an empty one. The plugin keeps records for at most 4,096 sessions. Roles never activate the skill, so it is never re-supplied to them.
 
 ## Agent profiles
 
-The plugin regenerates RP's profiles in opencode's global `agents/radical-pipelines/` folder, where they register as `radical-pipelines/<name>`; `rp_spawn` accepts the plain RP profile name.
+opencode's agent editor can't add agents from code, so the plugin writes files. On every setup it regenerates its profiles in opencode's global `agents/radical-pipelines/` folder, where they register as `radical-pipelines/<profile>`.
 
-## Messaging protocol
+opencode registers an agent file without `mode` as a primary agent, and its `subagent` tool refuses to launch one. Each profile is therefore written with only its `description` and `mode: subagent` in the frontmatter. The other fields are dropped: the path sets the id, and the orchestrator passes the model on each call. The body is copied unchanged.
 
-Every agent spawned with `rp_spawn` receives the opencode messaging protocol and its spawner's session ID automatically, so its required reports and messages — including its completion declaration, which always goes to the spawner — are routed with `rp_send` rather than left in its transcript.
+## Version
 
-The same protocol tells it that an ended turn is a stop: only a message resumes the session — a reply it awaits, or the completion notice of a background command it gave a `timeout` (background commands carry none by default, so a hung one never reports back) — and anything else it waits on holds its turn, with foreground commands that have a timeout and progress compared between checks, instead of parking on detached work nothing can wake it for.
-
-## Turn announcements
-
-A spawned agent's failed turn is announced to the spawner with its cause, and a successful turn in which it sent no `rp_send` is announced as ended without a message, unless `rp_terminate` has successfully deleted that agent's session — every terminal event for a deleted session is suppressed. A turn begins at the spawn or at the previous turn's end; a successful turn whose beginning the daemon did not observe in the last 24 hours, such as one in progress across a restart, is not announced.
-
-## Permissions
-
-A spawned agent's read outside its worktree raises a permission request that the plugin announces to the spawner; reads that resolve inside the worktree are redirected without asking. The spawner answers with `rp_permission_reply`.
-
-## Termination
-
-`rp_terminate` deletes a finished agent's session so it cannot linger or receive more work.
-
-## Status
-
-Use `rp_status` with `pipeline_slug` for health checks. Each `ledger` row contains only `sessionID`, `running`, `secondsSinceActivity` (whole seconds since the latest activity, sampled when the response is built), `pending` (undelivered inputs), and actionable `permissions`. Unknown health fields are `null`. `recentErrors` contains failure summaries: type, session when known, timestamp, and cause capped at 200 characters; successful lifecycle events are omitted. A stopped or inactive agent warrants investigation, not automatic recovery.
-
-Use `rp_status` with `session` to investigate an agent. It returns `pluginVersion`, identity and configuration (`name`, `agent`, `model`, `directory`, `pipelineSlug`), the raw `activity` timestamp, `currentTool`, `lastTurn` (`succeeded`, `failed`, or `interrupted`, with `messaged` telling whether the turn sent an `rp_send` when the daemon observed its beginning in the last 24 hours), `lastSend`, and `lastText` (the newest assistant text, capped at 200 characters; the search depth when none was found; or `null` when the transcript holds none). Its `recentErrors` retains full diagnostic events, including their `info` or `error` level. An unscoped call returns the plugin version and detailed rows for every RP session, without reading transcripts.
-
-### Activity
-
-Activity is the latest of opencode's `updated` (which moves when a session receives input), observed tool or model progress, and raw provider bytes. `lastTurn` and `lastSend` live in daemon memory: after a restart they are absent until observed again, and activity falls back to `updated` until progress is observed. Per-session server reads cover only the selected scope. Scoped diagnostic events concern its recorded or live sessions plus events naming no session; unscoped calls include every event.
-
-### Read failures
-
-Every status response includes `readFailures`: unavailable or malformed reads leave the affected facts unknown rather than reporting a healthy or empty pipeline.
-
-## Health loops
-
-Health-loop ticks skip recently active sessions, steer into sessions with no activity for two intervals, and remain observable through `rp_loop_list`, which lists each loop with its recent ticks.
-
-### Flood protection
-
-A tick never duplicates a prompt whose predecessor is still undelivered or unanswered — a parked queue copy facing a running session is promoted to steer delivery in place.
-
-### Backoff
-
-Each injection is judged by the turn that answers it. When that turn only fails (network outage, provider quota exhaustion) the loop backs off exponentially — up to ~8 intervals between probes — while still inspecting the target every tick, and resumes normal cadence on the first success.
-
-### Dead provider streams
-
-A target stuck on a dead provider stream is interrupted exactly once across all loops, with any parked monitor copy made steerable first, so the monitor prompt reaches the freed session on the next delivery.
-
-A dead provider stream is a frozen tool call, with no tool executing anywhere in the message, whose own response produced no bytes and no progress events for a one-hour confirmation window. The response is identified by its provider call id in the teed bytes of each location's provider responses.
-
-The window is an accepted, documented heuristic: silence cannot prove death, so a totally silent live stream outlasting the window would be interrupted — a case beyond observed provider behavior.
-
-Under the plugin's single-observer assumption (no other plugin consumes through its tee and then substitutes the response without cancelling it), a stream whose response identity is established is never interrupted while it produces bytes — bounded only by the instant between the final revalidation and the session-scoped interrupt request, the tightest window the API offers.
-
-Traffic whose identity cannot be established — never observed, or observed but with the projected tool id unmatched in its consumed bytes — is unknown coverage and is never escalated.
-
-### Timeouts and retirement
-
-Health-loop server requests time out after 10 seconds. A tick still pending after two minutes records a `timeout` tick and re-arms; cancelling a loop returns as soon as it is disarmed instead of waiting for its active tick. A tick that finds its target session gone retires the loop and records `loop.retired`, rather than failing again on every interval for as long as the daemon runs.
-
-## Tool scoping
-
-The plugin's tools are scoped to the session calling them, by two facts a caller cannot forge: the parentage opencode reports when a session is created, and the identity (pipeline slug, instance name, spawner) `rp_spawn` stores in the session's metadata when it creates it. The orchestrator — which nothing spawned — and the owner's own session reach every tool; an agent spawned with `rp_spawn` reaches `rp_send`, which is all its profile needs; and a subagent, created by a session delegating inside its own turn, reaches none and is told to return its findings to whoever delegated to it.
-
-Parentage normally arrives on the event stream, but an event can be missed — the subscription replays no history, and a dropped stream resubscribes rather than recovering what fell in the gap — so a session RP has not seen is asked about, once, against the durable session store rather than assumed unparented. Any read that does not answer — an unreachable server, but equally one that replies 500 or 404 — leaves the question open, and an unclassifiable caller is then treated as a root session, because refusing every one of them would stop the orchestrator too.
-
-Both facts live in the session store, so an agent outliving a daemon restart keeps its identity: its tools stay restricted, its messages attributed, its failures and permission asks routed to its spawner, and `rp_status` — which reads every page of opencode's session list — still reports it.
+The plugin's id is `radical-pipelines@<version>`, read from `package.json`. `opencode api GET /api/plugin` reports it.

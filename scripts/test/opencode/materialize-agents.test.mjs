@@ -11,7 +11,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 
-import { materializeAgents, resolveAgentsTargetDir } from "../../../opencode/plugin.mjs";
+import { materializeAgents, renderSubagentProfile, resolveAgentsTargetDir } from "../../../opencode/plugin.mjs";
 
 describe("resolveAgentsTargetDir", () => {
   test("honors XDG_CONFIG_HOME when set", () => {
@@ -27,6 +27,21 @@ describe("resolveAgentsTargetDir", () => {
   test("defaults to the real process environment when none is given", () => {
     const path = resolveAgentsTargetDir();
     assert.ok(path.endsWith(join("opencode", "agents", "radical-pipelines")));
+  });
+});
+
+describe("renderSubagentProfile", () => {
+  test("keeps the description and the body, declares mode: subagent, and drops every other field", () => {
+    const source = "---\nname: role\ndescription: Owns: the spec — and \"quotes\"\nmodel: opus\ntools: Read, Grep\n---\n\n# Role\n\nBody.\n";
+
+    assert.equal(
+      renderSubagentProfile(source),
+      '---\ndescription: "Owns: the spec — and \\"quotes\\""\nmode: subagent\n---\n\n# Role\n\nBody.\n',
+    );
+  });
+
+  test("a profile without frontmatter becomes a subagent with its whole text as body", () => {
+    assert.equal(renderSubagentProfile("Body only.\n"), "---\nmode: subagent\n---\n\nBody only.\n");
   });
 });
 
@@ -56,19 +71,17 @@ describe("materializeAgents", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  test("copies every source *.md profile byte-for-byte into an empty target, preserving filenames", () => {
+  test("writes every source *.md profile, rendered as a subagent, into an empty target, preserving filenames", () => {
     const result = materializeAgents(sourceDir, targetDir);
 
     assert.deepEqual(result.written.sort(), ["agent-a.md", "agent-b.md"]);
 
-    assert.equal(
-      readFileSync(join(targetDir, "agent-a.md"), "utf8"),
-      readFileSync(join(sourceDir, "agent-a.md"), "utf8"),
-    );
-    assert.equal(
-      readFileSync(join(targetDir, "agent-b.md"), "utf8"),
-      readFileSync(join(sourceDir, "agent-b.md"), "utf8"),
-    );
+    for (const name of ["agent-a.md", "agent-b.md"]) {
+      assert.equal(
+        readFileSync(join(targetDir, name), "utf8"),
+        renderSubagentProfile(readFileSync(join(sourceDir, name), "utf8")),
+      );
+    }
     assert.ok(!existsSync(join(targetDir, "README.txt")));
   });
 
@@ -89,7 +102,7 @@ describe("materializeAgents", () => {
     assert.equal(readFileSync(outside, "utf8"), "keep me");
   });
 
-  test("updating a source profile and re-materializing overwrites the RP-owned target with the new bytes", () => {
+  test("updating a source profile and re-materializing overwrites the RP-owned target with the new rendering", () => {
     materializeAgents(sourceDir, targetDir);
 
     const updated = "---\nname: agent-a\n---\n\nAgent A body, updated.\n";
@@ -98,6 +111,6 @@ describe("materializeAgents", () => {
     const result = materializeAgents(sourceDir, targetDir);
 
     assert.deepEqual(result.written.sort(), ["agent-a.md", "agent-b.md"]);
-    assert.equal(readFileSync(join(targetDir, "agent-a.md"), "utf8"), updated);
+    assert.equal(readFileSync(join(targetDir, "agent-a.md"), "utf8"), renderSubagentProfile(updated));
   });
 });

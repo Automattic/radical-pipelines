@@ -1,32 +1,29 @@
 # Load conventions
 
-This chart mirrors [`reference/conventions/load.md`](../../skills/radical-pipelines/reference/conventions/load.md), including its migration and setup handoffs before lifecycle hooks are loaded.
+This chart mirrors [`reference/conventions/load.md`](../../skills/radical-pipelines/reference/conventions/load.md), including its migration and setup handoffs, the active tool's setup actions, and the lifecycle hooks loaded last.
 
 ```mermaid
 flowchart TD
-    A["Resolve the main root worktree-aware"] --> B["Load the active tool file"]
-    B --> C["Read .rp.md and its active tool section"]
-    C --> H{"Version stamp status"}
+    A["Find the repository's main root, even from a worktree"] --> B["Read the skill's tools/tool.md"]
+    B --> C["Read .rp.md"]
+    C --> H{"Conventions version"}
     H -->|No .rp.md| I["Offer Fresh setup"]
-    H -->|Older or absent stamp| J["Offer Migration"]
-    H -->|Current stamp| D{"Required active-tool section present?"}
-    H -->|Newer stamp| L["Stop and update the skill"]
-    D -->|No| E["Offer setup for the active tool"]
-    E --> F{"Owner accepts setup?"}
-    F -->|No| STOP["Stop and report what is missing"]
-    F -->|Yes| SETUP["Run setup"]
-    SETUP --> WRITE["Write confirmed conventions"]
-    WRITE --> C
-    D -->|Yes| K{"Required conventions complete?"}
+    H -->|Absent or older| J["Offer Migration through the changelog"]
+    H -->|Newer| L["Stop: the owner updates the skill"]
+    H -->|Current, 7| K{"Required conventions complete?"}
     I --> M{"Owner accepts setup?"}
     J --> M
-    M -->|No| STOP
-    M -->|Yes| SETUP
-    K -->|No| N["Offer setup for missing conventions"]
-    N --> O{"Owner accepts setup?"}
-    O -->|No| STOP
-    O -->|Yes| SETUP
-    K -->|Yes| G["Merge .rp.local.md overrides"]
-    G --> P["Load lifecycle hooks"]
+    K -->|No| N["Offer setup for the missing conventions"]
+    N --> M
+    M -->|No| STOP["Stop and explain what is missing"]
+    M -->|Yes| SETUP["Run setup; write the confirmed .rp.md"]
+    SETUP --> C
+    K -->|Yes| G["Apply .rp.local.md's overrides"]
+    G --> T{"tools/tool.md lists setup actions?"}
+    T -->|Yes| TA["Perform them, confirming any action that writes files"]
+    TA --> TR{"Every requirement met?"}
+    TR -->|No| TSTOP["Tell the owner what to enable and stop"]
+    TR -->|Yes| P
+    T -->|No| P["Read the lifecycle hooks"]
     P --> Q["Continue"]
 ```

@@ -15,7 +15,6 @@
  */
 
 import { spawn } from "node:child_process";
-import { setTimeout as delay } from "node:timers/promises";
 import {
   existsSync,
   mkdirSync,
@@ -27,7 +26,6 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { INVALID_AUTH_KEY } from "./stub-provider.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 // A configured plugin path must be a directory opencode resolves to an
@@ -140,7 +138,7 @@ function xdgEnv(sandboxDir) {
  * Write the sandbox's `opencode.json`: the plugin loaded from this
  * repository's actual `opencode/plugin.mjs` (a local path, so no npm/git
  * install is needed for the core suite), and the offline OpenAI-compatible
- * stub provider(s) core flows run against.
+ * stub provider core flows run against.
  *
  * @param {{ xdgConfigHome: string, stubPort: number }} options Where to
  *   write the config, and the stub provider's port.
@@ -157,21 +155,11 @@ function writeSandboxConfig({ xdgConfigHome, stubPort }) {
         plugins: [PLUGIN_ENTRY],
         providers: {
           // The core suite's provider: a mandatory (if dummy) apiKey, so
-          // turns run offline against the local stub — verified live that
-          // the invalid-key provider below is the deterministic auth-failure
-          // injector.
+          // turns run offline against the local stub.
           stub: {
             name: "RP integration stub",
             package: "@opencode/ai/providers/openai-compatible",
             settings: { baseURL: `http://127.0.0.1:${stubPort}/v1`, apiKey: "hermetic-dummy-key" },
-            models: { "stub-model": { name: "Stub Model" } },
-          },
-          // Deterministic auth-failure injector: the local provider returns
-          // HTTP 401 for this known-invalid bearer token.
-          stubnoauth: {
-            name: "RP integration stub (no auth)",
-            package: "@opencode/ai/providers/openai-compatible",
-            settings: { baseURL: `http://127.0.0.1:${stubPort}/v1`, apiKey: INVALID_AUTH_KEY },
             models: { "stub-model": { name: "Stub Model" } },
           },
         },
@@ -236,10 +224,6 @@ export function startServe({ projectDir, env, binDir, opencodeBin }) {
     PATH: `${binDir}:${process.env.PATH ?? ""}`,
     OPENCODE_PASSWORD: SERVE_PASSWORD,
     RP_OPENCODE_SERVER_URL: baseURL,
-    // Shrink the health loop's dead-stream confirmation window (production
-    // default: one hour) so the suite can exercise the confirmation and
-    // its healthy-stream veto within seconds.
-    RP_LOOP_DEAD_STREAM_CONFIRM_MS: "4000",
   };
 
   return new Promise((resolve, reject) => {
@@ -285,23 +269,6 @@ export function startServe({ projectDir, env, binDir, opencodeBin }) {
  */
 export function stopServe(child) {
   child.kill();
-}
-
-/**
- * Restart the sandbox's `serve` process over the same XDG dirs (same on-disk
- * registries and session store) — a daemon restart between runs.
- *
- * @param {{ serveChild: import("node:child_process").ChildProcess, server: object, projectDir: string, env: Record<string,string>, binDir: string, opencodeBin: string }} ctx
- *   The suite context; its `serveChild` and `server` are replaced.
- * @returns {Promise<{ baseURL: string, password: string }>} The new server.
- */
-export async function restartServe(ctx) {
-  stopServe(ctx.serveChild);
-  await delay(1_000);
-  const { child, baseURL, password } = await startServe(ctx);
-  ctx.serveChild = child;
-  ctx.server = { baseURL, password };
-  return ctx.server;
 }
 
 export { STUB_PORT };

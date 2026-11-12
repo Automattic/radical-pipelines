@@ -1,40 +1,70 @@
 ## Seat
 
-- Worktree: <absolute path>
-- Branch: <branch>
-- Commit format: <convention>
-- Guardrails: <rules | none>
-- Resources: <resources | none>
-- Execution: <inspection only | experiment>
-- Supporting folder: <path>
-
-## Brief
-
-<the lane's brief; omit the section without one>
-
-## Write to
-
-<the phase folder — root, or `lanes/<lane>/` — where your artifact and record land>
+- Worktree: {{worktree}}
+- Branch: {{branch}}
+- Turn commit: {{turn-commit}}
+- Supporting folder: {{supporting-folder}}
+{{#subagent-model}}
+- Subagent model: {{subagent-model}}
+{{/subagent-model}}
+{{^subagent-model}}
+- Subagent model: your own model
+{{/subagent-model}}
+- rp: `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`, `{{rp}} --help` listing each command and its options
 
 ## Mode
 
-<Converge | Consolidate>
+{{mode}}
 
+{{#brief}}
+## Brief
+
+{{brief}}
+
+{{/brief}}
 ## Materials
 
-<!-- Standing: every mode -->
-- Intent: <path>
-- Phase folder: <one line per existing file: path>
-- spec.md: <path>
-- spec-research.md: <path>
-- Challenge: <challenge path>; <origin chain: review and record paths>   <!-- one per pending constraint, proposal, reported failure, or claim -->
-- Task report: <challenge path>; <origin chain: review and record paths>   <!-- one per pending failed report -->
+- Intent: {{intent}}
+{{^lane}}
+- Later inputs: {{later-inputs}}
+{{/lane}}
+{{#respond}}
+- Changed inputs: {{changed-inputs}}
+{{/respond}}
+{{#consolidate}}
+- Lane candidates: {{lane-candidates}}
+{{/consolidate}}
 
-<!-- Converge: additions, each when it applies -->
-- Lane inputs: <one line per consumed lane: artifact path; record path; approving review paths>   <!-- production lanes with `after` -->
-- Input changes: <package change>
-- Review lanes: <one line per review of the closed wave: lane — path>
-- Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
+## Threads addressed to you
 
-<!-- Consolidate: additions -->
-- Lane candidates: <one line per lane: id — read-only folder; spec.md path, spec-research.md path, approving review paths>
+{{threads}}
+
+{{#malformed-files}}
+## Malformed files
+
+{{malformed-files}}
+
+{{/malformed-files}}
+## Write to
+
+{{write-to}}
+
+## Guardrails
+
+{{guardrails}}
+
+## Resources
+
+{{resources}}
+
+## Commit format
+
+{{commit-format}}
+{{#facts}}
+
+## Placeholders
+
+A name in braces left in your Brief, Guardrails, Resources, or Commit format is a placeholder: replace it with the value it stands for, from these values of your turn:
+
+{{facts}}
+{{/facts}}

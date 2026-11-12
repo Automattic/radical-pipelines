@@ -1,6 +1,54 @@
-# Project-format changelog
+# Conventions changelog
 
-Entries are ordered by version. Version 0 is the unstamped format.
+Entries are ordered by version. Version 0 is a `.rp.md` without a conventions version.
+
+## 7
+
+Migrate from version 6.
+
+### Frontmatter
+
+Rewrite the frontmatter as the line `conventions: 7`.
+
+### Tool files
+
+Move the content of each `.rp.<tool>.md` into `.rp.md`, stating the tool it applies to, and delete the file.
+
+### Agents
+
+Split `Agents` into `Lanes`, each profile's lanes and their briefs, and `Models`, each profile's and lane's model and subagent model, every text and value unchanged.
+
+### Renames
+
+| Existing lifecycle hook | New heading           |
+| ----------------------- | --------------------- |
+| `before-merging-lanes`  | `before-landing-lane` |
+| `after-merging-lanes`   | `after-landing-lane`  |
+
+### Additions
+
+- `Variables`, optional: the placeholders the guardrail, resource, commit-format, and brief texts use (`setup.md` § Write).
+
+## 6
+
+Migrate from version 5.
+
+### Profiles
+
+Four profiles remain: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer`. In `Agents`, and in the `agents` of every `Guardrails` and `Resources` block:
+
+| Existing profile | Becomes |
+| --- | --- |
+| `build-worker`, `document-worker` | `implementer` |
+| `build-reviewer`, `document-reviewer` | `reviewer` |
+| `build-plan-producer`, `document-plan-producer`, `spec-reviewer`, `design-doc-reviewer`, `helper` | removed |
+
+When renamed blocks give one profile different models, ask the owner which to keep. Drop a block's removed profiles, and the block when none remain.
+
+### Lanes
+
+- `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Named `reviewer` lanes replace the implicit review lane instead of running beside it: when the project has any, offer to declare a `default` lane without a brief beside them. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
+- Remove every lane's `materials` and `after`.
 
 ## 5
 
@@ -94,10 +142,6 @@ Move the model table into an `Agents` section — one block per profile — rena
 - `researcher`
 
 Keep one `researcher` row, asking the owner which existing research value to retain when values differ.
-
-### Pipelines
-
-Pipelines in the previous layout (`<pipeline slug>/base/…`) are closed: discovery reads `<pipeline slug>/0-intent/intent.md`, so they are neither live nor continued. Further work on their issue starts a new pipeline.
 
 ### Additions
 

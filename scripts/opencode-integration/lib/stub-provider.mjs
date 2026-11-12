@@ -4,73 +4,30 @@
  * Serves `GET /v1/models` and `POST /v1/chat/completions` (streaming SSE) so
  * every core-flow turn runs at zero cost, fully offline.
  *
- * RP's tools are registered as directly invocable (`codemode: false`), so
- * opencode lists them in the request's own `tools` array and the model calls
- * them by name. To drive `rp_spawn`/`rp_send`/`rp_terminate`/`rp_loop_*`/
- * `rp_status` deterministically from a scripted "model", this stub recognizes
- * a directive embedded in the driving prompt's text —
+ * To drive a directly invocable tool (opencode's `skill`, `subagent`, or
+ * `shell`) deterministically from a scripted "model", this stub recognizes a
+ * directive embedded in the driving prompt's text —
  * `__RP_NATIVE_TOOL__:<base64 {name, args, nonce}>:__END__` — and, on a match
  * it has not already answered, emits a tool_call for exactly that tool.
- *
- * A tool reachable only through Code Mode is driven instead by
- * `__RP_CODE__:<code>:__END__`, which emits a call to opencode's `execute`
- * wrapper running that restricted-JS snippet.
  *
  * Any other turn (no directive, or a directive already answered once) gets a
  * fixed plain-text reply, ending the turn normally.
  */
 
 import http from "node:http";
-import { setTimeout as delay } from "node:timers/promises";
-
-const DIRECTIVE_RE = /__RP_CODE__:([\s\S]*?):__END__/;
-
-/**
- * Directive embedded in a driving prompt's text — `__RP_SLOW__:<ms>:__END__`
- * — that makes the stub delay `<ms>` milliseconds before replying, so a
- * check can rely on the session being genuinely "running" for a known
- * window (interrupt, busy-skip).
- */
-const SLOW_RE = /__RP_SLOW__:(\d+):__END__/;
-
-/**
- * Directive embedded in a driving prompt's text —
- * `__RP_TRICKLE__:<chunkMs>,<chunks>:__END__` — that makes the stub emit a
- * tool_call header and then stream its JSON arguments one small chunk every
- * `<chunkMs>` milliseconds, `<chunks>` times, before finishing the call
- * normally: a *healthy* slow argument stream, indistinguishable from a dead
- * one in the projected transcript. Answered once per distinct directive
- * text, like `DIRECTIVE_RE`.
- */
-const TRICKLE_RE = /__RP_TRICKLE__:(\d+),(\d+):__END__/;
-
-/**
- * Directive embedded in a driving prompt's text —
- * `__RP_STALL__:<ms>[,<firstFrameDelayMs>]:__END__` — that makes the stub
- * flush its response headers, wait the optional time-to-first-token gap,
- * emit a tool_call header whose arguments never finish streaming, then hold
- * the connection open for `<ms>` (or until the client aborts): a
- * deterministic reproduction of a provider stream dying mid-tool-call,
- * leaving the session's newest assistant message with a tool part stuck in
- * `streaming` state. The header/first-frame gap models real providers,
- * whose assistant row (created from the first model event) can postdate the
- * response start by seconds. Answered once per distinct directive text,
- * like `DIRECTIVE_RE`.
- */
-const STALL_RE = /__RP_STALL__:(\d+)(?:,(\d+))?:__END__/;
 
 /**
  * Directive embedded in a driving prompt's text —
  * `__RP_NATIVE_TOOL__:<base64 {name, args, nonce}>:__END__` — that forces a
  * tool_call for a directly invocable tool, named in the request's own `tools`
- * array: RP's own tools and opencode's built-ins alike.
+ * array.
  *
  * The `{name, args, nonce}` triple is carried as one base64 blob rather than
  * as delimited fields or raw JSON. A tool name and a URL both routinely
  * contain colons, which broke a naive `name:args` split; and an argument may
- * itself carry a directive meant to fire later rather than now (a health
- * loop's monitor prompt, say), whose own `:__END__` would otherwise terminate
- * this match early. base64's alphabet contains no colon or underscore, so no
+ * itself carry a directive meant to fire later rather than now (a subagent's
+ * prompt, say), whose own `:__END__` would otherwise terminate this match
+ * early. base64's alphabet contains no colon or underscore, so no
  * argument can close the directive it travels in.
  */
 const NATIVE_TOOL_RE = /__RP_NATIVE_TOOL__:([A-Za-z0-9+/=]*):__END__/;
@@ -84,9 +41,6 @@ const NATIVE_TOOL_RE = /__RP_NATIVE_TOOL__:([A-Za-z0-9+/=]*):__END__/;
 function decodeNativeDirective(payload) {
   return JSON.parse(Buffer.from(payload, "base64").toString("utf8"));
 }
-
-/** API key the sandbox uses to trigger a deterministic HTTP 401. */
-export const INVALID_AUTH_KEY = "rp-invalid-auth-key";
 
 /** Text returned for any turn that carries no (or an already-answered) directive. */
 export const PLAIN_REPLY_TEXT = "RP_STUB_TURN_COMPLETE";
@@ -175,27 +129,6 @@ export function startStubProvider({ port }) {
       const text = lastUserText(parsed.messages ?? []);
       chatRequests.push({ messages: parsed.messages ?? [], tools: parsed.tools ?? [] });
 
-      if (req.headers.authorization === `Bearer ${INVALID_AUTH_KEY}`) {
-        // A slow directive delays the failure, turning the instant 401 into
-        // a slow-failing turn — the shape that keeps a session active while
-        // its probes fail.
-        const slowFailMatch = text.match(SLOW_RE);
-        if (slowFailMatch) {
-          await delay(Number(slowFailMatch[1]));
-        }
-        res.writeHead(401, { "content-type": "application/json" });
-        res.end(
-          JSON.stringify({
-            error: {
-              message: "Invalid API key",
-              type: "invalid_request_error",
-              code: "invalid_api_key",
-            },
-          }),
-        );
-        return;
-      }
-
       // A driven turn reaches this provider more than once: opencode also
       // generates the session title from the same user text, on a request
       // that offers no tools and discards whatever comes back. The two
@@ -210,110 +143,12 @@ export function startStubProvider({ port }) {
         offeredToolNames.add(name);
       }
 
-      const match = offered.has("execute") ? text.match(DIRECTIVE_RE) : null;
-      const alreadyAnswered = match && firedDirectives.has(match[0]);
       const nativeCandidate = text.match(NATIVE_TOOL_RE);
       const nativeMatch =
         nativeCandidate && offered.has(decodeNativeDirective(nativeCandidate[1]).name)
           ? nativeCandidate
           : null;
       const nativeAlreadyAnswered = nativeMatch && firedDirectives.has(nativeMatch[0]);
-
-      // Held open only for the agent turn, for the same reason: stalling the
-      // title request instead would leave the session idle over the window a
-      // caller asked to keep it busy.
-      const slowMatch = offered.size > 0 ? text.match(SLOW_RE) : null;
-      if (slowMatch) {
-        await delay(Number(slowMatch[1]));
-      }
-
-      // Matched only on the agent turn (see `offered` above); the title
-      // request must never be the one that trickles.
-      const trickleMatch = offered.size > 0 && offered.has("execute") ? text.match(TRICKLE_RE) : null;
-      if (trickleMatch && !firedDirectives.has(trickleMatch[0])) {
-        firedDirectives.add(trickleMatch[0]);
-        const chunkMs = Number(trickleMatch[1]);
-        const chunkCount = Number(trickleMatch[2]);
-        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
-        res.write(
-          sseChunk(parsed.model ?? "stub-model", {
-            role: "assistant",
-            content: null,
-            tool_calls: [
-              {
-                index: 0,
-                id: `call_trickle_${firedDirectives.size}`,
-                type: "function",
-                function: { name: "execute", arguments: "" },
-              },
-            ],
-          }),
-        );
-        // Stream the arguments' JSON one fragment at a time — a healthy
-        // stream whose projection stays frozen until the JSON completes.
-        // Padded so the argument always splits into the *requested* number
-        // of fragments: an argument shorter than the chunk count would
-        // otherwise cut the stream's duration below what the caller asked
-        // for (and below the confirmation window a check means to cross).
-        const argument = JSON.stringify({
-          code: `return 'trickle-complete'; // ${"x".repeat(chunkCount * 2)}`,
-        });
-        const fragment = Math.ceil(argument.length / chunkCount);
-        for (let i = 0; i < argument.length; i += fragment) {
-          await delay(chunkMs);
-          if (res.writableEnded || res.destroyed) {
-            return;
-          }
-          res.write(
-            sseChunk(parsed.model ?? "stub-model", {
-              tool_calls: [{ index: 0, function: { arguments: argument.slice(i, i + fragment) } }],
-            }),
-          );
-        }
-        res.write(sseChunk(parsed.model ?? "stub-model", {}, "tool_calls"));
-        res.write("data: [DONE]\n\n");
-        res.end();
-        return;
-      }
-
-      // Matched only on the agent turn (see `offered` above); the title
-      // request must never be the one that hangs.
-      const stallMatch = offered.size > 0 ? text.match(STALL_RE) : null;
-      if (stallMatch && !firedDirectives.has(stallMatch[0])) {
-        firedDirectives.add(stallMatch[0]);
-        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
-        const firstFrameDelay = Number(stallMatch[2] ?? 0);
-        if (firstFrameDelay > 0) {
-          res.flushHeaders?.();
-          await delay(firstFrameDelay);
-          if (res.writableEnded || res.destroyed) {
-            return;
-          }
-        }
-        res.write(
-          sseChunk(parsed.model ?? "stub-model", {
-            role: "assistant",
-            content: null,
-            tool_calls: [
-              {
-                index: 0,
-                id: `call_stall_${firedDirectives.size}`,
-                type: "function",
-                function: { name: "execute", arguments: "" },
-              },
-            ],
-          }),
-        );
-        // Dead stream: no more frames. The held-open window is bounded so a
-        // leaked stall can never wedge the suite; the client aborting first
-        // (the expected interrupt) just ends the response early. The abort
-        // signal must be the *response's* close (connection terminated) —
-        // the request's own close fires as soon as its body completes,
-        // which would end the stall immediately.
-        await Promise.race([delay(Number(stallMatch[1])), new Promise((r) => res.on("close", r))]);
-        res.end();
-        return;
-      }
 
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
 
@@ -334,24 +169,6 @@ export function startStubProvider({ port }) {
                 id: nonce ? `call_${nonce}` : `call_${firedDirectives.size}`,
                 type: "function",
                 function: { name: toolName, arguments: JSON.stringify(args) },
-              },
-            ],
-          }),
-        );
-        res.write(sseChunk(parsed.model ?? "stub-model", {}, "tool_calls"));
-      } else if (match && !alreadyAnswered) {
-        firedDirectives.add(match[0]);
-        const code = match[1];
-        res.write(
-          sseChunk(parsed.model ?? "stub-model", {
-            role: "assistant",
-            content: null,
-            tool_calls: [
-              {
-                index: 0,
-                id: `call_${firedDirectives.size}`,
-                type: "function",
-                function: { name: "execute", arguments: JSON.stringify({ code }) },
               },
             ],
           }),
@@ -392,33 +209,15 @@ export function startStubProvider({ port }) {
 }
 
 /**
- * Build a directive-embedding driving prompt: forces the stub to emit a
- * Code Mode `execute` tool_call running `code` on the turn that receives
- * this text.
- *
- * A per-call `nonce` (the suite always supplies a fresh one, e.g. a random
- * id) keeps every directive's exact text unique, so the stub's
- * already-answered dedup never mistakes two distinct calls for a repeat of
- * the same one.
- *
- * @param {string} code Restricted-JS snippet, e.g. `return await tools.rp_status({});`.
- * @param {string} nonce A value unique to this call.
- * @returns {string} The prompt text to post as the driving session's input.
- */
-export function directivePrompt(code, nonce) {
-  return `__RP_CODE__:${code} // ${nonce}:__END__`;
-}
-
-/**
  * Build a driving prompt that forces a tool_call for a directly invocable
- * tool — RP's own tools, or one of opencode's built-ins.
+ * tool.
  *
  * A per-call `nonce` keeps every directive's exact text unique, so the stub's
  * already-answered dedup never mistakes two calls carrying identical
  * arguments for a repeat of the same one, and becomes the emitted call's id
  * so the result can be correlated back (see `NATIVE_TOOL_RE`).
  *
- * @param {string} toolName e.g. `"rp_status"` or `"webfetch"`.
+ * @param {string} toolName e.g. `"skill"` or `"subagent"`.
  * @param {object} args The tool's arguments (JSON-serialized verbatim).
  * @param {string} [nonce] A value unique to this call.
  * @returns {string} The prompt text to post as the driving session's input.
@@ -429,54 +228,4 @@ export function nativeToolPrompt(toolName, args, nonce) {
     "utf8",
   ).toString("base64");
   return `__RP_NATIVE_TOOL__:${payload}:__END__`;
-}
-
-/**
- * Build a driving prompt that makes the stub delay `delayMs` before
- * replying with a plain-text turn, so the session is genuinely observable
- * as "running" for that window.
- *
- * @param {number} delayMs
- * @param {string} nonce A value unique to this call (delay directives are
- *   not deduplicated, but a nonce keeps each call's prompt text distinct in
- *   the session's message history for easier debugging).
- * @returns {string} The prompt text to post as the driving session's input.
- */
-export function slowPrompt(delayMs, nonce) {
-  return `__RP_SLOW__:${delayMs}:__END__ // ${nonce}`;
-}
-
-/**
- * Build a driving prompt that makes the stub die mid-tool-call: it emits a
- * tool_call header whose arguments never arrive, then goes silent for up to
- * `holdMs`, leaving the session hung on a provably dead stream (a tool part
- * stuck in `streaming` state) until something interrupts it.
- *
- * @param {number} holdMs Upper bound on the held-open window; the expected
- *   interrupt ends it earlier.
- * @param {string} nonce A value unique to this call, keeping the one-shot
- *   directive dedup from mistaking two distinct calls for a repeat.
- * @param {number} [firstFrameDelayMs] Optional gap between the response
- *   headers and the first tool_call frame, modeling provider
- *   time-to-first-token.
- * @returns {string} The prompt text to post as the driving session's input.
- */
-export function stallPrompt(holdMs, nonce, firstFrameDelayMs) {
-  const timing = firstFrameDelayMs ? `${holdMs},${firstFrameDelayMs}` : `${holdMs}`;
-  return `__RP_STALL__:${timing}:__END__ // ${nonce}`;
-}
-
-/**
- * Build a driving prompt for a healthy slow argument stream: a tool_call
- * whose JSON arguments arrive one chunk every `chunkMs` over `chunks`
- * fragments, then complete normally.
- *
- * @param {number} chunkMs Delay between argument fragments.
- * @param {number} chunks Number of fragments.
- * @param {string} nonce A value unique to this call, keeping the one-shot
- *   directive dedup from mistaking two distinct calls for a repeat.
- * @returns {string} The prompt text to post as the driving session's input.
- */
-export function tricklePrompt(chunkMs, chunks, nonce) {
-  return `__RP_TRICKLE__:${chunkMs},${chunks}:__END__ // ${nonce}`;
 }

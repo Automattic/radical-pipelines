@@ -1,1262 +1,50 @@
 #!/usr/bin/env node
-// rp — state tooling for Radical Pipelines.
-// Zero dependencies. Serves the spec in ../reference/run/state.md; everything
-// it does can be done with bare git. Commands: stamp, check, metrics, diff.
+// rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
+// Commands: check, pipelines, next, land, thread, validate. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, openSync, closeSync, existsSync, readdirSync, lstatSync, realpathSync, mkdtempSync, rmSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import process from "node:process";
 
-const SHORT = 12;
+// What cannot be read, or a command used wrongly: stops the command.
+class RpError extends Error {}
+const fail = (message) => { throw new RpError(message); };
+// A malformed pipeline file: the frontier names it and nothing is computed from it.
+export class Invalid extends Error {}
+const invalid = (reason) => { throw new Invalid(reason); };
 
-function die(msg) {
-  process.stderr.write(`rp: ${msg}\n`);
-  process.exit(1);
-}
+// --- git ----------------------------------------------------------------------
 
-function validBranch(name) {
+// Git reads its input from a file: a synchronous child can stall reading piped input to its end. `env` replaces the
+// process environment.
+function gitBytes(root, args, input, env = process.env) {
+  const run = (stdin) => execFileSync("git", args, { cwd: root, env, maxBuffer: Infinity, stdio: [stdin, "pipe", "pipe"] });
   try {
-    execFileSync("git", ["check-ref-format", "--branch", name], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function repositoryFor(argument) {
-  const requested = resolve(process.cwd(), argument);
-  let at = existsSync(requested) && lstatSync(requested).isDirectory() ? requested : dirname(requested);
-  while (!existsSync(at)) {
-    const parent = dirname(at);
-    if (parent === at) break;
-    at = parent;
-  }
-  try {
-    execFileSync("git", ["-C", at, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
-    let root = at;
-    while (!existsSync(join(root, ".git"))) {
-      const parent = dirname(root);
-      if (parent === root) die(`cannot locate a git repository for: ${argument}`);
-      root = parent;
-    }
-    return { root, abs: requested };
-  } catch {
-    die(`cannot locate a git repository for: ${argument}`);
-  }
-}
-
-// --- frontmatter ------------------------------------------------------------
-
-// The body is every byte after the closing delimiter line, exactly as git hashes it: nothing is
-// normalized. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
-export function parseFrontmatter(raw, validate = validateFrontmatter) {
-  const open = raw.match(/^---\r?\n/);
-  if (!open) return { data: null, body: raw };
-  const rest = raw.slice(open[0].length);
-  const close = rest.match(/(?:^|\n)---\r?(?:\n|$)/);
-  if (!close) return { data: null, body: raw, error: "missing closing --- delimiter" };
-  const body = rest.slice(close.index + close[0].length);
-  let object;
-  try {
-    object = JSON.parse(rest.slice(0, close.index));
-  } catch (error) {
-    return { data: null, body, error: `invalid JSON: ${error.message}` };
-  }
-  if (object === null || Array.isArray(object) || typeof object !== "object" || Object.getPrototypeOf(object) !== Object.prototype)
-    return { data: null, body, error: "frontmatter must be a JSON object" };
-  const data = new Map(Object.entries(object));
-  const error = validate?.(data);
-  if (error) return { data: null, body, error };
-  return { data, body };
-}
-
-function validateFrontmatter(data) {
-  const lists = new Set(["pins", "reviewed", "prior-finding", "depends-on", "commit", "patch-ids", "target", "target-identity", "ids", "retired-ids"]);
-  const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
-  const strings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-  const errors = [];
-  for (const [key, value] of data) {
-    if (lists.has(key) && !strings(value)) errors.push(`${key} must be a list of strings`);
-    else if (scalars.has(key) && typeof value !== "string") errors.push(`${key} must be a string`);
-    else if (key === "origin" && !(typeof value === "string" || (strings(value) && value.length))) errors.push("origin must be a string or non-empty list of strings");
-    else if (key === "lane-packages") {
-      const error = lanePackagesError(value);
-      if (error) errors.push(error);
-    }
-    else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
-      errors.push(`${key} must be a string or list of strings`);
-    if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
-    if ((key === "pins" || key === "reviewed") && strings(value) && value.some((pin) => pinParts(pin) && !pipelineFileRole(pinParts(pin).path))) errors.push(`${key} must name pipeline state`);
-    if (key === "patch-ids" && strings(value) && value.some((id) => !PATCH_ID.test(id))) errors.push("patch-ids must contain patch ids");
-  }
-  return errors.join("; ") || null;
-}
-
-function lanePackagesError(value) {
-  if (!Array.isArray(value)) return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
-  const artifacts = new Set();
-  for (const entry of value) {
-    if (!Array.isArray(entry) || entry.length !== 3 || typeof entry[0] !== "string" || !entry[0])
-      return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
-    const [artifact, binding, reference] = entry;
-    if (!pipelineFileRole(artifact)?.productionArtifact) return `lane-packages artifact path must name a production lane artifact: ${artifact}`;
-    if (artifacts.has(artifact)) return `lane-packages has duplicate artifact path: ${artifact}`;
-    if (!pinPackage(binding)) return `lane-packages consumed lane pins for ${artifact} must be a non-empty pin package`;
-    if (!pinPackage(reference)) return `lane-packages reference pins for ${artifact} must be a non-empty pin package`;
-    artifacts.add(artifact);
-  }
-  return null;
-}
-
-export function renderFrontmatter(data, body) {
-  const object = Object.fromEntries([...data].filter(([, value]) => !Array.isArray(value) || value.length));
-  return `---\n${JSON.stringify(object, null, 2)}\n---\n${body}`;
-}
-
-// --- identity: hash of the body only ----------------------------------------
-
-// Computed in process as git computes a blob hash — `sha1("blob <bytes>\0" + bytes)` — so it
-// equals `git hash-object --stdin` of the hashed bytes, byte for byte, without spawning anything.
-export function identity(content, rel = "") {
-  const bytes = identityBytes(Buffer.isBuffer(content) ? content : Buffer.from(content, "utf8"), rel);
-  return createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex").slice(0, SHORT);
-}
-
-const originSource = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value);
-const originLine = (line) => originSource(line.match(/^origin:[^\S\n]*([^\n]*)\n?$/)?.[1].trim() ?? "");
-
-// The hashed bytes: the body, less the intent's leading origin lines.
-function identityBytes(bytes, rel) {
-  const raw = bytes.toString("latin1");
-  const open = raw.match(/^---\r?\n/);
-  const close = open && raw.slice(open[0].length).match(/(?:^|\n)---\r?(?:\n|$)/);
-  let body = close ? bytes.subarray(open[0].length + close.index + close[0].length) : bytes;
-  while (rel === "0-intent/intent.md" && body.length) {
-    const end = body.indexOf(10);
-    const next = end === -1 ? body.length : end + 1;
-    if (!originLine(body.subarray(0, next).toString("utf8"))) break;
-    body = body.subarray(next);
-  }
-  return body;
-}
-
-function readPipelineFile(base, rel) {
-  const abs = join(base, rel);
-  if (!existsSync(abs) || !lstatSync(abs).isFile()) return null;
-  const bytes = readFileSync(abs);
-  const text = bytes.toString("utf8");
-  return { ...parseFrontmatter(text), text, identity: identity(bytes, rel) };
-}
-
-const IDENTITY = /^[0-9a-f]{12}$/;
-const PATCH_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const artifactFiles = (paths) => paths.filter((path) => path !== "run-config.md");
-
-// Git reads its input from a file: a synchronous child can stall reading piped input to its end.
-function gitBytes(root, args, input) {
-  const run = (stdin) => execFileSync("git", args, { cwd: root, maxBuffer: Infinity, stdio: [stdin, "pipe", "pipe"] });
-  if (input === undefined) return run("ignore");
-  const directory = mkdtempSync(join(tmpdir(), "rp-input-"));
-  try {
-    const path = join(directory, "input");
-    writeFileSync(path, input);
-    const fd = openSync(path, "r");
-    try { return run(fd); } finally { closeSync(fd); }
-  } finally { rmSync(directory, { recursive: true, force: true }); }
-}
-const gitText = (root, args, input) => gitBytes(root, args, input).toString("utf8").trim();
-const DIFF_OPTIONS = ["-r", "-p", "--binary", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color"];
-
-// The base: the merge-base of the tip with the configured base branch.
-function pipelineBase(root, branch, tip) {
-  let base;
-  try { base = gitText(root, ["rev-parse", "--verify", "--quiet", `${branch}^{commit}`]); }
-  catch { throw new Error(`base does not resolve: ${branch}`); }
-  try { return gitText(root, ["merge-base", tip, base]); }
-  catch { throw new Error(`no merge-base between ${branch} and ${tip}`); }
-}
-
-// Code outside the pipelines folder: the diff between two trees.
-const codeDiff = (root, from, to, pipelinesRoot) => gitBytes(root, ["diff-tree", ...DIFF_OPTIONS, from, to, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
-
-// A merge's tree; a conflicted merge keeps its markers. Any other failure stops the computation.
-function mergedTree(root, args) {
-  let output, conflicted = false;
-  try { output = gitBytes(root, ["merge-tree", "--write-tree", "--no-messages", ...args]); }
-  catch (error) {
-    if (error.status !== 1 || !error.stdout?.length) throw new Error(`merge-tree ${args.join(" ")}: ${error.stderr?.toString("utf8").trim() || error.message}`);
-    output = error.stdout;
-    conflicted = true;
-  }
-  const tree = output.toString("ascii").split("\n")[0];
-  if (!PATCH_ID.test(tree)) throw new Error(`merge-tree ${args.join(" ")}: invalid tree`);
-  return { tree, conflicted };
-}
-
-// Each commit's patch id, keyed by commit; a merge or an empty commit has none.
-function patchIds(root, commits) {
-  if (!commits.length) return new Map();
-  const patches = gitBytes(root, ["diff-tree", "--stdin", "--root", ...DIFF_OPTIONS], `${[...new Set(commits)].join("\n")}\n`);
-  const output = patches.length ? gitText(root, ["patch-id", "--stable"], patches) : "";
-  return new Map((output ? output.split("\n") : []).map((line) => {
-    const [id, commit, extra] = line.split(" ");
-    if (!PATCH_ID.test(id) || !PATCH_ID.test(commit) || extra !== undefined) throw new Error("invalid patch-id output");
-    return [commit, id];
-  }));
-}
-
-// A phase review's code delta: the tip's code outside the pipelines folder beyond what the review saw —
-// the first parent of the commit adding the review, merged with the base, then each later commit
-// outside the base whose patch id a later phase's report records, replayed in order.
-function codeDelta(root, { tip, base, review, attributed, pipelinesRoot }) {
-  const added = gitText(root, ["log", "--format=%H", "--no-renames", "--diff-filter=A", "-1", tip, "--", `:(top,literal)${review}`]);
-  if (!PATCH_ID.test(added)) throw new Error(`${review}: no commit adds this review`);
-  const reviewed = gitText(root, ["rev-list", "--parents", "-n", "1", added]).split(" ")[1];
-  if (!reviewed) throw new Error(`${review}: the commit adding it has no parent`);
-  let expected = mergedTree(root, [reviewed, base]).tree;
-  if (attributed.size) {
-    const listed = gitText(root, ["rev-list", "--reverse", "--topo-order", "--no-merges", tip, "--not", reviewed, base]);
-    const commits = listed ? listed.split("\n") : [];
-    const ids = patchIds(root, commits);
-    for (const commit of commits.filter((commit) => attributed.has(ids.get(commit)))) {
-      const replay = mergedTree(root, ["--merge-base", `${commit}^`, expected, commit]);
-      if (!replay.conflicted) expected = replay.tree;
-    }
-  }
-  return codeDiff(root, expected, tip, pipelinesRoot);
-}
-const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
-let REPORT, reportOf; // `<phase>/tasks/<task id>-report-<k>.md`, defined with the id vocabulary below.
-// Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
-const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "prior-finding", "depends-on", "commit", "attempt"];
-// The artifacts, in phase order, with what each one requires as pins.
-const ARTIFACTS = [
-  { path: "1-spec/spec.md", record: "1-spec/spec-research.md", prefix: "spec", phase: "1-spec", requires: ["0-intent/intent.md"] },
-  { path: "2-design-doc/design-doc.md", record: "2-design-doc/design-doc-research.md", prefix: "design-doc", phase: "2-design-doc", requires: ["0-intent/intent.md", "1-spec/spec.md"] },
-  { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
-  { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresPhase: "3-build", review: "document" },
-];
-// The review whose wave completes a phase: the phase review when the plan has tasks, otherwise the artifact's own.
-const completingPrefix = (art, taskFilesOf) => (art.review && taskFilesOf(art.phase).length ? art.review : art.prefix);
-// The patch ids that reports of phases after `phase` record: their work is no input to its review.
-function laterPatchIds(phase, reports) {
-  const index = (name) => ARTIFACTS.findIndex((art) => art.phase === name);
-  return new Set(reports.filter(({ rel }) => index(reportOf(rel)[1]) > index(phase)).flatMap(({ data }) => data?.get("patch-ids") ?? []));
-}
-const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
-const LANE_PROFILES = new Map([
-  ["spec-reviewer", { prefix: "spec", kind: "review" }],
-  ["design-doc-reviewer", { prefix: "design-doc", kind: "review" }],
-  ["build-plan-reviewer", { prefix: "build-plan", kind: "review" }],
-  ["build-reviewer", { prefix: "build", kind: "review" }],
-  ["document-plan-reviewer", { prefix: "document-plan", kind: "review" }],
-  ["document-reviewer", { prefix: "document", kind: "review" }],
-  ["spec-producer", { prefix: "spec", kind: "production" }],
-  ["design-doc-producer", { prefix: "design-doc", kind: "production" }],
-]);
-function reviewArtifact(rel) {
-  const name = basename(rel);
-  for (const art of ARTIFACTS) {
-    for (const prefix of [art.prefix, art.review].filter(Boolean)) {
-      const match = name.match(new RegExp(`^${prefix}-review-(?:(.+)-)?([1-9]\\d*)\\.md$`));
-      if (match) return { art, prefix, lane: match[1] ?? "", wave: Number(match[2]) };
-    }
-  }
-  return null;
-}
-
-const laneProfile = (prefix, kind) => [...LANE_PROFILES].find(([, value]) => value.prefix === prefix && value.kind === kind)?.[0] ?? null;
-
-const laneScope = (phase, id) => `${phase}/lanes/${id}/`;
-
-// The folders holding pipeline state: the pipeline folder, each phase folder, its `tasks/`, and each
-// `lanes/<lane>/`. A segment pattern is a set of names, a literal name, or any name (null).
-const PHASES = ["0-intent", ...ARTIFACTS.map((art) => art.phase)];
-const STATE_FOLDERS = [[], [PHASES], [PHASES, "tasks"], [PHASES, "lanes", null]];
-const segmentMatches = (pattern, segment) => Array.isArray(pattern) ? pattern.includes(segment) : pattern === null || pattern === segment;
-// Whether a folder, by its segments, holds state (`exact`) or leads to a folder that does.
-function stateFolder(segments, exact = true) {
-  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return false;
-  return STATE_FOLDERS.some((pattern) => (exact ? pattern.length === segments.length : pattern.length >= segments.length) &&
-    segments.every((segment, index) => segmentMatches(pattern[index], segment)));
-}
-
-// One path classifier supplies state, scopes, review identity, and lane-bearing files: a file in a
-// state folder is state; every other path is not (null).
-function pipelineFileRole(rel) {
-  const parts = rel.split("/");
-  const name = parts.pop();
-  if (!name || name === "." || name === ".." || !stateFolder(parts)) return null;
-  const laned = parts[1] === "lanes";
-  const art = ARTIFACTS.find((candidate) => candidate.phase === parts[0]);
-  const productionLane = laned ? { id: parts[2], profile: art ? laneProfile(art.prefix, "production") : null } : null;
-  const scope = laned ? laneScope(parts[0], parts[2]) : "";
-  if (!art) return { scope, productionLane };
-  const review = reviewArtifact(rel);
-  const placedReview = review && review.art === art && parts[1] !== "tasks" ? review : null;
-  const namedReview = placedReview?.lane ? { id: placedReview.lane, profile: laneProfile(placedReview.prefix, "review") } : null;
-  return {
-    art,
-    scope,
-    productionLane,
-    productionArtifact: laned && name === basename(art.path),
-    review: placedReview,
-    namedReview,
-  };
-}
-
-// The fingerprint of a lane: the identity of its whole declaration — id, brief, materials, after.
-export function laneFingerprint({ id, brief = "", materials = "", after = "" }) {
-  const list = (value, separator) => (Array.isArray(value) ? value : String(value).split(separator)).map((item) => String(item).trim()).filter(Boolean).join(separator);
-  return identity(`${id}\n${String(brief).trim()}\n${list(materials, ",")}\n${list(after, "+")}\n`);
-}
-
-function runConfiguration(read, command) {
-  const raw = read("run-config.md");
-  if (raw === null || raw === undefined) throw new Error(`${command}: missing run-config.md`);
-  const parsed = parseFrontmatter(raw, null);
-  const invalid = (reason) => { throw new Error(`${command}: INVALID RUN CONFIG run-config.md: ${reason}`); };
-  if (parsed.error) invalid(parsed.error);
-  if (parsed.data === null) invalid("frontmatter is required");
-  const object = Object.fromEntries(parsed.data);
-  const optionalList = (container, key, label) => {
-    if (!Object.hasOwn(container, key)) return null;
-    if (!Array.isArray(container[key])) invalid(`${label} must be an array`);
-    if (!container[key].length) invalid(`${label} must be non-empty when present`);
-    return container[key];
-  };
-  const keys = new Set(["workflow", "target-phase", "base", "lanes"]);
-  const unknown = Object.keys(object).find((key) => !keys.has(key));
-  if (unknown !== undefined) invalid(`unknown key: ${unknown}`);
-  if (!["autonomous", "assisted"].includes(object.workflow)) invalid('workflow must be "autonomous" or "assisted"');
-  if (!Number.isInteger(object["target-phase"]) || object["target-phase"] < 1 || object["target-phase"] > ARTIFACTS.length)
-    invalid(`target-phase must be an integer from 1 to ${ARTIFACTS.length}`);
-  if (typeof object.base !== "string" || !validBranch(object.base)) invalid("base must be a branch name");
-  const declaredLanes = optionalList(object, "lanes", "lanes") ?? [];
-  const lanes = [];
-  for (const [index, value] of declaredLanes.entries()) {
-    const at = `lanes[${index}]`;
-    if (value === null || Array.isArray(value) || typeof value !== "object") invalid(`${at} must be an object`);
-    const allowed = new Set(["profile", "id", "brief", "materials", "after"]);
-    const extra = Object.keys(value).find((key) => !allowed.has(key));
-    if (extra !== undefined) invalid(`${at} has unknown key: ${extra}`);
-    if (typeof value.profile !== "string") invalid(`${at}.profile must be a string`);
-    const profile = LANE_PROFILES.get(value.profile);
-    if (!profile) invalid(`${at}.profile is unknown: ${value.profile}`);
-    if (typeof value.id !== "string") invalid(`${at}.id must be a string`);
-    if (!LANE_ID.test(value.id)) invalid(`${at}.id is invalid: ${value.id}`);
-    if (typeof value.brief !== "string" || !value.brief.trim()) invalid(`${at}.brief must be a non-empty string`);
-    if (profile.kind === "review" && Object.hasOwn(value, "after")) invalid(`${at}.after applies to production lanes only`);
-    if (profile.kind === "production" && Object.hasOwn(value, "materials")) invalid(`${at}.materials applies to review lanes only`);
-    const materials = optionalList(value, "materials", `${at}.materials`);
-    const after = optionalList(value, "after", `${at}.after`);
-    if (Object.hasOwn(value, "materials")) {
-      if (materials.some((path) => typeof path !== "string")) invalid(`${at}.materials must be an array of paths`);
-      for (const path of materials) {
-        const parts = path.split("/");
-        if (parts.length < 2 || parts.some((part) => !part || part === "." || part === "..") || path.startsWith("/") || path.includes("@"))
-          invalid(`${at}.materials has invalid path: ${path}`);
-      }
-      if (new Set(materials).size !== materials.length) invalid(`${at}.materials has duplicate paths`);
-    }
-    if (Object.hasOwn(value, "after")) {
-      if (after.some((id) => typeof id !== "string" || !LANE_ID.test(id))) invalid(`${at}.after must be an array of lane ids`);
-      if (new Set(after).size !== after.length) invalid(`${at}.after has duplicate lane ids`);
-    }
-    const lane = {
-      profile: value.profile,
-      id: value.id,
-      brief: value.brief,
-      ...(Object.hasOwn(value, "materials") ? { materials: value.materials } : {}),
-      ...(Object.hasOwn(value, "after") ? { after: value.after } : {}),
-    };
-    lanes.push({ ...lane, ...profile, fingerprint: laneFingerprint(lane) });
-  }
-  if (object.workflow === "assisted" && lanes.length) invalid("assisted workflow cannot declare lanes");
-  for (const profile of LANE_PROFILES.keys()) {
-    const declared = lanes.filter((lane) => lane.profile === profile);
-    const duplicate = declared.find((lane, index) => declared.findIndex((other) => other.id === lane.id) !== index);
-    if (duplicate) invalid(`duplicate lane id "${duplicate.id}" for profile "${profile}"`);
-    if (LANE_PROFILES.get(profile).kind !== "production") continue;
-    const ids = new Set(declared.map((lane) => lane.id));
-    for (const lane of declared) for (const dependency of lane.after ?? [])
-      if (!ids.has(dependency)) invalid(`lane "${lane.id}" comes after undeclared lane "${dependency}" of profile "${profile}"`);
-    const visited = new Set();
-    const visit = (id, stack = new Set()) => {
-      if (stack.has(id)) invalid(`production lanes of profile "${profile}" depend on each other in a cycle`);
-      if (visited.has(id)) return;
-      visited.add(id);
-      const lane = declared.find((candidate) => candidate.id === id);
-      for (const dependency of lane?.after ?? []) visit(dependency, new Set([...stack, id]));
-    };
-    for (const lane of declared) visit(lane.id);
-  }
-  const decl = {};
-  for (const lane of lanes) {
-    decl[lane.prefix] ??= { review: [], production: [] };
-    decl[lane.prefix][lane.kind].push({
-      id: lane.id,
-      fingerprint: lane.fingerprint,
-      materials: lane.materials ?? null,
-      after: lane.after ?? [],
-    });
-  }
-  for (const [prefix, declaration] of Object.entries(decl)) {
-    const branches = [
-      ...declaration.review.map((lane) => `review-${lane.id}`),
-      ...declaration.production.map((lane) => lane.id),
-      ...declaration.production.flatMap((producer) => declaration.review.map((reviewer) => `${producer.id}-review-${reviewer.id}`)),
-    ];
-    const collision = branches.find((branch, index) => branches.indexOf(branch) !== index);
-    if (collision) invalid(`lanes for "${prefix}" expand to the same auxiliary branch: ${collision}`);
-  }
-  return {
-    workflow: object.workflow,
-    targetPhase: object["target-phase"],
-    base: object.base,
-    lanes,
-    decl,
-  };
-}
-function reviewPackageMembers(art, prefix, scope, pinned, tasks, reports) {
-  const path = (rel) => (scope ? `${scope}${basename(rel)}` : rel);
-  const base = [path(art.path), path(art.record), ...pinned];
-  const members = art.review && prefix === art.prefix ? [...base, ...tasks] : art.review && prefix === art.review ? [...base, ...tasks, ...reports] : base;
-  return [...new Set(members)];
-}
-
-function pinPackage(entries) {
-  if (!Array.isArray(entries) || !entries.length) return null;
-  const parts = entries.map((entry) => typeof entry === "string" ? pinParts(entry) : null);
-  if (parts.some((p) => !p?.path || !pipelineFileRole(p.path) || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
-  return new Map(parts.map((p) => [p.path, p.sha]));
-}
-
-// The only package comparison: equality of sets of (member, identity) pairs.
-// Diagnostics are collected during the same comparison, never used as another predicate.
-function equalPackages(a, b, differences = null) {
-  if (!a || !b) {
-    if (differences) differences.members = true;
-    return false;
-  }
-  const pairs = (p) => new Set([...p].map((pair) => JSON.stringify(pair)));
-  const left = pairs(a), right = pairs(b);
-  let equal = true;
-  for (const [source, other, otherPairs] of [[a, b, right], [b, a, left]]) {
-    for (const pair of source) {
-      if (!IDENTITY.test(pair[1]) || !otherPairs.has(JSON.stringify(pair))) {
-        equal = false;
-        if (differences) {
-          if (!other.has(pair[0])) differences.members = true;
-          else differences.identities.add(pair[0]);
-        }
-      }
-    }
-  }
-  return equal;
-}
-
-const packagePins = (p) => [...p].map(([path, sha]) => `${path}@${sha}`);
-const projectPackage = (p, paths) => p && new Map(paths.map((path) => [path, p.get(path)]));
-const reviewProjection = (p, paths) => paths === null ? p : projectPackage(p, paths);
-const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
-
-function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks = [], reports = []) {
-  if (!consumed) return null;
-  const record = scope ? `${scope}${basename(art.record)}` : art.record;
-  const inputs = new Map([...consumed].filter(([path]) => path !== record));
-  const members = reviewPackageMembers(art, prefix, scope, [...new Set([...inputs.keys(), ...art.requires])], tasks, reports);
-  return new Map(members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]));
-}
-
-const reviewLanesFor = (configuration, prefix) => [{ id: "", fingerprint: null, materials: null }, ...(configuration.decl[prefix]?.review ?? [])];
-const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
-
-function materialPathsFor(configuration, prefix, scope, lane) {
-  const art = ARTIFACTS.find((candidate) => candidate.prefix === prefix || candidate.review === prefix);
-  const materials = reviewLanesFor(configuration, prefix).find((candidate) => candidate.id === lane)?.materials ?? null;
-  if (materials === null) return null;
-  return materials.map((path) => scope && (path === art.path || path === art.record) ? inScope(scope, path) : path);
-}
-
-function reviewDocuments(inspect, prefix, scope) {
-  return inspect.list().flatMap((path) => {
-    const role = pipelineFileRole(path);
-    if (role.scope !== scope || role.review?.prefix !== prefix) return [];
-    const document = inspect.document(path);
-    return document ? [{ ...document, data: document.data ?? new Map(), rel: path, lane: role.review.lane, wave: role.review.wave }] : [];
-  });
-}
-
-// A review judges a reference: its `reviewed` equals the lane's projection and a phase review's code delta is empty.
-function judges(review, prefix, reference, paths, inspect) {
-  return equalPackages(pinPackage(review.data.get("reviewed")), reviewProjection(reference, paths)) &&
-    (!ARTIFACTS.some((art) => art.review === prefix) || inspect.codeCurrent(review.rel));
-}
-
-function evaluateWave(configuration, prefix, scope, wave, { reference, required }, inspect) {
-  const invalid = { valid: false, current: false, closed: false, reviews: [] };
-  if (!wave || !reference) return invalid;
-  const available = reviewDocuments(inspect, prefix, scope).filter((review) => review.wave === wave);
-  const lanes = reviewLanesFor(configuration, prefix);
-  const reviews = lanes.map((lane) => available.find((review) => review.lane === lane.id));
-  for (let index = 0; index < reviews.length; index++) {
-    const review = reviews[index];
-    if (!review || !VERDICTS.has(review.data.get("verdict")) || !laneMatches(review, lanes[index].fingerprint)) return invalid;
-    const paths = materialPathsFor(configuration, prefix, scope, lanes[index].id);
-    if (!judges(review, prefix, reference, paths, inspect)) return invalid;
-  }
-  const valid = reviews.every((review) => review.data.get("verdict") === "approved");
-  const applicable = equalPackages(reference, required);
-  return { valid, current: valid && applicable, closed: applicable, reviews, package: reference };
-}
-
-function authoritativeReviewContext(configuration, prefix, scope, inspect) {
-  const art = ARTIFACTS.find((candidate) => candidate.prefix === prefix || candidate.review === prefix);
-  if (scope && art?.prefix === prefix) {
-    const root = inspect.document(art.path);
-    const recorded = laneReferences(root?.data).get(inScope(scope, art.path));
-    const rootPins = pinPackage(root?.data?.get("pins"));
-    const binding = rootPins && new Map([...rootPins].filter(([path]) => path.startsWith(scope)));
-    const product = [inScope(scope, art.path), inScope(scope, art.record)];
-    if (recorded && equalPackages(recorded.binding, binding) && equalPackages(projectPackage(binding, product), projectPackage(recorded.reference, product))) {
-      const reviews = reviewDocuments(inspect, prefix, scope);
-      const waves = new Set(reviews.filter((review) => recorded.binding.has(review.rel)).map((review) => review.wave));
-      for (const wave of waves) {
-        const state = evaluateWave(configuration, prefix, scope, wave, { reference: recorded.reference, required: recorded.reference }, inspect);
-        if (!state.current) continue;
-        const consumed = new Map([
-          ...projectPackage(recorded.reference, product),
-          ...state.reviews.map((review) => [review.rel, inspect.identityOf(review.rel)]),
-        ]);
-        if (equalPackages(consumed, recorded.binding)) return { reference: recorded.reference, binding: recorded.binding, closed: true };
-      }
-    }
-  }
-  const artifact = inspect.document(inScope(scope, art.path));
-  const markdown = inspect.list();
-  const plan = planOf(art.phase);
-  const tasks = plan ? markdown.filter((path) => path.startsWith(`${art.phase}/tasks/`) && taskFile(plan).test(basename(path))) : [];
-  const reports = markdown.filter((path) => reportOf(path) && path.startsWith(`${art.phase}/`));
-  return {
-    reference: artifactReviewPackage(art, prefix, scope, pinPackage(artifact?.data?.get("pins")), inspect.identityOf, tasks, reports),
-    binding: null,
-    closed: false,
-  };
-}
-
-function validateRunConfiguration(configuration, inspect, command) {
-  const invalid = (reason) => { throw new Error(`${command}: INVALID RUN CONFIG run-config.md: ${reason}`); };
-  for (const lane of configuration.lanes.filter((candidate) => candidate.kind === "review" && candidate.materials)) {
-    const art = ARTIFACTS.find((candidate) => candidate.prefix === lane.prefix || candidate.review === lane.prefix);
-    const production = configuration.decl[lane.prefix]?.production ?? [];
-    for (const scope of ["", ...production.map((candidate) => laneScope(art.phase, candidate.id))]) {
-      const artifactPath = inScope(scope, art.path);
-      const reference = authoritativeReviewContext(configuration, lane.prefix, scope, inspect).reference;
-      if (!reference) continue;
-      const selected = materialPathsFor(configuration, lane.prefix, scope, lane.id);
-      const packagePaths = new Set(reference?.keys() ?? []);
-      const outside = selected.filter((path) => !packagePaths.has(path));
-      if (outside.length) invalid(`materials for review lane "${lane.id}" are outside the ${artifactPath} package: ${outside.join(", ")}`);
-    }
-  }
-  return configuration;
-}
-
-// The pins-by-file table, shared by stamp and every live currency predicate.
-function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf }) {
-  const currentPackage = (paths) => new Map([...new Set(paths)].map((path) => [path, identityOf(path)]));
-  const report = reportOf(prefix);
-  if (report) {
-    const [, phase, id] = report;
-    const task = `${phase}/tasks/${id}.md`;
-    const inputs = currentPackage([task, ...dependsOf(task).map((dep) => `${phase}/tasks/${dep}.md`)]);
-    return { inputs, review: inputs, ready: true };
-  }
-  const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
-  const recorded = pinPackage(pinsByPath.get(inScope(sc, art.path)));
-  const record = inScope(sc, art.record);
-  // Retention includes adjudicated challenges until the producer replaces its package.
-  const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
-  const upstream = ARTIFACTS.find((a) => a.phase === art.requiresPhase);
-  const work = upstream ? [...taskFilesOf(upstream.phase), ...reportFilesOf(upstream.phase)] : [];
-  const inputs = currentPackage([...art.requires, ...work, ...retained]);
-  let ready = true;
-  const approvals = art.requires.map((path) => ARTIFACTS.find((a) => a.path === path)?.prefix).filter(Boolean);
-  if (upstream) approvals.push(completingPrefix(upstream, taskFilesOf));
-  for (const input of [...new Set(approvals)]) {
-    const wave = waveValidity(input, "", latestWaveOf(input, ""));
-    if (wave.current) for (const pair of currentPackage(wave.reviews.map((r) => r.rel))) inputs.set(...pair);
-    else ready = false;
-  }
-  const lanes = productionLanesOf(art.prefix);
-  const dependencies = sc ? lanes.find((lane) => laneScope(art.phase, lane.id) === sc)?.after ?? [] : lanes.map((lane) => lane.id);
-  for (const lane of dependencies) {
-    const dependency = lanePackageOf(art, laneScope(art.phase, lane));
-    for (const pair of dependency.package) inputs.set(...pair);
-    if (!dependency.ready) ready = false;
-  }
-  return {
-    inputs,
-    review: ready ? artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase)) : null,
-    ready,
-  };
-}
-
-// A root records independent references, bound to the lane pins it consumed.
-function laneReferences(data) {
-  return new Map((data?.get("lane-packages") ?? []).map(([artifact, binding, reference]) =>
-    [artifact, { binding: pinPackage(binding), reference: pinPackage(reference) }]));
-}
-// Ids are `<prefix>-<word>-<n>`: the prefix names the artifact class that originates the id, the
-// word its concept. An artifact originates the words under its prefix, numbered from 1 without gaps
-// and never reused; an id under another prefix is carried and must exist in the upstream artifact.
-// A challenge targets an artifact's claimable ids. A plan declares a task by its file.
-const IDS = {
-  "0-intent/intent.md": { prefix: "intent", declares: ["constraint", "context", "proposal"], claimable: ["goal", "constraint"] },
-  "1-spec/spec.md": { prefix: "spec", declares: ["requirement", "acceptance-criterion", "exclusion", "assumption"] },
-  "2-design-doc/design-doc.md": { prefix: "design-doc", declares: ["decision", "assumption"], upstream: "1-spec/spec.md", carries: ["assumption"] },
-  "3-build/build-plan.md": { prefix: "build", declares: ["assumption", "task"], upstream: "2-design-doc/design-doc.md", carries: ["assumption"] },
-  "4-document/document-plan.md": { prefix: "document", declares: ["assumption", "task"], upstream: "3-build/build-plan.md", carries: ["assumption"] },
-};
-// A phase's record originates `question`, its reviews `finding`.
-const RECORD_WORDS = ["question"], REVIEW_WORDS = ["finding"];
-// The words each class originates; an id's word is one of its class's.
-const WORDS = new Map(Object.entries(IDS).map(([path, e]) => [e.prefix, ARTIFACTS.some((a) => a.path === path) ? [...e.declares, ...RECORD_WORDS, ...REVIEW_WORDS] : e.declares]));
-const PREFIX = Object.values(IDS).map((e) => e.prefix).join("|");
-const ID = new RegExp(String.raw`^(${PREFIX})-([a-z]+(?:-[a-z]+)*)-([1-9]\d*)$`);
-function parseId(id) {
-  if (id === "intent-goal") return { prefix: "intent", word: "goal" };
-  const m = id.match(ID);
-  return m && WORDS.get(m[1]).includes(m[2]) ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
-}
-const numberOf = (id) => parseId(id).n;
-// The vocabulary entry of a root or lane artifact, review, or record.
-function idsEntry(rel) {
-  const parts = rel.split("/");
-  if (!pipelineFileRole(rel) || parts.length < 2 || parts[1] === "tasks") return null;
-  const phase = parts[0], name = parts.at(-1);
-  const root = IDS[`${phase}/${name}`];
-  if (root) return root;
-  const prefix = prefixOf(phase);
-  if (prefix && reviewArtifact(rel)?.art.phase === phase) return { prefix, declares: REVIEW_WORDS, history: false };
-  if (prefix && ARTIFACTS.some((a) => a.phase === phase && basename(a.record) === name)) return { prefix, declares: RECORD_WORDS };
-  return null;
-}
-// A Markdown file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
-function strayTaskFile(rel) {
-  const m = rel.match(/^([^/]+)\/tasks\/([^/]+\.md)$/);
-  const plan = m && planOf(m[1]);
-  return plan && !taskFile(plan).test(m[2]) && !reportOf(rel) ? `${m[2]} is not a ${plan.prefix} task or its report` : null;
-}
-const planOf = (phase) => Object.entries(IDS).find(([path, e]) => path.startsWith(`${phase}/`) && e.declares.includes("task"))?.[1] ?? null;
-const taskFile = (entry) => new RegExp(String.raw`^${entry.prefix}-task-[1-9]\d*\.md$`);
-const TASK_ID = String.raw`(?:${PREFIX})-task-[1-9]\d*`;
-REPORT = new RegExp(String.raw`^([^/]+)/tasks/(${TASK_ID})-report-([1-9]\d*)\.md$`);
-// The match of a report path whose task the phase's plan declares.
-reportOf = (rel) => { const m = rel.match(REPORT); return m && planOf(m[1]) && taskFile(planOf(m[1])).test(`${m[2]}.md`) ? m : null; };
-const prefixOf = (phase) => Object.entries(IDS).find(([path]) => path.startsWith(`${phase}/`))?.[1].prefix ?? null;
-const claimableWords = (entry) => entry.claimable ?? entry.declares;
-// Later input, by its kind: a constraint (its targets satisfy it), a proposal (its targets adopt or
-// refute it), or a reported failure (its targets investigate it). Each is a challenge; a constraint
-// is also owner territory.
-const laterInput = (rel) => rel.match(/^0-intent\/(constraint|proposal|failure)-[1-9]\d*\.md$/)?.[1] ?? null;
-// Owner territory: what the work must satisfy — the intent's Goal or a constraint.
-function ownerTerritory(target) {
-  const found = targetItem(target);
-  return Boolean(found) && (found.path === "0-intent/intent.md" ? Boolean(found.item) : !found.item && laterInput(found.path) === "constraint");
-}
-// A target's item, when its path and id are in the vocabulary.
-function targetItem(target) {
-  const [path, item] = target.split("#");
-  const entry = IDS[path];
-  if (!entry) return item === undefined && laterInput(path) === "constraint" ? { path, item } : null;
-  if (item === undefined) return { path, item };
-  const id = parseId(item);
-  return id && id.prefix === entry.prefix && claimableWords(entry).includes(id.word) ? { path, item } : null;
-}
-
-// An id is declared by the line `<id>: <text>`; OPENING finds a line opening with an id in any form, MENTION any occurrence.
-const ID_TOKEN = String.raw`[a-z][a-z-]*-[1-9]\d*(?![A-Za-z0-9-])`;
-const DECLARATION = new RegExp(String.raw`^(${ID_TOKEN}): \S`);
-const OPENING = new RegExp(String.raw`^[\t ]*(?:(?:#{1,6}|[-*+>]|\d+[.)])[\t ]+)*[*_\x60]*(${ID_TOKEN})`, "gm");
-const MENTION = new RegExp(String.raw`(?<![A-Za-z0-9#-])${ID_TOKEN}`, "g");
-const declaredBy = (line) => line.match(DECLARATION)?.[1] ?? null;
-// Every id the body declares, with how many times each is declared.
-function declaredIds(body) {
-  const counts = new Map();
-  for (const id of outsideFences(body).split("\n").map(declaredBy)) if (id && parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
-  return counts;
-}
-
-// What an artifact declares now: the ids under its prefix and words in its body — a task by its
-// file — and the ids it carries. Every declaration keyed `<prefix>-<word>-<n>` is an id; a line
-// opening with one the file declares is its declaration; an id it originates occurs only once
-// declared, now or at an earlier stamp (`recorded`).
-function currentIds(entry, body, tasks, recorded = []) {
-  const own = (id) => parseId(id).prefix === entry.prefix && parseId(id).word !== "task" && entry.declares.includes(parseId(id).word);
-  const carried = (id) => parseId(id).prefix !== entry.prefix && (entry.carries ?? []).includes(parseId(id).word);
-  const structural = outsideFences(body);
-  const stray = structural.split("\n").map(declaredBy).find((key) => key && ID.test(key) && !parseId(key));
-  if (stray) {
-    const prefix = stray.match(ID)[1];
-    return { invalid: `${stray} is not an id: the ${prefix} words are ${WORDS.get(prefix).join(", ")}` };
-  }
-  const declared = declaredIds(body);
-  for (const { 1: id, index } of structural.matchAll(OPENING)) {
-    if (!parseId(id) || !(own(id) || carried(id))) continue;
-    const line = structural.slice(index).split("\n", 1)[0];
-    if (declaredBy(line) !== id) return { invalid: `${id} opens a line that is not its declaration \`${id}: <text>\`` };
-  }
-  const duplicate = [...declared].find(([id, n]) => n > 1 && (own(id) || carried(id)));
-  if (duplicate) return { invalid: `${duplicate[0]} is declared more than once` };
-  const ids = [...declared.keys()].filter((id) => own(id) || carried(id));
-  const files = entry.declares.includes("task") ? tasks.filter((name) => taskFile(entry).test(name)).map((name) => name.replace(/\.md$/, "")) : [];
-  const current = new Set([...ids, ...files]);
-  const undeclared = [...structural.matchAll(MENTION)].map(([id]) => id)
-    .find((id) => parseId(id)?.prefix === entry.prefix && entry.declares.includes(parseId(id).word) && !current.has(id) && !recorded.includes(id));
-  if (undeclared) return { invalid: `${undeclared} occurs but is not declared` };
-  return { ids: current };
-}
-
-// Every id an artifact has declared: those recorded by a stamp and those it declares now.
-function knownIds(data, body, rel, tasks) {
-  const current = currentIds(idsEntry(rel), body, tasks, data?.get("ids") ?? []);
-  return new Set([...(data?.get("ids") ?? []), ...(current.ids ?? [])]);
-}
-
-// A review's findings: declared once, numbered from 1, recorded nowhere — a wave is a new file.
-function declaredOnce(entry, body) {
-  const current = currentIds(entry, body, []);
-  if (current.invalid) return current;
-  for (const word of entry.declares) {
-    const own = [...current.ids].filter((id) => parseId(id).word === word).map(numberOf).sort((a, b) => a - b);
-    const gap = own.findIndex((n, i) => n !== i + 1);
-    if (gap !== -1) return { invalid: `${entry.prefix}-${word}-${gap + 1} is missing: ids are numbered from 1 without gaps` };
-  }
-  return {};
-}
-
-// The `ids` and `retired-ids` projection of an artifact, or why its declarations are invalid:
-// `error` when the recorded fields are malformed, `invalid` when the declarations are.
-// `read(path)` returns a pipeline file's text; `list(dir)` the file names of a pipeline folder.
-function artifactIds(data, body, rel, read, list) {
-  const entry = idsEntry(rel);
-  const fields = ["ids", "retired-ids"];
-  const stray = strayTaskFile(rel);
-  if (stray) return { invalid: stray };
-  if (!entry || entry.history === false) return fields.some((key) => data?.has(key)) ? { error: "ids and retired-ids belong to an artifact with recorded ids" } : entry ? declaredOnce(entry, body) : {};
-  const accepted = (id) => {
-    const p = parseId(id);
-    return p && p.word !== "goal" && (p.prefix === entry.prefix ? entry.declares.includes(p.word) : (entry.carries ?? []).includes(p.word));
-  };
-  for (const key of fields) {
-    const ids = data?.get(key) ?? [];
-    if (ids.some((id) => !accepted(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique declared ids` };
-  }
-  const tasksOf = (path) => list(`${path.split("/")[0]}/tasks`) ?? [];
-  const current = currentIds(entry, body, tasksOf(rel), data?.get("ids") ?? []);
-  if (current.invalid) return current;
-  const seen = new Set(data?.get("ids") ?? []);
-  const retired = new Set(data?.get("retired-ids") ?? []);
-  for (const id of seen) if (!current.ids.has(id)) retired.add(id);
-  for (const id of retired) {
-    if (!seen.has(id)) return { error: `retired id ${id} is absent from ids` };
-    if (current.ids.has(id)) return { invalid: `retired id ${id} is declared again` };
-  }
-  const known = new Set([...seen, ...current.ids]);
-  const carried = [...known].filter((id) => parseId(id).prefix !== entry.prefix);
-  if (carried.length) {
-    const text = read(entry.upstream);
-    const parsed = text === null || text === undefined ? null : parseFrontmatter(text);
-    const upstream = parsed ? knownIds(parsed.data, parsed.body, entry.upstream, tasksOf(entry.upstream)) : new Set();
-    const missing = carried.find((id) => !upstream.has(id));
-    if (missing) return { invalid: `${missing} is not declared by ${entry.upstream}` };
-  }
-  for (const word of entry.declares) {
-    const own = [...known].filter((id) => parseId(id).prefix === entry.prefix && parseId(id).word === word).map(numberOf).sort((a, b) => a - b);
-    const gap = own.findIndex((n, i) => n !== i + 1);
-    if (gap !== -1) return { invalid: `${entry.prefix}-${word}-${gap + 1} is missing: ids are numbered from 1 without gaps` };
-  }
-  const projection = new Map([["ids", [...known]], ["retired-ids", [...retired]]]);
-  const drift = fields.filter((key) => {
-    const stored = data?.get(key) ?? [];
-    const expected = projection.get(key);
-    return stored.length !== expected.length || expected.some((id) => !stored.includes(id));
-  });
-  return { projection, drift };
-}
-
-function targetAllowed(target, kind) {
-  const found = targetItem(target);
-  if (!found) return false;
-  const { path, item } = found;
-  if (kind === "claim") return Boolean(item) || ownerTerritory(target);
-  return ARTIFACTS.some((a) => a.path === path) && (kind !== "failed report" || Boolean(item));
-}
-
-function targetExists(target, read, list, kind) {
-  if (!targetAllowed(target, kind)) return false;
-  const { path, item } = targetItem(target);
-  const artifact = read(path);
-  if (artifact === null || artifact === undefined) return !item && kind !== "claim";
-  const source = item && parseId(item).word === "task" ? `${path.split("/")[0]}/tasks/${item}.md` : path;
-  const text = source === path ? artifact : read(source);
-  if (text === null || text === undefined) return false;
-  const parsed = parseFrontmatter(text);
-  const ids = parsed.error ? {} : artifactIds(parsed.data, parsed.body, source, read, list);
-  const error = parsed.error ?? ids.error;
-  if (error) die(`stamp: INVALID FRONTMATTER ${source}: ${error}`);
-  if (ids.invalid) die(`stamp: INVALID IDS ${source}: ${ids.invalid}`);
-  if (!item || source !== path) return true;
-  // intent-goal addresses a section; other ids address items.
-  if (item === "intent-goal") return /^## Goal[^\S\n]*$/mi.test(outsideFences(parsed.body));
-  return declaredIds(parsed.body).has(item);
-}
-
-function challengeKind(rel, data) {
-  const input = laterInput(rel);
-  if (input) return input;
-  const review = reviewArtifact(rel);
-  if (review && rel.startsWith(`${review.art.phase}/`) && data.get("verdict") === "unsatisfiable") return "claim";
-  if (reportOf(rel) && data.get("outcome") === "failed") return "failed report";
-  return null;
-}
-
-function reportTarget(rel) {
-  const report = reportOf(rel);
-  return report ? `${ARTIFACTS.find((a) => a.phase === report[1]).path}#${report[2]}` : null;
-}
-
-// Field representation rules shared by stamp and check; existence belongs to landing.
-function targetRepresentationErrors(rel, data, body) {
-  if (data === null) return [];
-  const kind = challengeKind(rel, data);
-  const targets = data.get("target"), identities = data.get("target-identity");
-  const errors = [];
-  const invalid = (field, reason) => errors.push({ field, reason });
-  if (!kind && (targets !== undefined || identities !== undefined || projectBody(body, rel).has("target"))) invalid("target", "only challenges may carry target fields");
-  if (kind || targets !== undefined || identities !== undefined) {
-    if (!Array.isArray(targets) || !targets.length) invalid("target", "expected a non-empty list");
-    else {
-      if (new Set(targets).size !== targets.length) invalid("target", "duplicate entries");
-      if (kind === "claim" && targets.length !== 1) invalid("target", "a claim names one clause or constraint file");
-      if (targets.some((target) => !targetAllowed(target, kind))) invalid("target", "outside the challenge's target territory");
-      const ownTask = reportTarget(rel);
-      if (ownTask && (targets.length !== 1 || targets[0] !== ownTask)) invalid("target", `expected its own task: ${ownTask}`);
-    }
-    if (laterInput(rel)) {
-      if (identities !== undefined) invalid("target-identity", "only claims and failed reports record target identities");
-      if (!data.has("origin")) invalid("origin", "later input names its source");
-    } else if (!Array.isArray(identities) || !identities.length) invalid("target-identity", "expected a non-empty list aligned with target");
-    else {
-      if (identities.length !== targets?.length) invalid("target-identity", "must have one identity per target");
-      if (identities.some((id) => !IDENTITY.test(id))) invalid("target-identity", "expected 12-character hexadecimal identities");
-    }
-  }
-  return errors;
-}
-
-function targetPairs(rel, data) {
-  return (data.get("target") ?? ["?"]).map((target, i) => ({
-    rel, target, targetPath: target.split("#")[0], targetIdentity: data.get("target-identity")?.[i],
-  }));
-}
-
-// An owner answer is a constraint or a proposal citing the claim and targeting its artifact.
-function ownerAnswer(review, documents) {
-  const artifact = reviewArtifact(review)?.art.path;
-  return documents.find((doc) => ["constraint", "proposal"].includes(laterInput(doc.rel))
-    && [].concat(doc.data.get("origin") ?? []).includes(review)
-    && targetPairs(doc.rel, doc.data).some(({ targetPath }) => targetPath === artifact));
-}
-
-// Keep line positions while hiding Markdown fenced code from structural readers.
-function outsideFences(text) {
-  let fence = null;
-  return text
-    .split("\n")
-    .map((line) => {
-      if (fence) {
-        const close = line.match(/^ {0,3}(`+|~+)[\t ]*\r?$/);
-        if (close && close[1][0] === fence.character && close[1].length >= fence.length) fence = null;
-        return "";
-      }
-      const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-      if (open && (open[1][0] === "~" || !open[2].includes("`"))) {
-        fence = { character: open[1][0], length: open[1].length };
-        return "";
-      }
-      return line;
-    })
-    .join("\n");
-}
-
-// The projection of a body: every declaration in its fixed form, keyed as the frontmatter mirrors it.
-export function projectBody(body, rel = "") {
-  const structural = outsideFences(body);
-  const p = new Map();
-  const malformed = (message) => p.set("malformed", [...(p.get("malformed") ?? []), message]);
-  const fixed = (key) => [...structural.matchAll(new RegExp(`^${key}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
-  const singleton = (key, accept, expectation) => {
-    const lines = fixed(key);
-    if (lines.length > 1) malformed(`${key}: repeated singleton declaration`);
-    for (const value of lines) {
-      if (accept(value)) p.set(key, value);
-      else malformed(`${key}: expected ${expectation}, got: ${value}`);
-    }
-  };
-  singleton("verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
-  singleton("brief", Boolean, "text");
-  singleton("target", (value) => {
-    const targets = value.split(",").map((t) => t.trim());
-    return targets.every((t) => /^[^#,\s]+(?:#[^#,\s]+)?$/.test(t)) && new Set(targets).size === targets.length;
-  }, "<path>[#<id>][, …]");
-  if (p.has("target")) p.set("target", p.get("target").split(",").map((t) => t.trim()));
-  const originValid = (value) => originSource(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
-  const origins = [];
-  for (const value of fixed("origin")) {
-    if (originValid(value)) origins.push(value);
-    else malformed(`origin: expected issue <reference>, a source declaration, or a path, got: ${value}`);
-  }
-  if (origins.length === 1) p.set("origin", origins[0]);
-  else if (origins.length > 1) p.set("origin", origins);
-  singleton("outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
-  const priors = [];
-  for (const value of fixed("prior-finding")) {
-    const match = value.match(new RegExp(String.raw`^(([^#\s]+)#((?:${PREFIX})-finding-[1-9]\d*))$`));
-    const cited = match && pipelineFileRole(match[2])?.review, citing = pipelineFileRole(rel)?.review;
-    const prior = cited && prefixOf(cited.art.phase) === parseId(match[3])?.prefix
-      && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
-    if (prior) priors.push(match[1]);
-    else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, got: ${value}`);
-  }
-  if (priors.length) p.set("prior-finding", priors);
-  for (const value of fixed("depends-on")) {
-    if (value === "none") p.set("depends-on", []);
-    else if (new RegExp(String.raw`^${TASK_ID}(\s*,\s*${TASK_ID})*$`).test(value)) {
-      const ids = value.split(",").map((x) => x.trim());
-      if (new Set(ids).size !== ids.length) malformed(`depends-on: duplicate ids: ${value}`);
-      else p.set("depends-on", ids);
-    } else malformed(`depends-on: expected none or task ids, got: ${value}`);
-  }
-  const commits = [];
-  for (const value of fixed("commit")) {
-    if (/^[0-9a-f]{7,40}$/.test(value)) commits.push(value);
-    else malformed(`commit: expected a commit hash, got: ${value}`);
-  }
-  if (commits.length) p.set("commit", commits);
-  const report = reportOf(rel);
-  if (report) {
-    p.set("attempt", report[3]);
-    if (challengeKind(rel, p) === "failed report" && !p.has("target"))
-      p.set("target", [reportTarget(rel)]);
-  }
-  return p;
-}
-
-// The mirrors whose frontmatter value differs from the body's projection.
-export function mirrorDrift(data, body, rel) {
-  const p = projectBody(body, rel);
-  const norm = (v) => JSON.stringify(v === undefined ? [] : [].concat(v));
-  return MIRRORS.filter((k) => (k === "commit" ? !commitsMatch(p.get(k), data.get(k)) : norm(p.get(k)) !== norm(data.get(k))));
-}
-
-// Commits are stored canonical; a body may name the same commits by abbreviation.
-function commitsMatch(bodyHashes = [], stored = []) {
-  return bodyHashes.length === stored.length && bodyHashes.every((h, i) => stored[i].startsWith(h));
-}
-
-// A command path: lexically inside the repository, with no symlinked component.
-function containedPath(command, root, abs) {
-  const rel = relative(root, abs);
-  if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) die(`${command}: outside the repository: ${rel}`);
-  let current = root;
-  for (const part of rel.split(sep)) {
-    current = join(current, part);
-    if (existsSync(current) && lstatSync(current).isSymbolicLink()) die(`${command}: refusing a symlinked path: ${rel}`);
-  }
-  return abs;
-}
-
-// The pipeline folder is the nearest ancestor of `file` that contains `0-intent`.
-function pipelineFolder(root, file) {
-  let dir = resolve(file, "..");
-  while (dir.startsWith(root)) {
-    if (existsSync(join(dir, "0-intent"))) return dir;
-    const up = resolve(dir, "..");
-    if (up === dir) break;
-    dir = up;
-  }
-  die(`cannot locate the pipeline folder (no 0-intent ancestor) for ${relative(root, file)}`);
-}
-
-// --- stamp ------------------------------------------------------------------
-
-// Replace every mirror with the body's projection. `target-identity` is what the stamp observed
-// when the target landed: it is kept while the target stays the same.
-function mirrorBody(body, fm, rel, identityOf) {
-  const p = projectBody(body, rel);
-  if (p.has("malformed")) die(`stamp: INVALID ${p.get("malformed").join("; ")} — a fixed line is mirrored whole or not at all; its author fixes it`);
-  const previous = new Map(challengeKind(rel, fm) === challengeKind(rel, p) ? (fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]) : []);
-  for (const k of MIRRORS) fm.delete(k);
-  for (const [k, v] of p) fm.set(k, v);
-  if (!p.has("target") || laterInput(rel)) fm.delete("target-identity");
-  else fm.set("target-identity", p.get("target").map((target) => previous.get(target) || identityOf(target.split("#")[0]) || ""));
-}
-
-async function cmdStamp(args) {
-  const file = args._[0] || die("stamp: missing <file>");
-  const { root, abs } = repositoryFor(file);
-  if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
-  containedPath("stamp", root, abs);
-  const base = pipelineFolder(root, abs);
-  const rel = relative(base, abs);
-  if (!pipelineFileRole(rel)) die(`stamp: not pipeline state: ${rel}`);
-
-  const parsedFrontmatter = readPipelineFile(base, rel);
-  if (!parsedFrontmatter) die(`stamp: no such file: ${file}`);
-  if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
-  const { data, body } = parsedFrontmatter;
-  const fm = data ?? new Map();
-  const landedCommits = fm.get("commit") ?? [];
-  const landedPatchIds = fm.get("patch-ids") ?? [];
-  const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, laterInput(rel) || fm.get("target-identity")?.[i]]));
-  const readAt = (path) => {
-    const source = readPipelineFile(base, path);
-    if (source?.error) die(`stamp: INVALID FRONTMATTER ${path}: ${source.error}`);
-    return source;
-  };
-  const previousKind = challengeKind(rel, fm);
-  const listAt = (dir) => (existsSync(join(base, dir)) ? readdirSync(join(base, dir)) : null);
-  const ids = artifactIds(data, body, rel, (path) => readAt(path)?.text ?? null, listAt);
-  if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
-  if (ids.invalid) die(`stamp: INVALID IDS ${rel}: ${ids.invalid}`);
-  const report = reportOf(rel);
-  const role = pipelineFileRole(rel);
-  const phaseReview = role.review?.prefix === role.art?.review && Boolean(role.review);
-  const artifact = rel === role.art?.path || role.productionArtifact ? role.art : null;
-  const siblingRecord = artifact ? `${dirname(rel)}/${basename(artifact.record)}` : null;
-
-  const laneForPath = () => {
-    const needsConfiguration = role.namedReview || role.productionArtifact || (role.review && role.productionLane);
-    if (!needsConfiguration) return null;
-    const config = runConfiguration((path) => readPipelineFile(base, path)?.text ?? null, "stamp");
-    validateRunConfiguration(config, {
-      list: () => walk(base).filter((entry) => entry.type === "blob" && entry.rel.endsWith(".md")).map((entry) => entry.rel),
-      document: (path) => readAt(path),
-      identityOf: (path) => readAt(path)?.identity ?? null,
-    }, "stamp");
-    const production = role.productionLane && config.lanes.find((lane) => lane.profile === role.productionLane.profile && lane.id === role.productionLane.id);
-    if (role.productionLane && !production) die(`stamp: path names an undeclared lane: ${rel}`);
-    if (role.namedReview) {
-      return config.lanes.find((lane) => lane.profile === role.namedReview.profile && lane.id === role.namedReview.id) ??
-        die(`stamp: path names an undeclared lane: ${rel}`);
-    }
-    return role.productionArtifact ? production : null;
-  };
-  const priorLane = fm.get("lane");
-  fm.delete("lane");
-  const pathLane = laneForPath();
-  if (pathLane) fm.set("lane", pathLane.fingerprint);
-  const laneChanged = priorLane !== fm.get("lane") || Boolean(data?.has("lane")) !== fm.has("lane");
-
-  const pinList = (paths) =>
-    paths.map((p) => {
-      const target = containedPath("stamp", root, resolve(root, p));
-      if (!target.startsWith(base + "/")) die(`stamp: a pin stays inside the pipeline folder: ${p}`);
-      const path = relative(base, target);
-      if (!pipelineFileRole(path)) die(`stamp: not pipeline state: ${path}`);
-      const sha = readAt(path)?.identity ?? die(`stamp: cannot pin missing file: ${p}`);
-      return `${path}@${sha}`;
-    });
-
-  let consumed = false;
-  if (args.pin.length) {
-    const pins = pinList(args.pin);
-    if (pins.some((pin) => pinParts(pin)?.path === siblingRecord)) die(`stamp: an artifact never pins its sibling record: ${siblingRecord}`);
-    if (artifact && rel === artifact.path) {
-      const previous = laneReferences(fm);
-      const recorded = pinPackage(pins);
-      const references = [];
-      for (const path of recorded?.keys() ?? []) {
-        const pinned = pipelineFileRole(path);
-        if (!pinned?.productionArtifact || pinned.art !== artifact) continue;
-        const scope = pinned.scope;
-        const binding = new Map([...recorded].filter(([member]) => member.startsWith(scope)));
-        const prior = previous.get(path);
-        const input = readAt(path).data;
-        const reference = prior && equalPackages(prior.binding, binding) ? prior.reference :
-          artifactReviewPackage(artifact, artifact.prefix, scope, pinPackage(input?.get("pins")), (member) => readAt(member)?.identity ?? null);
-        if (reference) references.push([path, packagePins(binding), packagePins(reference)]);
-      }
-      fm.delete("lane-packages");
-      if (references.length) fm.set("lane-packages", references);
-    }
-    fm.set("pins", pins);
-    consumed = true;
-  }
-  if (args.reviewed.length) {
-    if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
-    const reviewed = pinList(args.reviewed);
-    const review = role.review;
-    if (review && !review.lane) {
-      const scope = role.scope;
-      const artifactPath = scope ? `${scope}${basename(review.art.path)}` : review.art.path;
-      const artifactFile = join(base, artifactPath);
-      const artifactData = existsSync(artifactFile) ? readAt(artifactPath).data : null;
-      const consumed = pinPackage(artifactData?.get("pins"));
-      if (!consumed)
-        die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is unrecorded or invalid`);
-      const taskFolder = join(base, review.art.phase, "tasks");
-      const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
-      const tasks = names.filter((name) => planOf(review.art.phase) && taskFile(planOf(review.art.phase)).test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const reports = names.filter((name) => reportOf(`${review.art.phase}/tasks/${name}`)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports);
-      if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
-    }
-    fm.set("reviewed", reviewed);
-    if (report) {
-      const expected = requiredPackageOf(rel, "", {
-        identityOf: (path) => readAt(path)?.identity ?? null,
-        dependsOf: (task) => {
-          return [].concat(readAt(task)?.data?.get("depends-on") ?? []);
-        },
-      }).review;
-      if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${[...expected.keys()].join(" --reviewed ")}`);
-    }
-    if (report) {
-      const prior = readdirSync(join(base, report[1], "tasks"))
-        .map((name) => ({ name, match: name.match(new RegExp(`^${report[2]}-report-(\\d+)\\.md$`)) }))
-        .filter(({ match }) => match && Number(match[1]) !== Number(report[3]))
-        .filter(({ name, match }) => {
-          const priorRel = `${report[1]}/tasks/${name}`;
-          const parsed = readAt(priorRel);
-          return pinPackage(parsed.data?.get("reviewed")) && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
-        })
-        .map(({ match }) => Number(match[1]));
-      const next = Math.max(0, ...prior) + 1;
-      if (Number(report[3]) !== next) die(`stamp: INVALID REPORT ${rel}: expected attempt ${next}`);
-    }
-    consumed = true;
-  }
-  if (args.mirror) {
-    mirrorBody(body, fm, rel, (path) => readAt(path)?.identity ?? null);
-    const kind = challengeKind(rel, fm);
-    const targets = fm.get("target") ?? [];
-    const readable = (path) => {
-      return readAt(path)?.text ?? null;
-    };
-    if (kind) {
-      for (const target of targets)
-        if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, listAt, kind)) die(`stamp: INVALID TARGET ${target}`);
-    }
-    for (const prior of fm.get("prior-finding") ?? []) {
-      const [path, id] = prior.split("#");
-      const text = readable(path);
-      if (text === null || !declaredIds(parseFrontmatter(text).body).has(id)) die(`stamp: INVALID PRIOR FINDING ${prior}: the review declares no such finding`);
-    }
-  }
-  const targetError = targetRepresentationErrors(rel, fm, body)[0];
-  if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: ${targetError.field}`}: ${targetError.reason}`);
-  // Preserve observed patch ids while the commit declaration remains the same.
-  if (report && landedCommits.length && commitsMatch(fm.get("commit"), landedCommits)) {
-    fm.set("commit", landedCommits);
-    fm.set("patch-ids", landedPatchIds);
-  } else if (fm.has("commit")) {
-    const canonical = [].concat(fm.get("commit") ?? []).map((h) => {
-      try {
-        return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, encoding: "utf8" }).trim();
-      } catch {
-        die(`stamp: commit: names a commit that does not exist or is ambiguous: ${h}`);
-      }
-    });
-    fm.set("commit", canonical);
-    if (report) {
-      const ids = patchIds(root, canonical);
-      fm.set("patch-ids", canonical.flatMap((commit) => ids.get(commit) ?? []));
-    }
-  } else if (report) fm.delete("patch-ids");
-  if (report) {
-    fm.set("attempt", report[3]);
-  }
-  if (phaseReview || report) fm.delete("head");
-  else if (consumed) {
+    if (input === undefined) return run("ignore");
+    const directory = mkdtempSync(join(tmpdir(), "rp-input-"));
     try {
-      fm.set("head", execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim().slice(0, SHORT));
-    } catch {
-      /* no commits yet: no head to record */
-    }
+      const path = join(directory, "input");
+      writeFileSync(path, input);
+      const fd = openSync(path, "r");
+      try { return run(fd); } finally { closeSync(fd); }
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  } catch (error) {
+    fail(`git ${args.join(" ")}: ${error.stderr?.toString("utf8").trim() || error.message}`);
   }
-  for (const [key, value] of ids.projection ?? []) {
-    if (value.length) fm.set(key, value);
-    else fm.delete(key);
-  }
-  const frontmatterError = validateFrontmatter(fm);
-  if (frontmatterError) die(`stamp: INVALID FRONTMATTER ${rel}: ${frontmatterError}`);
-  if (!fm.size && !laneChanged) {
-    process.stdout.write(`nothing to mirror ${relative(root, abs)}\n`);
-    return;
-  }
-
-  writeFileSync(abs, renderFrontmatter(fm, body));
-  process.stdout.write(`stamped ${relative(root, abs)}\n`);
 }
+const gitText = (root, args, input, env) => gitBytes(root, args, input, env).toString("utf8").trim();
 
-// --- check ------------------------------------------------------------------
-
-function pinParts(entry) {
-  const at = entry.lastIndexOf("@");
-  return at === -1 ? null : { path: entry.slice(0, at), sha: entry.slice(at + 1) };
+// The commit a revision names, or null when it names none.
+function commitOf(root, revision) {
+  try {
+    return execFileSync("git", ["rev-parse", "--verify", "--quiet", "--end-of-options", `${revision}^{commit}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+  } catch { return null; }
 }
-
-// A folder that is or leads to a state folder, by its path.
-const leadsToState = (rel) => stateFolder(rel ? rel.split("/") : [], false);
-// Whether a path belongs to pipeline state, whatever its entry's type: a folder that is or leads to a
-// state folder, or a file in a state folder. Only such a folder is traversed when it is a directory.
-const inState = (rel) => leadsToState(rel) || Boolean(pipelineFileRole(rel));
-
-// Pipeline state holds files and folders only: a symlink is never followed, it is reported.
-function walk(dir, rel = "", out = []) {
-  if (!inState(rel)) return out;
-  const st = lstatSync(dir);
-  const type = st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "tree" : st.isFile() ? "blob" : "other";
-  out.push({ rel, type });
-  if (type === "tree" && leadsToState(rel)) for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
-  return out;
-}
-
-// The manifest is the boundary: unlisted members may be unwritten; listed members must be readable.
-function indexedTreeReader(entries, load, context) {
-  const members = new Map(entries.map((entry) => [entry.rel, entry]));
-  const fail = (rel, reason) => new Error(`check: cannot read ${context}${rel ? `/${rel}` : ""}: ${reason}`);
-  if (members.get("")?.type !== "tree") throw fail("", "expected a pipeline tree");
-  for (const entry of entries)
-    if (!["tree", "blob", "symlink"].includes(entry.type)) throw fail(entry.rel, `not a regular blob or directory: ${entry.type}`);
-  const contents = new Map(), texts = new Map();
-  return {
-    list: () => entries.filter((e) => e.type !== "symlink" && e.rel.endsWith(".md") && pipelineFileRole(e.rel)).map((e) => e.rel),
-    symlinks: () => entries.filter((e) => e.type === "symlink").map((e) => e.rel),
-    read: (rel, bytes = false) => {
-      const entry = members.get(rel);
-      if (!entry) return null;
-      try {
-        if (entry.type !== "blob") throw new Error(`not a regular blob: ${entry.type}`);
-        if (!contents.has(rel)) {
-          const content = load(entry);
-          if (!Buffer.isBuffer(content)) throw new Error("listed entry has no readable content");
-          contents.set(rel, content);
-        }
-        if (bytes) return contents.get(rel);
-        if (!texts.has(rel)) texts.set(rel, contents.get(rel).toString("utf8"));
-        return texts.get(rel);
-      } catch (error) { throw fail(rel, error.message); }
-    },
-  };
+function requireCommit(root, revision, what) {
+  return commitOf(root, revision) ?? fail(`${what} does not resolve to a commit: ${revision}`);
 }
 
 function gitStream(root, args, input) {
@@ -1264,9 +52,9 @@ function gitStream(root, args, input) {
   const errors = [];
   child.stderr.on("data", (chunk) => errors.push(chunk));
   let failure;
-  const finished = new Promise((resolve) => {
+  const finished = new Promise((done) => {
     child.on("error", (error) => { failure = error; });
-    child.on("close", (code, signal) => resolve(failure ?? (code === 0 ? null : new Error(`git ${args[0]} exited ${signal ?? code}: ${Buffer.concat(errors).toString("utf8").trim()}`))));
+    child.on("close", (code, signal) => done(failure ?? (code === 0 ? null : new Error(`git ${args[0]} exited ${signal ?? code}: ${Buffer.concat(errors).toString("utf8").trim()}`))));
   });
   if (input !== undefined) {
     child.stdin.on("error", (error) => { failure = error; });
@@ -1275,65 +63,12 @@ function gitStream(root, args, input) {
   return { child, finished };
 }
 
-// A tree to read the pipeline from: the working tree, or a ref (`--ref`).
-async function treeReader(root, abs, ref) {
-  const pipelineRel = relative(root, abs);
-  if (!ref) {
-    let entries;
-    try { entries = walk(abs); }
-    catch (error) { throw new Error(`check: cannot read worktree:${pipelineRel}: ${error.message}`); }
-    return indexedTreeReader(entries, ({ rel }) => {
-      const path = join(abs, rel);
-      if (!lstatSync(path).isFile()) throw new Error("listed entry is no longer a regular file");
-      return readFileSync(path);
-    }, `worktree:${pipelineRel}`);
-  }
-  // One listing per level: the pipeline folder, then the children of each directory leading to state.
-  const entries = [];
-  let reading = pipelineRel;
-  const list = async (pathspecs) => {
-    const listing = gitStream(root, ["ls-tree", "-z", ref, "--", ...pathspecs]);
-    const listed = [];
-    let pending = Buffer.alloc(0);
-    try {
-      for await (const chunk of listing.child.stdout) {
-        pending = Buffer.concat([pending, chunk]);
-        let end;
-        while ((end = pending.indexOf(0)) !== -1) {
-          const line = pending.subarray(0, end).toString("utf8");
-          const tab = line.indexOf("\t");
-          const path = line.slice(tab + 1);
-          reading = path || pipelineRel;
-          const metadata = line.slice(0, tab).match(/^(040000|100644|100755|120000|160000) (tree|blob|commit) ([0-9a-f]{40}|[0-9a-f]{64})(?![\s\S])/);
-          if (tab === -1 || !metadata || !path) throw new Error("invalid ls-tree entry");
-          const [, mode, type, oid] = metadata;
-          if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
-          if (path !== pipelineRel && !path.startsWith(`${pipelineRel}/`)) throw new Error("ls-tree entry outside the pipeline");
-          listed.push({ type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) });
-          pending = pending.subarray(end + 1);
-        }
-      }
-      const failure = await listing.finished;
-      if (failure) throw failure;
-      if (pending.length) throw new Error("truncated ls-tree entry");
-    } catch (error) {
-      listing.child.kill();
-      await listing.finished;
-      throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
-    }
-    return listed.filter((entry) => inState(entry.rel));
-  };
-  let level = await list([pipelineRel]);
-  while (level.length) {
-    entries.push(...level);
-    const folders = level.filter((entry) => entry.type === "tree" && leadsToState(entry.rel));
-    level = folders.length ? await list(folders.map((entry) => `${entry.rel ? `${pipelineRel}/${entry.rel}` : pipelineRel}/`)) : [];
-  }
-  const contents = new Map();
-  const reader = indexedTreeReader(entries, ({ rel }) => contents.get(rel), `${ref}:${pipelineRel}`);
-  const regular = entries.filter((e) => e.type === "blob" && pipelineFileRole(e.rel));
-  // Object ids keep tabs and newlines in paths out of the line-oriented batch protocol.
-  const batch = gitStream(root, ["cat-file", "--batch"], regular.map((e) => `${e.oid}\n`).join(""));
+// Object contents through one streamed `git cat-file --batch`: a Buffer per name, or null when the name is missing.
+// A name is an object id or `<tree-ish>:<path>`; an object of a type outside `types` stops the command.
+async function readObjects(root, names, types = ["blob"]) {
+  if (!names.length) return [];
+  for (const name of names) if (/[\n\r]/.test(name)) fail(`cannot read object with a newline in its name: ${JSON.stringify(name)}`);
+  const batch = gitStream(root, ["cat-file", "--batch"], names.map((name) => `${name}\n`).join(""));
   const stream = batch.child.stdout[Symbol.asyncIterator]();
   let chunk = Buffer.alloc(0), offset = 0;
   const available = async () => {
@@ -1349,7 +84,7 @@ async function treeReader(root, abs, ref) {
       const end = chunk.indexOf(10, offset);
       parts.push(chunk.subarray(offset, end === -1 ? chunk.length : end));
       offset = end === -1 ? chunk.length : end + 1;
-      if (end !== -1) return Buffer.concat(parts).toString("ascii");
+      if (end !== -1) return Buffer.concat(parts).toString("utf8");
     }
     throw new Error("unexpected end of batch header");
   };
@@ -1365,17 +100,19 @@ async function treeReader(root, abs, ref) {
     }
     return result;
   };
-  reading = pipelineRel;
+  const contents = [];
+  let reading = names[0];
   try {
-    for (const entry of regular) {
-      reading = `${pipelineRel}/${entry.rel}`;
+    for (const name of names) {
+      reading = name;
       const header = await line();
-      const metadata = header.match(/^([0-9a-f]{40}|[0-9a-f]{64}) blob (\d+)(?![\s\S])/);
-      if (!metadata || metadata[1] !== entry.oid || !Number.isSafeInteger(Number(metadata[2]))) throw new Error(`invalid batch response: ${header}`);
-      const size = Number(metadata[2]);
-      const content = await bytes(size);
+      if (header === `${name} missing`) { contents.push(null); continue; }
+      const metadata = header.match(/^([0-9a-f]{40}|[0-9a-f]{64}) ([a-z]+) (\d+)$/);
+      if (!metadata) throw new Error(`invalid batch response: ${header}`);
+      const content = await bytes(Number(metadata[3]));
       if ((await bytes(1))[0] !== 10) throw new Error("invalid batch object terminator");
-      contents.set(entry.rel, content);
+      if (!types.includes(metadata[2])) throw new Error(`not a ${types.join(" or ")}: ${metadata[2]}`);
+      contents.push(content);
     }
     if (await available()) throw new Error("unexpected trailing batch output");
     const failure = await batch.finished;
@@ -1383,785 +120,1825 @@ async function treeReader(root, abs, ref) {
   } catch (error) {
     batch.child.kill();
     batch.child.stdout.destroy();
-    batch.child.stdin.destroy();
+    batch.child.stdin?.destroy();
     await batch.finished;
-    throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
+    fail(`cannot read ${reading}: ${error.message}`);
   }
-  return reader;
+  return contents;
 }
 
-// The pipeline folder's name is the pipeline slug: one segment, a valid git ref, without `_`.
-function pipelineSlugOf(abs) {
-  const slug = basename(abs);
-  if (!slug || slug.includes("_") || !validBranch(slug)) die(`check: pipeline slug must be a valid git ref without _: ${slug}`);
-  return slug;
+// A raw tree object's entries: mode, name, and object id; `hexLength` is the repository's object id length.
+function treeEntries(bytes, hexLength) {
+  const entries = [];
+  for (let at = 0; at < bytes.length;) {
+    const space = bytes.indexOf(32, at), nul = bytes.indexOf(0, space);
+    if (space === -1 || nul === -1 || nul + 1 + hexLength / 2 > bytes.length) fail("cannot read a tree object: truncated entry");
+    entries.push({ mode: bytes.subarray(at, space).toString("ascii").padStart(6, "0"), name: bytes.subarray(space + 1, nul).toString("utf8"),
+      oid: bytes.subarray(nul + 1, nul + 1 + hexLength / 2).toString("hex") });
+    at = nul + 1 + hexLength / 2;
+  }
+  return entries;
 }
+// Each tree's entries by name, read through one batch; a missing tree has none.
+async function readTrees(root, oids) {
+  const distinct = [...new Set(oids)];
+  const contents = await readObjects(root, distinct, ["tree"]);
+  return new Map(distinct.map((oid, i) => [oid, new Map(contents[i] ? treeEntries(contents[i], oid.length).map((entry) => [entry.name, entry]) : [])]));
+}
+const REGULAR = ["100644", "100755"];
 
-// The state of a pipeline: the check's report and the facts it was computed from.
-async function inspectPipeline(args) {
-  const folder = args._[0] || die("check: missing <pipeline-folder>");
-  const { root, abs } = repositoryFor(folder);
-  containedPath("check", root, abs);
-  pipelineSlugOf(abs);
-  const pipelineRel = relative(root, abs);
-  const rev = (r, what) => {
-    try {
-      return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${r}^{commit}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    } catch {
-      die(`check: ${what} does not resolve: ${r}`);
-    }
-  };
-  const ref = args.ref ? rev(args.ref, "--ref") : null;
-  const tree = await treeReader(root, abs, ref);
-  const configuration = runConfiguration((path) => tree.read(path), "check");
-  const decl = configuration.decl;
-  const reviewLanesOf = (prefix) => reviewLanesFor(configuration, prefix);
-  const productionLanesOf = (prefix) => decl[prefix]?.production ?? [];
-
-  // Documents, each in its scope: the root ("") or a production lane ("<phase>/lanes/<id>/").
-  // A file whose recorded fields differ from its body's projection contradicts the tree.
-  const texts = new Map();
-  const listIn = (dir) => tree.list().filter((rel) => rel.startsWith(`${dir}/`) && !rel.slice(dir.length + 1).includes("/")).map((rel) => basename(rel));
-  const all = artifactFiles(tree.list())
-    .sort()
-    .map((rel) => {
-      const text = tree.read(rel);
-      texts.set(rel, text);
-      const { data: parsed, body, error: parseError } = parseFrontmatter(text);
-      const ids = parseError ? {} : artifactIds(parsed, body, rel, (path) => tree.read(path), listIn);
-      const data = parsed ?? new Map();
-      const frontmatterError = parseError || ids.error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
-      const drift = frontmatterError ? [] : [...new Set([...mirrorDrift(data, body, rel), ...(ids.drift ?? []), ...(!parsed && laterInput(rel) ? ["target", "origin"] : [])])];
-      if (drift.length) for (const k of MIRRORS) data.delete(k);
-      const role = pipelineFileRole(rel);
-      return { rel, name: rel.split("/").pop(), data, scope: role.scope, role, drift, frontmatterError, invalidIds: ids.invalid ?? null, malformed: projectBody(body, rel).get("malformed") ?? [] };
-    });
-
-  const identityOf = (rel) => {
-    const bytes = tree.read(rel, true);
-    return bytes === null ? null : identity(bytes, rel);
-  };
-  const currentPackage = (paths) => new Map([...new Set(paths)].map((path) => [path, identityOf(path)]));
-  const docsOf = (sc) => all.filter((d) => d.scope === sc);
-  const pinsByPath = new Map(all.filter((d) => Array.isArray(d.data.get("pins"))).map((d) => [d.rel, d.data.get("pins")]));
-
-  // Reviews: `<prefix>-review-[<lane>-]<wave>.md`; the implicit lane has no id. Only declared lanes review.
-  const allReviewsOf = (sc) => docsOf(sc).filter((doc) => doc.role.review).map((doc) => ({
-    ...doc,
-    prefix: doc.role.review.prefix,
-    lane: doc.role.review.lane,
-    wave: doc.role.review.wave,
-  }));
-  const declaredReview = (r) => reviewLanesOf(r.prefix).some((l) => l.id === r.lane);
-  const reviewsOf = (sc) => allReviewsOf(sc).filter(declaredReview);
-  // Lane scopes are the declared production lanes; a folder the declaration lacks is a defect, never a lane.
-  const scopes = ["", ...new Set(all.filter((doc) => doc.role.productionLane).map((doc) => doc.scope))];
-  const declaredScopes = new Set(ARTIFACTS.flatMap((a) => productionLanesOf(a.prefix).map((l) => laneScope(a.phase, l.id))));
-  const undeclared = [
-    ...scopes.filter((sc) => sc && !declaredScopes.has(sc)),
-    ...scopes.flatMap((sc) => allReviewsOf(sc).filter((r) => !declaredReview(r)).map((r) => r.rel)),
-  ];
-
-  // Task files and their latest reports.
-  const taskFiles = all
-    .filter((d) => d.rel.split("/")[1] === "tasks" && d.rel.split("/").length === 3 && planOf(d.rel.split("/")[0]) && taskFile(planOf(d.rel.split("/")[0])).test(d.name))
-    .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends-on") ?? []) }));
-  const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
-  const reports = new Map();
-  const reportFilesOf = (phase) => all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
-  // Facts about code require a valid representation and a real merge-base: computed after contradictions.
-  let tip = null, base = null;
-  const pipelinesRoot = relative(root, dirname(abs)) || ".";
-  const codeCurrents = new Map();
-  const codeCurrent = (rel) => {
-    if (!codeCurrents.has(rel)) {
-      const attributed = laterPatchIds(pipelineFileRole(rel).art.phase, all.filter((d) => reportOf(d.rel)));
-      codeCurrents.set(rel, !codeDelta(root, { tip, base, review: `${pipelineRel}/${rel}`, attributed, pipelinesRoot }).length);
-    }
-    return codeCurrents.get(rel);
-  };
-
-  const inspection = {
-    list: () => all.map((doc) => doc.rel),
-    document: (path) => all.find((doc) => doc.rel === path) ?? null,
-    identityOf,
-    codeCurrent,
-  };
-  validateRunConfiguration(configuration, inspection, "check");
-
-  // What a review judges: the artifact package; plans add tasks, phase reviews add reports.
-  const contextOf = (prefix, sc) => {
-    const context = authoritativeReviewContext(configuration, prefix, sc, inspection);
-    return context.closed ? { reference: context.reference, required: context.reference } :
-      { reference: context.reference, required: requiredPackageOf(prefix, sc, packageContext).review };
-  };
-  const reviewFresh = (r, prefix, sc) => {
-    const { required: packageMap } = contextOf(prefix, sc);
-    return judges(r, prefix, packageMap, materialPathsFor(configuration, prefix, sc, r.lane), inspection);
-  };
-  const waveValidity = (prefix, sc, wave, context = contextOf(prefix, sc)) => {
-    return evaluateWave(configuration, prefix, sc, wave, context, inspection);
-  };
-  const latestWaveOf = (prefix, sc) => Math.max(0, ...reviewsOf(sc).filter((r) => r.prefix === prefix).map((r) => r.wave));
-  const closedLanePackage = (prefix, sc) => {
-    const context = authoritativeReviewContext(configuration, prefix, sc, inspection);
-    return context.closed ? context.binding : null;
-  };
-  const lanePackageOf = (art, sc) => {
-    const closed = closedLanePackage(art.prefix, sc);
-    if (closed) return { package: closed, ready: true };
-    const approval = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc));
-    return {
-      package: currentPackage([inScope(sc, art.path), inScope(sc, art.record), ...(approval.current ? approval.reviews.map((r) => r.rel) : [])]),
-      ready: approval.current,
-    };
-  };
-
-  const packageContext = {
-    identityOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf,
-    dependsOf: (task) => taskFiles.find((t) => t.rel === task)?.deps ?? [],
-  };
-  for (const t of all.filter((d) => reportOf(d.rel))) {
-    const [, phase, id, k] = reportOf(t.rel);
-    const key = `${phase}/${id}`;
-    const attempt = Number(k);
-    if (!reports.has(key) || reports.get(key).attempt < attempt)
-      reports.set(key, { rel: t.rel, data: t.data, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "", packageContext).review) });
-  }
-
-  // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
-  const laneStates = (prefix, sc) => {
-    const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
-    const currentWave = latestWaveOf(prefix, sc);
-    const wave = waveValidity(prefix, sc, currentWave);
-    return reviewLanesOf(prefix).map(({ id: lane, fingerprint }) => {
-      const mine = rs.filter((r) => r.lane === lane);
-      const r = mine.length ? mine.reduce((a, b) => (a.wave >= b.wave ? a : b)) : null;
-      if (!r) return { lane, verdict: "none", current: false };
-      return {
-        lane,
-        verdict: !r.data.has("reviewed") ? "unstamped" : (r.data.get("verdict") ?? "invalid"),
-        brief: r.data.get("brief") ?? "",
-        fresh: reviewFresh(r, prefix, sc) && laneMatches(r, fingerprint),
-        wave: r.wave,
-        current: r.wave === currentWave,
-        waveApproved: wave.current,
-        waveClosed: wave.closed,
-        review: r,
-      };
-    });
-  };
-  // A wave is closed when every declared lane has a stamped, fresh review in the current wave.
-  const waveClosed = (lanes) => lanes.length > 0 && lanes.every((l) => l.current && l.waveClosed);
-  // A review landed without its pins is stamped; one stamped without a verdict is invalid.
-  const unstampedReview = (lanes) => {
-    const l = lanes.find((l) => l.verdict === "unstamped" || l.verdict === "invalid");
-    return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no verdict line`);
-  };
-
-  // Waves since every declared lane approved together — a counter for the owner, never a gate.
-  const episodeOf = (prefix, sc) => {
-    const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
-    const waves = [...new Set(rs.map((r) => r.wave))];
-    const last = waves.length ? Math.max(...waves) : 0;
-    const approvedAll = (w) => waveValidity(prefix, sc, w).current;
-    const lastApproved = Math.max(0, ...waves.filter(approvedAll));
-    const start = lastApproved;
-    const episode = Math.max(0, last - start);
-    const recurs = rs.filter((r) => r.wave > start).flatMap((r) => [].concat(r.data.get("prior-finding") ?? []));
-    return { episode, recurs, last };
-  };
-
-  const out = {
-    pipeline: pipelineRel,
-    ref,
-    configuration: {
-      workflow: configuration.workflow,
-      targetPhase: configuration.targetPhase,
-      base: configuration.base,
-      lanes: configuration.lanes.map(({ prefix, kind, ...lane }) => lane),
-    },
-    contradictions: [], challenges: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {}, frontier: null,
-  };
-  const lines = [ref ? `${pipelineRel} @ ${args.ref} (${ref.slice(0, SHORT)})` : pipelineRel];
-  let frontier = null;
-  const take = (item) => {
-    if (!frontier) frontier = item;
-  };
-
-  // 0. Contradictions: malformed files (their author fixes them); mirrors that no longer project
-  // their body; lanes the declaration lacks.
-  for (const d of all.filter((d) => d.frontmatterError)) {
-    out.contradictions.push({ path: d.rel, invalid: d.frontmatterError });
-    lines.push(`INVALID FRONTMATTER ${d.rel}: ${d.frontmatterError}`);
-    take(`INVALID FRONTMATTER ${d.rel}`);
-  }
-  for (const d of all.filter((d) => d.malformed.length)) {
-    out.contradictions.push({ path: d.rel, invalid: d.malformed });
-    lines.push(`INVALID LINE ${d.rel}: ${d.malformed.join("; ")}`);
-    take(`INVALID LINE ${d.rel}`);
-  }
-  for (const d of all.filter((d) => d.invalidIds)) {
-    out.contradictions.push({ path: d.rel, invalid: [d.invalidIds] });
-    lines.push(`INVALID IDS ${d.rel}: ${d.invalidIds}`);
-    take(`INVALID IDS ${d.rel}`);
-  }
-  for (const d of all.filter((d) => d.drift.length)) {
-    out.contradictions.push({ path: d.rel, mirrors: d.drift });
-    lines.push(`mirror   ${d.rel}  differs from the body: ${d.drift.join(", ")}`);
-    take(`stamp ${d.rel}`);
-  }
-  for (const path of undeclared) {
-    out.contradictions.push({ path, lane: "undeclared" });
-    lines.push(`lane     ${path}  UNDECLARED`);
-    take(`undeclared lane ${path}`);
-  }
-  for (const path of tree.symlinks()) {
-    out.contradictions.push({ path, symlink: true });
-    lines.push(`symlink  ${path}`);
-    take(`symlink ${path}`);
-  }
-  const facts = { root, pipelineRel, all, configuration, inspection, reviewsOf, latestWaveOf };
-  if (out.contradictions.length) {
-    out.frontier = frontier;
-    lines.push(`frontier ${frontier}`);
-    return { out, lines, ...facts };
-  }
-
-  tip = ref ?? rev("HEAD", "HEAD");
-  base = pipelineBase(root, configuration.base, tip);
-  out.base = base.slice(0, SHORT);
-  const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
-  const inScopePhase = (targetPath) => targetPath.startsWith("0-intent/") || phaseOfTarget(targetPath) <= configuration.targetPhase;
-  const inputStateOf = (doc, art, sc, fingerprint = null) => {
-    const pins = doc?.data.get("pins");
-    const recorded = pinPackage(pins);
-    const { inputs: requiredPackage, ready: requirementsReady } = requiredPackageOf(art.prefix, sc, packageContext);
-    const diff = { members: false, identities: new Set() };
-    equalPackages(recorded, requiredPackage, diff);
-    const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
-      ...(diff.members || !requirementsReady ? ["package members"] : []),
-      ...(diff.identities.size ? [`package identities: ${[...diff.identities].join(", ")}`] : []),
-      ...(!laneMatches(doc, fingerprint) ? ["lane declaration"] : []),
-    ];
-    const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
-    const inputChanges = state === "stale" ? {
-      added: [...requiredPackage.keys()].filter((path) => !recorded?.has(path)),
-      removed: [...(recorded?.keys() ?? [])].filter((path) => !requiredPackage.has(path)),
-      changed: [...diff.identities],
-      ready: requirementsReady,
-    } : null;
-    return { state, stale, inputChanges };
-  };
-
-  // pending → adjudicated (the target pins it) → resolved (the target approved
-  // carrying the pin), or resolved by escalation (a closed wave of the target
-  // corroborated an unsatisfiable verdict citing it). Owner territory resolves through its answer.
-  const adjudicated = (item) => !!pinPackage(pinsByPath.get(item.targetPath))?.has(item.rel);
-  const resolutionOf = (item) => {
-    if (ownerTerritory(item.target)) {
-      const answer = ownerAnswer(item.rel, all);
-      return answer ? { state: "resolved", detail: `answered by ${answer.rel}` } : { state: "pending" };
-    }
-    const targetArtifact = ARTIFACTS.find((x) => x.path === item.targetPath);
-    if (!targetArtifact) return { state: "pending" };
-    const lanes = laneStates(targetArtifact.prefix, "");
-    for (const l of lanes)
-      if (l.review && challengeKind(l.review.rel, l.review.data) === "claim" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
-        return { state: "resolved", detail: `escalated by ${l.review.rel}` };
-    if (!adjudicated(item)) return { state: "pending" };
-    const approved = waveValidity(targetArtifact.prefix, "", latestWaveOf(targetArtifact.prefix, "")).current;
-    return approved ? { state: "resolved", detail: `${item.targetPath} approved carrying it` } : { state: "adjudicated", detail: `by ${item.targetPath}, awaiting approval` };
-  };
-
-  // 1. Challenges: constraints, proposals, reported failures, and failed task reports — a report
-  // stops being one when its task changes before its target adjudicates it.
-  const challenges = [
-    ...all.filter((d) => laterInput(d.rel)).flatMap((d) => targetPairs(d.rel, d.data).map((t) => ({ ...t, kind: laterInput(d.rel) }))),
-    ...[...reports.values()].filter((t) => challengeKind(t.rel, t.data) === "failed report").flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` })).filter((pair) => t.fresh || adjudicated(pair))),
-  ].map((t) => {
-    const resolution = resolutionOf(t);
-    return { ...t, resolution, unresolved: resolution.state !== "resolved" };
+// `git ls-tree -z` entries under a tree-ish, with their mode, type, object id, and path.
+function lsTree(root, treeish, path, recursive) {
+  const output = gitBytes(root, ["ls-tree", ...(recursive ? ["-r"] : []), "-z", treeish, "--", path]).toString("utf8");
+  return output.split("\0").filter(Boolean).map((entry) => {
+    const match = entry.match(/^(\d{6}) (blob|tree|commit) ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/s);
+    if (!match) fail(`cannot read ${treeish}:${path}: invalid ls-tree entry`);
+    return { mode: match[1], type: match[2], oid: match[3], path: match[4] };
   });
-  let unresolvedInScope = false;
-  for (const t of challenges) {
-    const res = t.resolution;
-    const scoped = inScopePhase(t.targetPath);
-    const label = res.state === "pending" ? (scoped ? "PENDING" : "pending, beyond the target phase") : `${res.state}${res.detail ? ` (${res.detail})` : ""}`;
-    const challengeResolved = challenges.filter((pair) => pair.rel === t.rel).every((pair) => pair.resolution.state === "resolved");
-    out.challenges.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped, challengeResolved });
-    lines.push(`challenge ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
-    if (t.unresolved && scoped) unresolvedInScope = true;
-  }
+}
 
-  // 2. Claims: an unsatisfiable verdict whose wave closed with no rejection.
-  const claims = [];
-  for (const sc of scopes)
-    for (const r of reviewsOf(sc)) {
-      if (challengeKind(r.rel, r.data) !== "claim") continue;
-      // A claim is its lane's verdict: the lane's latest review is the one that stands.
-      const lanes = laneStates(r.prefix, sc);
-      const mine = lanes.find((l) => l.review?.rel === r.rel);
-      const later = reviewsOf(sc).some((x) => x.prefix === r.prefix && x.lane === r.lane && x.wave > r.wave);
-      for (const pair of targetPairs(r.rel, r.data)) {
-        const c = {
-          ...pair,
-          fresh: mine ? mine.fresh : reviewFresh(r, r.prefix, sc),
-          waveOpen: !waveClosed(lanes),
-          rejected: lanes.some((l) => l.verdict === "rejected"),
-        };
-        const cur = identityOf(c.targetPath);
-        const unchanged = equalPackages(new Map([[c.targetPath, c.targetIdentity]]), new Map([[c.targetPath, cur]]));
-        const res = resolutionOf(c);
-        c.adjudicated = res.state === "adjudicated";
-        if (later) c.state = "superseded (its lane reviewed again)";
-        else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
-        else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
-        else if (!c.fresh) c.state = "moot (claiming artifact changed)";
-        else if (c.waveOpen) c.state = "wave open";
-        else if (c.rejected) c.state = "held (a lane rejected; adjudicate first)";
-        else if (res.state === "adjudicated") c.state = `adjudicated (${res.detail})`;
-        else c.state = c.targetIdentity ? "pending" : "pending (no target-identity)";
-        claims.push(c);
+// --- repository -----------------------------------------------------------------
+
+const posix = (path) => path.split(sep).join("/");
+
+// The real absolute path of a path argument, which need not exist, against the process directory: its longest
+// existing part's real path, `found`, and the rest.
+function realOf(argument) {
+  let existing = resolve(process.cwd(), argument);
+  const missing = [];
+  while (!existsSync(existing)) {
+    missing.unshift(basename(existing));
+    const parent = dirname(existing);
+    if (parent === existing) fail(`cannot locate a git repository for: ${argument}`);
+    existing = parent;
+  }
+  const found = realpathSync(existing);
+  return { found, real: join(found, ...missing) };
+}
+
+// The repository and the repository-relative path of a command argument, which need not exist.
+function locate(argument) {
+  const { found, real } = realOf(argument);
+  let root;
+  try { root = realpathSync(execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: statSync(found).isDirectory() ? found : dirname(found), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()); }
+  catch { fail(`cannot locate a git repository for: ${argument}`); }
+  const rel = posix(relative(root, real));
+  if (rel.startsWith("..") || resolve(root, rel) !== real) fail(`outside the repository ${root}: ${argument}`);
+  return { root, rel };
+}
+
+// The repository's worktrees, its main checkout first: each one's path and the branch it has checked out, or null.
+function worktreesOf(root) {
+  return gitText(root, ["worktree", "list", "--porcelain"]).split("\n\n").map((record) => record.split("\n")).map((lines) => ({
+    path: lines.find((line) => line.startsWith("worktree "))?.slice("worktree ".length) ?? null,
+    branch: lines.find((line) => line.startsWith("branch refs/heads/"))?.slice("branch refs/heads/".length) ?? null,
+  }));
+}
+// The pipeline branch: the branch checked out in the worktree `root` that holds the pipeline folder. A detached HEAD
+// there stops `command`.
+function pipelineBranchOf(root, command) {
+  let branch = "";
+  try { branch = execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+  catch { /* detached */ }
+  return branch || fail(`${command}: ${root} has no branch checked out: the pipeline folder is read from the pipeline branch's worktree`);
+}
+
+// A pipeline folder is `<pipelines folder root>/<pipeline slug>`: its parent is the pipelines folder root.
+function pipelineFolder(folder, command) {
+  const at = folder.lastIndexOf("/");
+  if (at <= 0) fail(`${command}: a pipeline folder is <pipelines folder root>/<pipeline slug>: ${folder || "."}`);
+  return { folder, pipelinesRoot: folder.slice(0, at) };
+}
+
+// --- frontmatter and identity ---------------------------------------------------
+
+// The frontmatter is the text between a first line `---` and the next line `---`, the bytes from `start` to `end`; the
+// body is every byte after it. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
+export function splitFrontmatter(bytes) {
+  const raw = bytes.toString("latin1");
+  const open = raw.match(/^---\r?\n/);
+  if (!open) return { text: null, body: bytes };
+  const close = raw.slice(open[0].length).match(/(?:^|\n)---\r?(?:\n|$)/);
+  if (!close) return { text: null, body: bytes, error: "frontmatter has no closing --- line" };
+  const start = open[0].length, end = start + close.index;
+  return { text: bytes.subarray(start, end).toString("utf8"), body: bytes.subarray(end + close[0].length), start, end };
+}
+
+// The constructs a plain YAML value can open with that YAML reads as something other than its text.
+const PLAIN_FIRST = [[/^#/, "a comment"], [/^[[{]/, "a flow collection"], [/^&/, "an anchor"], [/^\*/, "an alias"], [/^!/, "a tag"],
+  [/^[|>]/, "a block scalar"], [/^(?:[-?:](?:[ \t]|$)|[%@`,\]}])/, "a plain value YAML rejects"]];
+
+// A frontmatter value: a plain value as written, without surrounding whitespace, or a quoted one without its quotes.
+// Whatever YAML would read as other text, or as structure, is Invalid, naming the key and the construct.
+function frontmatterValue(key, raw) {
+  const value = raw.replace(/^[ \t]+|[ \t]+$/g, "");
+  const reject = (construct) => invalid(`frontmatter ${key}: ${construct}`);
+  const quote = value[0];
+  if (quote === '"' || quote === "'") {
+    const close = value.indexOf(quote, 1);
+    if (close === -1) reject("an unclosed quote");
+    const text = value.slice(1, close), rest = value.slice(close + 1);
+    if ((quote === '"' && text.includes("\\")) || (quote === "'" && rest.startsWith("'"))) reject("a quoted value with an escape");
+    if (rest.trim()) reject("text after the closing quote");
+    return text;
+  }
+  for (const [pattern, construct] of PLAIN_FIRST) if (pattern.test(value)) reject(construct);
+  if (/[ \t]#/.test(value)) reject("a comment");
+  if (/:(?:[ \t]|$)/.test(value)) reject("a plain value YAML rejects");
+  return value;
+}
+
+// A file's frontmatter, the YAML subset that is a flat map of single-line text values, by key in the order written
+// (empty when it has none), and its body; or Invalid, naming the key or the construct outside the subset.
+export function frontmatterOf(bytes) {
+  const { text, body, error } = splitFrontmatter(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes, "utf8"));
+  if (error) invalid(error);
+  const values = new Map();
+  if (text === null) return { values, body, present: false };
+  let key = null;
+  for (const [at, raw] of text.split("\n").entries()) {
+    const line = raw.replace(/\r$/, "");
+    const where = key ? `frontmatter ${key}` : `frontmatter line ${at + 2}`;
+    if (!line.trim()) continue;
+    if (/^[ \t]/.test(line)) invalid(`${where}: a nested map or a multi-line value`);
+    if (/^-(?:[ \t]|$)/.test(line)) invalid(`${where}: a list`);
+    if (line.startsWith("#")) invalid(`frontmatter line ${at + 2}: a comment`);
+    const match = line.match(/^([A-Za-z0-9][\w.-]*):((?:[ \t].*)?)$/);
+    if (!match) invalid(`frontmatter line ${at + 2} is not <key>: <value>`);
+    key = match[1];
+    if (values.has(key)) invalid(`frontmatter ${key}: given twice`);
+    values.set(key, frontmatterValue(key, match[2]));
+  }
+  return { values, body, present: true };
+}
+
+function onlyKeys(keys, allowed) {
+  for (const key of keys) if (!allowed.includes(key)) invalid(`unexpected frontmatter key: ${key}`);
+}
+
+// Identity: the first 12 hexadecimal characters of the git blob id of the whole file.
+const identityOf = (oid) => oid.slice(0, 12);
+
+// The blob ids `git add` would store for working-tree files at their repository-relative paths in `folder`: after the
+// clean filters and line-ending conversion their attributes, configuration, and index entries select, as when an entry
+// already holding CRLF keeps it. Git computes them on a copy of the worktree's index, keeping its timestamps so stat
+// data is trusted as Git trusts it; no object is written and the index itself is untouched.
+function hashWorktree(root, folder, paths) {
+  if (!paths.length) return [];
+  const real = gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "index"]);
+  const directory = mkdtempSync(join(tmpdir(), "rp-index-"));
+  try {
+    const index = join(directory, "index");
+    if (existsSync(real)) {
+      copyFileSync(real, index);
+      const { atime, mtime } = statSync(real);
+      utimesSync(index, atime, mtime);
+    }
+    gitWithIndex(root, index, ["-c", "core.splitIndex=false", "update-index", "--add", "--info-only", "-z", "--stdin"], paths.map((path) => `${path}\0`).join(""));
+    const staged = new Map(gitWithIndex(root, index, ["ls-files", "--stage", "-z", "--", `:(top,literal)${folder}/`]).split("\0").filter(Boolean)
+      .map((entry) => entry.match(/^\d{6} ([0-9a-f]{40}|[0-9a-f]{64}) 0\t(.+)$/s)).filter(Boolean).map((match) => [match[2], match[1]]));
+    return paths.map((path) => staged.get(path) ?? fail(`git update-index: no blob id for ${path}`));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+// --- pipeline files -------------------------------------------------------------
+
+// The pipeline configuration.
+const CONFIG = "config.json";
+const INTENT = "0-intent/intent.md";
+// The phases with an artifact, in order: its artifact's path, the name later inputs, threads, and the frontier give it,
+// the noun a commit names it by, its owner, and its upstream artifacts.
+export const PHASES = [
+  { n: 1, folder: "1-spec", path: "1-spec/spec.md", name: "spec", noun: "spec", owner: "spec-producer", upstream: [INTENT], lanes: true },
+  { n: 2, folder: "2-design-doc", path: "2-design-doc/design-doc.md", name: "design-doc", noun: "design doc", owner: "design-doc-producer", upstream: ["1-spec/spec.md"], lanes: true },
+  { n: 3, folder: "3-implementation", path: "3-implementation/notes.md", name: "implementation", noun: "implementation notes", owner: "implementer", upstream: ["1-spec/spec.md", "2-design-doc/design-doc.md"] },
+];
+const IMPLEMENTATION = PHASES[2];
+const REVIEW_PHASE = 4;
+// What a thread is about, by name, each with the profile of the role that owns it; `owner` is the person.
+const OWNERS = { intent: "owner", ...Object.fromEntries(PHASES.map((phase) => [phase.name, phase.owner])) };
+const LANE_PROFILES = ["spec-producer", "design-doc-producer", "reviewer"];
+const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
+const LATER_INPUT = /^0-intent\/(?:constraint|proposal|failure)-[1-9]\d*\.md$/;
+const THREAD = /^threads\/[^/]+\.md$/;
+
+// What a pipeline-relative path is: the pipeline configuration, the intent, a later input, an artifact, a lane candidate, a
+// thread, or nothing.
+export function kindOf(rel) {
+  if (rel === CONFIG) return { kind: "config" };
+  if (rel === INTENT) return { kind: "intent" };
+  if (LATER_INPUT.test(rel)) return { kind: "later" };
+  if (THREAD.test(rel)) return { kind: "thread" };
+  for (const phase of PHASES) {
+    if (rel === phase.path) return { kind: "artifact", phase };
+    const prefix = `${phase.folder}/lanes/`, name = `/${basename(phase.path)}`;
+    if (phase.lanes && rel.startsWith(prefix) && rel.endsWith(name)) {
+      const lane = rel.slice(prefix.length, -name.length);
+      if (!lane.includes("/")) return { kind: "candidate", phase, lane };
+    }
+  }
+  return null;
+}
+// The folders that can hold pipeline files.
+const holdsFiles = (rel) => rel === "" || rel === "threads" || rel === "0-intent" || PHASES.some((phase) =>
+  rel === phase.folder || (phase.lanes && (rel === `${phase.folder}/lanes` || new RegExp(`^${phase.folder}/lanes/[^/]+$`).test(rel))));
+// What a pin may name: the intent, a later input, an artifact, or a lane candidate.
+const pinnable = (rel) => ["intent", "later", "artifact", "candidate"].includes(kindOf(rel)?.kind);
+// What is certified beside an approval: an artifact or a lane candidate.
+const pins = (kind) => ["artifact", "candidate"].includes(kind?.kind);
+
+// The certification of a landed file: `certification/<its pipeline-relative path>.json`, written by `rp land` alone.
+const CERTIFICATION = "certification";
+const certificationPath = (rel) => `${CERTIFICATION}/${rel}.json`;
+
+const lstatOf = (path) => { try { return lstatSync(path); } catch (error) { if (error.code === "ENOENT" || error.code === "ENOTDIR") return null; throw error; } };
+
+// The bytes certifying the landed file at `rel` in the working tree of the pipeline folder `folder`, found at `base`,
+// or null when it has none. A certification path of the wrong kind stops the command.
+function worktreeCertification(base, folder, rel) {
+  const parts = certificationPath(rel).split("/");
+  for (let length = 1; length < parts.length; length++) {
+    const stat = lstatOf(join(base, ...parts.slice(0, length)));
+    if (!stat) return null;
+    if (!stat.isDirectory()) fail(`cannot read ${folder}/${parts.slice(0, length).join("/")}: a file where a folder belongs`);
+  }
+  const stat = lstatOf(join(base, ...parts));
+  if (!stat) return null;
+  if (stat.isDirectory()) fail(`cannot read ${folder}/${parts.join("/")}: a folder where a certification belongs`);
+  if (!stat.isFile()) fail(`cannot read ${folder}/${parts.join("/")}: not a regular file`);
+  return readFileSync(join(base, ...parts));
+}
+
+// A pipeline, as read from the working tree or a commit: its files by pipeline-relative path, the identity of each
+// pinnable one, and `certification(rel)`, the certification of the landed file at `rel` (§ worktreeCertification).
+// This one is the working tree's. `reads`, when given, narrows it to the paths an operation reads, the pipeline files it
+// selects and the folders that hold them: only those are validated.
+function readWorktree(root, folder, reads = null) {
+  const base = join(root, folder);
+  if (!existsSync(base) || !lstatSync(base).isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
+  const files = new Map();
+  const visit = (rel) => {
+    for (const name of readdirSync(join(base, rel)).sort()) {
+      const child = rel ? `${rel}/${name}` : name;
+      if (reads && !reads(child)) continue;
+      const stat = lstatSync(join(base, child));
+      if (holdsFiles(child)) {
+        if (!stat.isDirectory()) fail(`cannot read ${folder}/${child}: a file where a folder belongs`);
+        visit(child);
+      } else if (kindOf(child)) {
+        if (stat.isDirectory()) fail(`cannot read ${folder}/${child}: a folder where a pipeline file belongs`);
+        if (!stat.isFile()) fail(`cannot read ${folder}/${child}: not a regular file`);
+        files.set(child, readFileSync(join(base, child)));
       }
     }
-  for (const c of claims) {
-    const scoped = inScopePhase(c.targetPath);
-    if (c.state === "pending") c.state = !scoped ? "pending, beyond the target phase" : ownerTerritory(c.target) ? "PENDING — owner escalation" : "PENDING";
-    // A claim is unresolved while its target has adjudicated it, or while it persists: until resolved, superseded, or moot.
-    c.unresolved = c.adjudicated || !/^(resolved|superseded|moot)/.test(c.state);
-    out.claims.push({ review: c.rel, target: c.target, state: c.state, inScope: scoped });
-    lines.push(`claim    ${c.rel} → ${c.target}  ${c.state}`);
-    if (c.state === "PENDING — owner escalation") take(`claim ${c.rel} → ${c.target} (owner escalation)`);
-    if (c.unresolved && scoped) unresolvedInScope = true;
+  };
+  visit("");
+  const hashed = [...files.keys()].filter(pinnable);
+  const oids = hashWorktree(root, folder, hashed.map((rel) => `${folder}/${rel}`));
+  return { files, identities: new Map(hashed.map((rel, i) => [rel, identityOf(oids[i])])), certification: (rel) => worktreeCertification(base, folder, rel) };
+}
+
+// The pipeline from a commit. `reads`, when given, narrows it to the files an operation reads, without
+// certifications: only those files, and the paths that hold them, are validated.
+async function readCommit(root, commit, folder, reads = null) {
+  const entries = lsTree(root, commit, `${folder}/`, true);
+  if (!entries.length) fail(`cannot read ${commit}:${folder}: no such folder`);
+  const wanted = [], certifications = new Map();
+  for (const entry of entries) {
+    const rel = entry.path.slice(folder.length + 1);
+    if (!reads && (rel === CERTIFICATION || rel.startsWith(`${CERTIFICATION}/`))) { certifications.set(rel, entry); continue; }
+    const read = (path) => Boolean(kindOf(path)) && (!reads || reads(path));
+    if (!reads && holdsFiles(rel)) fail(`cannot read ${commit}:${entry.path}: a file where a folder belongs`);
+    const parts = rel.split("/");
+    for (let length = 1; length < parts.length; length++)
+      if (read(parts.slice(0, length).join("/"))) fail(`cannot read ${commit}:${folder}/${parts.slice(0, length).join("/")}: a folder where a pipeline file belongs`);
+    if (!read(rel)) continue;
+    if (!REGULAR.includes(entry.mode)) fail(`cannot read ${commit}:${entry.path}: not a regular file`);
+    wanted.push({ rel, oid: entry.oid });
   }
+  const regular = [...certifications.values()].filter((entry) => REGULAR.includes(entry.mode));
+  const contents = await readObjects(root, [...wanted, ...regular].map((entry) => entry.oid));
+  const bytes = new Map(regular.map((entry, i) => [entry.oid, contents[wanted.length + i]]));
+  const certification = (rel) => {
+    const path = certificationPath(rel), parts = path.split("/");
+    for (let length = 1; length < parts.length; length++)
+      if (certifications.has(parts.slice(0, length).join("/"))) fail(`cannot read ${commit}:${folder}/${parts.slice(0, length).join("/")}: a file where a folder belongs`);
+    const entry = certifications.get(path);
+    if (!entry) {
+      if ([...certifications.keys()].some((other) => other.startsWith(`${path}/`))) fail(`cannot read ${commit}:${folder}/${path}: a folder where a certification belongs`);
+      return null;
+    }
+    if (!REGULAR.includes(entry.mode)) fail(`cannot read ${commit}:${folder}/${path}: not a regular file`);
+    return bytes.get(entry.oid);
+  };
+  return { files: new Map(wanted.map((entry, i) => [entry.rel, contents[i]])), identities: new Map(wanted.map((entry) => [entry.rel, identityOf(entry.oid)])), certification };
+}
 
-  // Under experiment: an artifact while a challenge unresolved on it is a failure — a failed task
-  // report or a reported failure — or has one in its `origin` chain. An origin that names no
-  // pipeline file ends its chain.
-  const failureInOriginChain = (rel, seen = new Set()) => {
-    if (seen.has(rel)) return false;
-    seen.add(rel);
-    const doc = all.find((d) => d.rel === rel);
-    return !!doc && (["failed report", "failure"].includes(challengeKind(rel, doc.data))
-      || [].concat(doc.data.get("origin") ?? []).some((origin) => failureInOriginChain(origin.split("#")[0], seen)));
-  };
-  const underExperiment = (art) => [...challenges, ...claims].some((c) => c.unresolved && c.targetPath === art.path && failureInOriginChain(c.rel));
-  const dispatch = (action, path, art) => `${action} ${path}${underExperiment(art) ? " (experiment)" : ""}`;
+// --- parsing ----------------------------------------------------------------------
 
-  // 3. Phases in order, up to the target; a phase's production lanes come before its root artifact.
-  const pendingChallenges = [...challenges.filter((t) => t.resolution.state === "pending"), ...claims.filter((c) => c.state.startsWith("PENDING"))];
-  const convergenceOf = (art, sc, st) => {
-    const path = inScope(sc, art.path);
-    const consumed = pinPackage(pinsByPath.get(path));
-    const pending = [...new Set(pendingChallenges.filter((c) => c.targetPath === art.path && (!sc || !consumed?.has(c.rel))).map((c) => c.rel))];
-    const taskReports = pending.filter((rel) => challengeKind(rel, all.find((d) => d.rel === rel).data) === "failed report");
-    const challenges = pending.filter((rel) => !taskReports.includes(rel));
-    const rejectedReviews = (prefix) => {
-      const lanes = laneStates(prefix, sc);
-      const complete = waveValidity(prefix, sc, latestWaveOf(prefix, sc)).reviews.length > 0;
-      return complete && lanes.some((l) => l.verdict === "rejected") ? lanes.map((l) => ({ lane: l.lane, path: l.review.rel })) : [];
-    };
-    const artifactReviews = rejectedReviews(art.prefix);
-    const phaseReviews = !sc && art.review ? rejectedReviews(art.review) : [];
-    const reviewLanes = [...artifactReviews, ...phaseReviews];
-    const materials = { inputChanges: st.inputChanges ?? null, reviewLanes, challenges, taskReports };
-    const needed = st.state === "missing" || st.state === "stale" || pending.length > 0 || artifactReviews.length > 0;
-    const inputText = materials.inputChanges ? [
-      ...["added", "removed", "changed"].filter((key) => materials.inputChanges[key].length).map((key) => `${key} [${materials.inputChanges[key].join(", ")}]`),
-      ...(!materials.inputChanges.ready ? ["input approvals pending"] : []),
-    ].join("; ") || st.stale.join("; ") : "";
-    const text = [
-      ...(materials.inputChanges ? [`Input changes: ${inputText}`] : []),
-      ...(reviewLanes.length ? [`Review lanes: ${reviewLanes.map((r) => `${r.lane || "·"} — ${r.path}`).join(", ")}`] : []),
-      ...(challenges.length ? [`Challenges: ${challenges.join(", ")}`] : []),
-      ...(taskReports.length ? [`Task reports: ${taskReports.join(", ")}`] : []),
-    ].map((part) => `  ${part}`).join("");
-    return { needed, phaseRejected: phaseReviews.length > 0, materials, text };
-  };
-  const render = (ls) => (ls.length ? ls.map((l) => `${l.lane || "·"}:${l.verdict}${l.verdict !== "none" && l.verdict !== "unstamped" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
-  const artifactState = (doc, art, sc, fingerprint = null) => {
-    const { state, stale, inputChanges } = inputStateOf(doc, art, sc, fingerprint);
-    const lanes = laneStates(art.prefix, sc);
-    const e = episodeOf(art.prefix, sc);
-    const approved = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc)).current;
-    return { state, stale, inputChanges, lanes, approved, episode: e.episode, recurs: e.recurs };
-  };
-  const nextFor = (art, path, st, convergence) =>
-    st.state === "unstamped" ? `stamp ${path}` : convergence.needed ? dispatch("converge", path, art) : (unstampedReview(st.lanes) ?? dispatch("review wave", path, art));
-  let through = 0;
-  let stopped = false;
-  const phaseDone = (phaseNo) => {
-    if (!stopped && phaseNo === through + 1) through = phaseNo;
-  };
-  for (const [i, art] of ARTIFACTS.entries()) {
-    const phaseNo = i + 1;
-    if (phaseNo > configuration.targetPhase) break;
-    const name = art.path.split("/")[1];
-    const rootExists = texts.has(art.path);
-    const declaredLanes = productionLanesOf(art.prefix);
-    const laneScopes = declaredLanes.map((l) => laneScope(art.phase, l.id)).sort();
-    const laneOf = (sc) => declaredLanes.find((l) => laneScope(art.phase, l.id) === sc);
-    const closedPackage = (sc) => closedLanePackage(art.prefix, sc);
-    const lanePackage = (sc) => lanePackageOf(art, sc).package;
-    const laneApproved = (sc) => {
-      if (closedPackage(sc)) return true;
-      const lane = laneOf(sc);
-      if (lane.after.some((dep) => !laneApproved(laneScope(art.phase, dep)))) return false;
-      const doc = all.find((d) => d.rel === `${sc}${name}`);
-      return !!doc && (() => {
-        const st = artifactState(doc, art, sc, lane.fingerprint);
-        return st.state === "fresh" && st.approved;
-      })();
-    };
-    let lanesReady = laneScopes.length > 0;
-    for (const sc of laneScopes) {
-      const { after, fingerprint } = laneOf(sc);
-      const waiting = after.filter((dep) => !laneApproved(laneScope(art.phase, dep)));
-      const doc = all.find((d) => d.rel === `${sc}${name}`);
-      const st = doc ? artifactState(doc, art, sc, fingerprint) : { state: "missing", stale: [], lanes: [], approved: false, episode: 0, recurs: [] };
-      const closed = !!closedPackage(sc);
-      const convergence = convergenceOf(art, sc, st);
-      const ok = closed || (st.approved && st.state === "fresh" && !waiting.length && !convergence.needed);
-      if (!ok) lanesReady = false;
-      const { inputChanges, ...laneState } = st;
-      out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...laneState, materials: closed ? undefined : convergence.materials, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed });
-      lines.push(`lane     ${sc}${name}  ${closed ? "closed" : st.state.toUpperCase()}${!closed && st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${!closed && waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${closed ? "" : convergence.text}`);
-      if (!closed && !ok && !waiting.length) take(nextFor(art, `${sc}${name}`, st, convergence));
-      if (st.episode || st.recurs.length) out.counters[`${sc}${art.prefix}`] = { episode: st.episode, recurs: st.recurs };
-    }
-    const laneCandidates = laneScopes.filter(laneApproved).map((sc) => ({ lane: sc, package: [...lanePackage(sc).keys()] }));
-    const needsConsolidation = laneScopes.some((sc) => !closedPackage(sc) && laneApproved(sc));
-    const renderCandidates = () => lines.push(`Lane candidates  ${laneCandidates.map((candidate) => `${candidate.lane}: ${candidate.package.join(", ")}`).join("; ")}`);
-    if (!rootExists) {
-      const convergence = convergenceOf(art, "", { state: "missing" });
-      out.artifacts.push({ artifact: art.path, state: "missing", experiment: underExperiment(art), materials: convergence.materials, consolidate: laneScopes.length ? lanesReady : undefined, ...(lanesReady ? { laneCandidates } : {}) });
-      lines.push(`artifact ${art.path}  MISSING${laneScopes.length ? (lanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}${convergence.text}`);
-      if (laneScopes.length && lanesReady) {
-        renderCandidates();
-        take(`consolidate ${art.path}`);
-      }
-      else if (!laneScopes.length) take(dispatch("converge", art.path, art));
-      stopped = true;
-      continue;
-    }
-    const st = artifactState(all.find((d) => d.rel === art.path), art, "");
-    const convergence = convergenceOf(art, "", st);
-    const { inputChanges, ...artifact } = st;
-    out.artifacts.push({ artifact: art.path, ...artifact, experiment: underExperiment(art), materials: convergence.materials, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
-    if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
-    lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${convergence.text}`);
-    if (st.state !== "fresh" || !st.approved || needsConsolidation || convergence.needed) {
-      if (lanesReady && needsConsolidation) {
-        renderCandidates();
-        take(`consolidate ${art.path}`);
-      } else take(nextFor(art, art.path, st, convergence));
-      stopped = true;
-    }
-    if (!art.review) {
-      if (st.state === "fresh" && st.approved) phaseDone(phaseNo);
-      continue;
-    }
-    // Build and document: the phase's task files, their latest reports, then the phase review.
-    const planTasks = taskFiles.filter((t) => t.phase === art.phase).sort((x, y) => numberOf(x.id) - numberOf(y.id));
-    const phaseReports = [...reports.values()].filter((t) => t.phase === art.phase);
-    const latestOf = (id) => phaseReports.find((t) => t.id === id);
-    const isDone = (id) => {
-      const r = latestOf(id);
-      return !!r && r.outcome === "completed" && r.fresh;
-    };
-    // A fresh blocked report leaves its task pending: the environment, not the plan, is what changes before the next attempt.
-    const blockedBy = (id) => {
-      const r = latestOf(id);
-      return !!r && r.outcome === "blocked" && r.fresh;
-    };
-    const done = planTasks.filter((t) => isDone(t.id)).map((t) => t.id);
-    const open = phaseReports.filter((t) => !isDone(t.id)).map((t) => `${t.id}:${t.outcome}${t.outcome === "completed" ? " (stale)" : ""}`);
-    // Every attempt is a report: landed without its pins it is stamped; stamped without an outcome it is invalid.
-    const reportDocs = all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${art.phase}/`));
-    const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no outcome line` : null)).find(Boolean);
-    const cyclic = (() => {
-      const byId = new Map(planTasks.map((t) => [t.id, t]));
-      const seen = new Set();
-      const visit = (id, stack) => {
-        if (stack.has(id)) return true;
-        if (seen.has(id)) return false;
-        seen.add(id);
-        return (byId.get(id)?.deps ?? []).some((d) => !byId.has(d) || visit(d, new Set([...stack, id])));
-      };
-      return planTasks.find((t) => visit(t.id, new Set()))?.id ?? null;
-    })();
-    const next = planTasks.find((t) => !isDone(t.id) && t.deps.every(isDone));
-    const remaining = planTasks.filter((t) => !isDone(t.id)).map((t) => t.id);
-    out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null, blocked: next && blockedBy(next.id) ? next.id : null };
-    lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
-    if (cyclic) {
-      take(`invalid plan: ${art.phase}/tasks/${cyclic}.md depends on a cycle or a missing task`);
-      stopped = true;
-    } else if (badReport) {
-      take(badReport);
-      stopped = true;
-    } else if (remaining.length) {
-      take(`${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}`);
-      stopped = true;
-    }
-    if (completingPrefix(art, taskFilesOf) === art.prefix) {
-      phaseDone(phaseNo);
-      continue;
-    }
-    // Phase review: the plan package, reports, and the code.
-    const rl = laneStates(art.review, "");
-    const e = episodeOf(art.review, "");
-    const rApproved = waveValidity(art.review, "", latestWaveOf(art.review, "")).current;
-    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => x), approved: rApproved, episode: e.episode, recurs: e.recurs };
-    if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
-    lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
-    if (!rApproved) {
-      take(unstampedReview(rl) ?? (convergence.phaseRejected ? dispatch("converge", art.path, art) : `${art.review} review`));
-      stopped = true;
-    } else {
-      phaseDone(phaseNo);
+// The data of a JSON file `rp` reads: the pipeline configuration, a certification, and the turn record. Each check
+// names what is malformed through `malformed(reason)`, which throws; `at` names the entry, as `<key>.<name>…`, or is
+// empty for the whole file.
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const entryName = (at, name) => `${at}.${/^[a-z0-9][a-z0-9-]*$/.test(name) ? name : JSON.stringify(name)}`;
+// A JSON object, holding only `keys` when given.
+function objectAt(value, at, malformed, keys = null) {
+  const where = at ? `${at}: ` : "";
+  if (!isObject(value)) malformed(`${where}must be a JSON object`);
+  if (keys) for (const key of Object.keys(value)) if (!keys.includes(key)) malformed(`${where}unexpected key: ${key}`);
+  return value;
+}
+// A file holding one JSON object, holding only `keys`: its data.
+function jsonObjectOf(bytes, malformed, keys) {
+  let data;
+  try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }
+  return objectAt(data, "", malformed, keys);
+}
+// A text: a string holding more than whitespace, its lines separated by newlines.
+function textAt(value, at, malformed) {
+  if (typeof value !== "string" || !/\S/.test(value)) malformed(`${at}: must be a text, a string holding more than whitespace`);
+  return value;
+}
+// A model name, as the project or the owner writes it.
+function modelAt(value, at, malformed) {
+  if (typeof value !== "string" || !value.trim()) malformed(`${at}: must be a model name, a non-empty string`);
+  return value;
+}
+
+// The profiles a role is an instance of.
+export const PROFILES = ["spec-producer", "design-doc-producer", "implementer", "reviewer"];
+const MODELS = ["model", "subagent-model"];
+// config.json's `lanes`: by `spec-producer`, `design-doc-producer`, or `reviewer`, the profile's lanes by lane id, each
+// holding its brief when it has one. The lanes, each `{ profile, id[, brief] }`.
+function parseLanes(value, malformed) {
+  return Object.entries(objectAt(value, "lanes", malformed, LANE_PROFILES)).flatMap(([profile, lanes]) => {
+    const at = `lanes.${profile}`;
+    if (!Object.keys(objectAt(lanes, at, malformed)).length) malformed(`${at}: must name a lane`);
+    return Object.entries(lanes).map(([id, lane]) => {
+      const laneAt = entryName(at, id);
+      if (!LANE_ID.test(id)) malformed(`${laneAt}: a lane id must match ${LANE_ID.source}`);
+      objectAt(lane, laneAt, malformed, ["brief"]);
+      return { profile, id, ...("brief" in lane ? { brief: textAt(lane.brief, `${laneAt}.brief`, malformed) } : {}) };
+    });
+  });
+}
+// config.json's `models`: by profile, or by the role name of a lane among the roles of the pipeline configuration
+// `config` (§ rolesOf), the model and subagent model it gives, each optional.
+function parseModels(value, config, malformed) {
+  const keys = [...new Set([...PROFILES, ...rolesOf(config).map((role) => role.name)])];
+  const models = {};
+  for (const [key, entry] of Object.entries(objectAt(value, "models", malformed))) {
+    const at = entryName("models", key);
+    if (!keys.includes(key)) malformed(`${at}: names no profile and no lane the run has: ${keys.join(", ")}`);
+    objectAt(entry, at, malformed, MODELS);
+    models[key] = Object.fromEntries(MODELS.filter((field) => field in entry).map((field) => [field, modelAt(entry[field], `${at}.${field}`, malformed)]));
+  }
+  return models;
+}
+
+// The pipeline facts a placeholder may name, each valued for a role and its turn.
+export const FACTS = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "merge-base"];
+// A placeholder: a name in single braces, in a guardrail's, a resource's, or the commit format's text, or a lane's brief.
+const PLACEHOLDER = /(?<!\{)\{([a-z][a-z0-9-]*)\}(?!\})/g;
+const VARIABLE = /^[a-z][a-z0-9-]*$/;
+// The guardrails and the resources, and the label an assignment gives each one's text.
+const CARRIED = [["guardrails", "rule"], ["resources", "resource"]];
+// The conventions the pipeline configuration records.
+const CONVENTIONS = ["worktree-folder-root", "landing-commit-format", "commit-format", ...CARRIED.map(([key]) => key), "variables"];
+
+// The conventions `data` holds, each one it holds: the worktree folder root, the landing commit format, the commit
+// format, the guardrails and resources by name, each with its text and profiles, and the variables by name, each with
+// its template.
+function conventionsOf(data, malformed) {
+  const conventions = {};
+  if ("worktree-folder-root" in data) {
+    const folder = data["worktree-folder-root"];
+    if (typeof folder !== "string" || !folder.trim()) malformed("worktree-folder-root: must be a folder, a non-empty string");
+    conventions.worktreeFolderRoot = folder;
+  }
+  if ("landing-commit-format" in data) {
+    const template = data["landing-commit-format"];
+    if (typeof template !== "string" || !template.trim()) malformed("landing-commit-format: must be a template, a non-empty string");
+    const names = [...template.matchAll(PLACEHOLDER)].map(([, name]) => name);
+    const other = names.find((name) => name !== "subject");
+    if (other) malformed(`landing-commit-format: {${other}} names no part of a landing commit: {subject}`);
+    if (!names.length) malformed("landing-commit-format: must hold {subject}");
+    conventions.landingCommitFormat = template;
+  }
+  if ("commit-format" in data) conventions.commitFormat = textAt(data["commit-format"], "commit-format", malformed);
+  for (const [key] of CARRIED) {
+    if (!(key in data)) continue;
+    conventions[key] = {};
+    for (const [name, entry] of Object.entries(objectAt(data[key], key, malformed))) {
+      const at = entryName(key, name);
+      objectAt(entry, at, malformed, ["text", "profiles"]);
+      const text = textAt(entry.text, `${at}.text`, malformed);
+      if (!Array.isArray(entry.profiles) || !entry.profiles.length) malformed(`${at}.profiles: must be a non-empty list of profiles`);
+      const other = entry.profiles.find((profile) => !PROFILES.includes(profile));
+      if (other !== undefined) malformed(`${at}.profiles: ${JSON.stringify(other)} is no profile: ${PROFILES.join(", ")}`);
+      conventions[key][name] = { text, profiles: entry.profiles };
     }
   }
+  if ("variables" in data) {
+    conventions.variables = {};
+    for (const [name, template] of Object.entries(objectAt(data.variables, "variables", malformed))) {
+      const at = entryName("variables", name);
+      if (!VARIABLE.test(name)) malformed(`${at}: a variable name must match ${VARIABLE.source}`);
+      if (FACTS.includes(name)) malformed(`${at}: a pipeline fact is not declared: ${FACTS.join(", ")}`);
+      if (typeof template !== "string" || !template.trim()) malformed(`${at}: must be a template, a non-empty string`);
+      for (const [placeholder, fact] of template.matchAll(PLACEHOLDER))
+        if (!FACTS.includes(fact)) malformed(`${at}: ${placeholder} names no pipeline fact: ${FACTS.join(", ")}`);
+      conventions.variables[name] = template;
+    }
+  }
+  return conventions;
+}
 
-  // 4. Counters and completion.
-  for (const [label, c] of Object.entries(out.counters))
-    lines.push(`counter  ${label}: ${c.episode} wave${c.episode === 1 ? "" : "s"} this episode${c.recurs.length ? `  recurs: ${c.recurs.join(", ")}` : ""}`);
-  out.completeThrough = through;
-  out.complete = !frontier && !unresolvedInScope && through >= configuration.targetPhase;
-  if (!frontier && unresolvedInScope) frontier = "challenges or claims still adjudicated, awaiting approval";
-  if (!frontier && !out.complete) die(`check: no frontier before target phase ${configuration.targetPhase}`);
-  if (!frontier) frontier = "complete";
-  out.frontier = frontier;
-  lines.push(`complete through phase ${through}${out.complete ? " — target reached" : ` (target ${configuration.targetPhase})`}`);
-  lines.push(`frontier ${frontier}`);
-  return { out, lines, tip, ...facts };
+// config.json: the target phase, the base branch, and the worktree folder root, each required; every other convention
+// it records, the lanes, the models, and the owner's directions, each optional. Nothing reads the directions.
+export function parseConfig(bytes, malformed) {
+  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base-branch", ...CONVENTIONS, "lanes", "models", "owner-directions"]);
+  for (const key of ["target-phase", "base-branch", "worktree-folder-root"]) if (!(key in data)) malformed(`${key}: missing`);
+  const targetPhase = data["target-phase"];
+  if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) malformed("target-phase: must be an integer from 1 to 4");
+  const baseBranch = data["base-branch"];
+  if (typeof baseBranch !== "string" || !baseBranch.trim()) malformed("base-branch: must be a revision, a non-empty string");
+  const directions = data["owner-directions"];
+  if ("owner-directions" in data && !(Array.isArray(directions) && directions.every((direction) => typeof direction === "string"))) malformed("owner-directions: must be a list of strings");
+  const config = { targetPhase, baseBranch, lanes: "lanes" in data ? parseLanes(data.lanes, malformed) : [], landingCommitFormat: null, commitFormat: null,
+    guardrails: {}, resources: {}, variables: {}, ...conventionsOf(data, malformed) };
+  config.models = "models" in data ? parseModels(data.models, config, malformed) : {};
+  return config;
+}
+
+// A role's models: for each of its model and subagent model, its role name's entry in `models`, else its profile's; null
+// where neither gives one.
+export function modelsOf(config, role) {
+  return Object.fromEntries(MODELS.map((key) => [key, config.models[role.name]?.[key] ?? config.models[role.profile]?.[key] ?? null]));
+}
+
+// The production lanes configured for a phase.
+const productionLanes = (config, phase) => phase.lanes ? config.lanes.filter((lane) => lane.profile === phase.owner) : [];
+// The review lanes: the configured ones, or one lane `default`.
+export function reviewLanes(config) {
+  const lanes = config.lanes.filter((lane) => lane.profile === "reviewer");
+  return lanes.length ? lanes : [{ profile: "reviewer", id: "default" }];
+}
+
+// A certification: a JSON object holding `inputs`, a list of `<path>@<identity>`, one per pinned file, and on an
+// approval `approved-commit`, its full hash. One that is malformed stops the command, naming `path`.
+function parseCertification(bytes, path, approval) {
+  const malformed = (reason) => fail(`${path}: ${reason}`);
+  const keys = approval ? ["inputs", "approved-commit"] : ["inputs"];
+  const data = jsonObjectOf(bytes, malformed, keys);
+  for (const key of keys) if (!Object.hasOwn(data, key)) malformed(`missing ${key}`);
+  if (!Array.isArray(data.inputs)) malformed("inputs must be a list");
+  const inputs = new Map();
+  for (const entry of data.inputs) {
+    const match = typeof entry === "string" && entry.match(/^(.+)@([0-9a-f]{12})$/);
+    if (!match) malformed(`inputs entry must be <path>@<identity>: ${JSON.stringify(entry)}`);
+    if (!pinnable(match[1])) malformed(`inputs entry names no pipeline input: ${match[1]}`);
+    if (inputs.has(match[1])) malformed(`inputs pins ${match[1]} twice`);
+    inputs.set(match[1], match[2]);
+  }
+  const approved = data["approved-commit"];
+  if (approval && (typeof approved !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(approved))) malformed("approved-commit must be a full commit hash");
+  return { inputs, approvedCommit: approval ? approved : null };
+}
+
+// A later input's `target`: the names of the artifacts it targets.
+export function parseTargets(value) {
+  const targets = value.split(",").map((item) => item.trim().replace(/#.*$/, ""));
+  for (const target of targets)
+    if (!PHASES.some((phase) => phase.name === target)) invalid(`target must name ${PHASES.map((phase) => phase.name).join(", ")}: ${target || "(empty)"}`);
+  return [...new Set(targets)];
+}
+
+const STATUSES = ["open", "approved", "resolved", "withdrawn", "escalated", "answered"];
+// The statuses of a thread to the person: opened `escalated`, closed `answered`.
+const OWNER_STATUSES = ["escalated", "answered"];
+const MESSAGE = /^## (\S+) — ([0-9a-f]{7,64})$/;
+
+// A thread role, `<profile>[-<lane>]`: its profile and lane, or null when the grammar does not hold.
+export function parseRole(role) {
+  if (["owner", "implementer", "spec-producer", "design-doc-producer"].includes(role)) return { profile: role, lane: null };
+  const match = role.match(/^(spec-producer|design-doc-producer|reviewer)-([a-z0-9][a-z0-9-]*)$/);
+  return match ? { profile: match[1], lane: match[2] } : null;
+}
+
+// A production lane's role: a lane of `spec-producer` or `design-doc-producer`.
+const isProductionLane = (role) => { const parsed = parseRole(role); return parsed.lane !== null && parsed.profile !== "reviewer"; };
+// A review thread: one a review lane opens to the implementer.
+export const isReview = (thread) => parseRole(thread.opener).profile === "reviewer" && thread.recipient === IMPLEMENTATION.owner;
+// The status that closes a thread whose findings are resolved: `approved` for a review thread, `resolved` for any other.
+const closingStatus = (thread) => isReview(thread) ? "approved" : "resolved";
+// An approval: an approved review thread.
+const isApproval = (thread) => isReview(thread) && thread.status === "approved";
+// A review lane's thread, by its pipeline-relative path: `threads/<n>-reviewer-<lane>-implementer-implementation.md`, a
+// review thread, or `threads/<n>-reviewer-<lane>-owner-intent.md`. Its number and whether it is a review thread, or null.
+function laneThreadOf(rel, laneId) {
+  const match = rel.match(new RegExp(`^threads/([1-9]\\d*)-reviewer-${laneId}-(implementer-implementation|owner-intent)\\.md$`));
+  return match && { number: Number(match[1]), review: match[2] === "implementer-implementation" };
+}
+// A review lane's review thread: the highest-numbered of its review threads among `paths`; undefined when it has none.
+const reviewThreadOf = (paths, laneId) => paths.filter((rel) => laneThreadOf(rel, laneId)?.review)
+  .sort((a, b) => laneThreadOf(b, laneId).number - laneThreadOf(a, laneId).number)[0];
+// A lane's branch: `<pipeline branch>-<artifact>-<lane>` for a production lane of `phase`, `<pipeline branch>-review-<lane>`
+// for a review lane.
+const laneBranchOf = (pipelineBranch, phase, laneId) => `${pipelineBranch}-${phase ? phase.name : "review"}-${laneId}`;
+
+// The frontmatter keys of a thread: each required, and `cites` on a thread to owner only.
+const THREAD_KEYS = ["status", "opener", "recipient", "about"];
+
+// A thread, from its file's contents: the values of its frontmatter and the messages of its body, or Invalid.
+export function parseThread(name, contents) {
+  const number = name.match(/^([1-9]\d*)-.+\.md$/)?.[1];
+  if (!number) invalid("thread file name must be <n>-<opener>-<recipient>-<about>.md");
+  const { values, body } = frontmatterOf(contents);
+  onlyKeys(values.keys(), [...THREAD_KEYS, "cites"]);
+  for (const key of THREAD_KEYS) if (!values.has(key)) invalid(`frontmatter has no ${key}`);
+  const thread = { number: Number(number), ...Object.fromEntries(THREAD_KEYS.map((key) => [key, values.get(key)])) };
+  if (thread.recipient === "owner") {
+    if (!values.get("cites")) invalid("a thread to owner names in cites the thread or evidence it comes from");
+    thread.cites = values.get("cites");
+  } else if (values.has("cites")) invalid("cites is only on a thread to owner");
+  if (!STATUSES.includes(thread.status)) invalid(`status must be one of ${STATUSES.join(" | ")}`);
+  if (!Object.hasOwn(OWNERS, thread.about)) invalid(`about must be one of ${Object.keys(OWNERS).join(", ")}`);
+  for (const key of ["opener", "recipient"]) if (!parseRole(thread[key])) invalid(`${key} must be a role <profile>[-<lane>]: ${thread[key]}`);
+  if (parseRole(thread.recipient).profile !== OWNERS[thread.about]) invalid(`a thread about ${thread.about} is to ${OWNERS[thread.about]}[-<lane>]`);
+  if (thread.opener === "owner") invalid("owner opens no thread");
+  if (thread.opener === thread.recipient) invalid("opener and recipient must differ");
+  if ((thread.recipient === "owner") !== OWNER_STATUSES.includes(thread.status))
+    invalid(`${OWNER_STATUSES.join(" and ")} are the statuses of a thread to owner, and only of it`);
+  if ([thread.opener, thread.recipient].some(isProductionLane)) invalid("production lanes open no threads");
+  if (["approved", "resolved"].includes(thread.status) && thread.status !== closingStatus(thread))
+    invalid(`${isReview(thread) ? "a review thread" : "a thread other than a review thread"} closes ${closingStatus(thread)}, not ${thread.status}`);
+  if (name !== `${number}-${thread.opener}-${thread.recipient}-${thread.about}.md`) invalid(`thread file name must be ${number}-${thread.opener}-${thread.recipient}-${thread.about}.md`);
+  thread.messages = [];
+  let fence = null;
+  for (const line of body.toString("utf8").split("\n").map((text) => text.replace(/\r$/, ""))) {
+    const marker = line.match(/^(`{3,}|~{3,})/)?.[1];
+    if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) { fence = fence ? null : marker; continue; }
+    if (fence || !line.startsWith("## ")) continue;
+    const match = line.match(MESSAGE);
+    if (!match) invalid(`message heading must be ## <role> — <commit>: ${line}`);
+    if (![thread.opener, thread.recipient, "owner"].includes(match[1])) invalid(`message author must be the opener, the recipient, or owner: ${match[1]}`);
+    thread.messages.push({ author: match[1], commit: match[2] });
+  }
+  if (!thread.messages.length) invalid("thread has no message");
+  if (thread.messages[0].author !== thread.opener) invalid("the first message must be the opener's");
+  return thread;
+}
+
+// The intent's origins: the issue it addresses, the branch it starts from, the pipeline it re-attempts.
+const ORIGIN_KEYS = ["issue", "starts-from", "re-attempts"];
+// The frontmatter keys a pipeline file other than the pipeline configuration and a thread (§ THREAD_KEYS) carries: none on
+// the spec, the design doc, and candidates.
+function frontmatterKeys(kind) {
+  if (kind.kind === "intent") return ORIGIN_KEYS;
+  if (kind.kind === "later") return ["target", "origin"];
+  return kind.phase === IMPLEMENTATION ? ["status"] : [];
+}
+
+// A pipeline file other than the pipeline configuration, or Invalid. The file grammar, every check that reads the file
+// alone, parses it; given the pipeline configuration `config`, so do the two checks that read it: an `open` thread awaiting a review
+// lane it does not declare, and a candidate of a production lane it does not declare.
+function parseFile(path, kind, bytes, config = null) {
+  if (kind.kind === "thread") {
+    const thread = { path, kind: "thread", ...parseThread(path.slice("threads/".length), bytes), approvedCommit: null };
+    const awaited = config && awaitedRole(thread) && parseRole(awaitedRole(thread));
+    if (awaited?.lane && !reviewLanes(config).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
+    return thread;
+  }
+  const { values, present } = frontmatterOf(bytes);
+  const keys = frontmatterKeys(kind);
+  if (present && !keys.length) invalid("carries no frontmatter");
+  onlyKeys(values.keys(), keys);
+  if (kind.kind === "later" && !values.has("target")) invalid("frontmatter has no target");
+  if (config && kind.kind === "candidate" && !productionLanes(config, kind.phase).some((lane) => lane.id === kind.lane))
+    invalid(`production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
+  return { ...kind, path, values, targets: kind.kind === "later" ? parseTargets(values.get("target")) : [] };
+}
+
+// A pipeline's files, parsed under `config`, or by the file grammar alone when it is null, with each file's identity. A
+// malformed file is collected as invalid, never computed from. With `certified`, each artifact, candidate, and approval
+// carries its certification: its pins as `inputs` and an approval's approved commit, none (and no pins) when it has none; a
+// certification that cannot be read or is malformed stops the command. `where` names the pipeline folder in messages.
+function parseFiles(pipeline, where, config, certified) {
+  const state = { config, docs: new Map(), threads: [], invalid: [] };
+  for (const [path, bytes] of [...pipeline.files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
+    const kind = kindOf(path);
+    if (kind.kind === "config") continue;
+    try {
+      const file = parseFile(path, kind, bytes, config);
+      if (file.kind === "thread") state.threads.push(file);
+      else state.docs.set(path, { ...file, identity: pipeline.identities.get(path) });
+    } catch (error) {
+      if (!(error instanceof Invalid)) throw error;
+      state.invalid.push({ path, reason: error.message });
+    }
+  }
+  if (certified)
+    for (const subject of [...[...state.docs.values()].filter(pins), ...state.threads.filter(isApproval)]) {
+      const bytes = pipeline.certification(subject.path);
+      Object.assign(subject, bytes ? parseCertification(bytes, `${where}/${certificationPath(subject.path)}`, subject.kind === "thread") : { inputs: new Map(), approvedCommit: null });
+    }
+  return state;
+}
+
+// A pipeline, parsed and certified. A missing or malformed pipeline configuration, or a missing intent, stops the command.
+export function readState(pipeline, where) {
+  const { files } = pipeline;
+  for (const path of [CONFIG, INTENT]) if (!files.has(path)) fail(`cannot read ${where}/${path}: missing`);
+  const config = parseConfig(files.get(CONFIG), (reason) => fail(`${where}/${CONFIG}: ${reason}`));
+  return parseFiles(pipeline, where, config, true);
+}
+
+// --- state ------------------------------------------------------------------------
+
+// The required inputs of what is certified. An artifact: its phase's upstream artifacts and every later input that
+// targets it. A candidate: its phase's upstream artifacts, what its lane reads; the later inputs targeting its artifact
+// are the artifact's. An approval: the intent and every later input.
+export function requiredInputs(state, subject) {
+  const consumes = (doc) => subject.kind === "thread" || (subject.kind === "artifact" && doc.targets.includes(subject.phase.name));
+  const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && consumes(doc));
+  return [...upstreamOf(subject), ...later.map((doc) => doc.path)];
+}
+// The upstream artifacts a subject pins, before later inputs.
+const upstreamOf = (subject) => subject.kind === "thread" ? [INTENT] : subject.phase.upstream;
+
+// The required inputs of a subject that its certification leaves unpinned, or pins at an identity that differs from the
+// current one.
+export function staleInputs(state, subject) {
+  return requiredInputs(state, subject).filter((input) => !subject.inputs.has(input) || subject.inputs.get(input) !== state.docs.get(input)?.identity);
+}
+
+// The implementation is done when `notes.md`'s frontmatter `status` is `done`.
+const implementationDone = (state) => state.docs.get(IMPLEMENTATION.path)?.values.get("status") === "done";
+
+// A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done.
+function statusOf(state, path) {
+  if (!state.docs.has(path) || (path === IMPLEMENTATION.path && !implementationDone(state))) return { state: "missing" };
+  const stale = staleInputs(state, state.docs.get(path));
+  return stale.length ? { state: "stale", stale } : { state: "fresh" };
+}
+
+// The role an `open` thread awaits: its opener when its recipient wrote the last message, its recipient otherwise.
+export function awaitedRole(thread) {
+  if (thread.status !== "open") return null;
+  return thread.messages.at(-1).author === thread.recipient ? thread.opener : thread.recipient;
+}
+const awaiting = (state, role) => state.threads.filter((thread) => awaitedRole(thread) === role).map((thread) => thread.path);
+// The review lanes that threads await.
+const awaitedReviewLanes = (state) => [...new Set(state.threads.map(awaitedRole).filter(Boolean).map(parseRole)
+  .filter((role) => role.profile === "reviewer").map((role) => role.lane))].sort();
+const roleOf = (profile, laneId) => `${profile}-${laneId}`;
+
+// A review lane's approval: its highest-numbered review thread, approved when it is an approval and fresh. An approval is
+// stale on a changed required input, or when the tip's code is not the approved commit's plus clean merges of the merge-base.
+// One without certification has no code judged; one whose approved commit the clone lacks is no approval.
+function approvalOf(state, lane) {
+  const path = reviewThreadOf(state.threads.map((thread) => thread.path), lane.id);
+  const latest = state.threads.find((thread) => thread.path === path);
+  if (!latest || !isApproval(latest)) return { approved: false };
+  const codeChanged = latest.approvedCommit !== null && state.codeChanged(latest.approvedCommit);
+  if (codeChanged === null) return { approved: false };
+  const stale = staleInputs(state, latest);
+  return { approved: !stale.length && !codeChanged, ...(stale.length ? { stale } : {}), ...(codeChanged ? { codeChanged } : {}) };
+}
+
+// The merge-base: of the tip with the pipeline configuration's base branch, the latest of the base branch the tip holds.
+export function mergeBaseOf(root, baseBranch, tip) {
+  const baseCommit = requireCommit(root, baseBranch, "base-branch");
+  return gitText(root, ["merge-base", baseCommit, tip]) || fail(`no merge-base between ${baseBranch} and ${tip}`);
+}
+
+// The tree of merging the commit `theirs` into `ours`, as Git merges them, and the paths that conflict; the tree holds
+// conflict markers where they do. Only objects are written.
+function mergeTree(root, ours, theirs) {
+  let merged;
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  catch (error) {
+    if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${ours} ${theirs}: ${error.stderr?.toString().trim() || error.message}`);
+    merged = error.stdout;
+  }
+  const [tree, ...conflicts] = merged.split("\0").filter(Boolean);
+  return { tree, conflicts };
+}
+// Whether two tree-ishes differ outside the pipelines folder root.
+function codeDiffers(root, a, b, pipelinesRoot) {
+  try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", a, b, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
+  catch (error) {
+    if (error.status === 1) return true;
+    fail(`git diff ${a} ${b}: ${error.stderr?.toString().trim() || error.message}`);
+  }
+  return false;
+}
+
+// Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the merge-base:
+// a conflict outside the root, or any difference from the merged tree outside it. Null when the clone lacks the commit.
+export function codeChanged(root, approved, mergeBase, tip, pipelinesRoot) {
+  const commit = commitOf(root, approved);
+  if (!commit) return null;
+  if (commit === tip) return false;
+  const { tree, conflicts } = mergeTree(root, commit, mergeBase);
+  return conflicts.some((path) => !path.startsWith(`${pipelinesRoot}/`)) || codeDiffers(root, tree, tip, pipelinesRoot);
+}
+
+const candidateOf = (phase, laneId) => `${phase.folder}/lanes/${laneId}/${basename(phase.path)}`;
+// A phase's configured candidates matter while its artifact is missing.
+const lanesOpen = (state, phase) => statusOf(state, phase.path).state === "missing" ? productionLanes(state.config, phase) : [];
+
+// The actions for a phase whose roles have work, or null. Threads awaiting a role are work in any phase; a missing or stale
+// artifact only through the target. A lane's work is its candidate missing or stale while the artifact is missing, to
+// produce or respond; the artifact's owner's is consolidate, produce, or respond.
+function phaseActions(state, phase) {
+  const inTarget = phase.n <= state.config.targetPhase;
+  const status = statusOf(state, phase.path);
+  const lanes = inTarget ? lanesOpen(state, phase) : [];
+  const actions = lanes.map((lane) => ({ lane, status: statusOf(state, candidateOf(phase, lane.id)) })).filter((entry) => entry.status.state !== "fresh")
+    .map(({ lane, status: candidate }) => ({ action: candidate.state === "missing" ? "produce" : "respond", target: phase.name, lane: lane.id, ...(candidate.stale ? { changed: candidate.stale } : {}) }));
+  const threads = awaiting(state, phase.owner);
+  if (inTarget && status.state === "missing") {
+    if (!lanes.length) actions.push({ action: "produce", target: phase.name, threads });
+    else if (!actions.length) actions.push({ action: "consolidate", target: phase.name, threads });
+  } else if ((inTarget && status.state === "stale") || threads.length)
+    actions.push({ action: "respond", target: phase.name, threads, ...(inTarget && status.stale ? { changed: status.stale } : {}) });
+  return actions.length ? actions : null;
+}
+
+// The review lanes with work: through the target, each configured lane not approved; in any phase, each lane a thread awaits.
+function reviewActions(state) {
+  const lanes = [...(state.config.targetPhase === REVIEW_PHASE ? reviewLanes(state.config) : []).map((lane) => ({ lane, ...approvalOf(state, lane) }))
+    .filter((entry) => !entry.approved).map((entry) => [entry.lane.id, entry.stale, entry.codeChanged]), ...awaitedReviewLanes(state).map((id) => [id])];
+  const ids = lanes.filter(([id], at) => lanes.findIndex(([other]) => other === id) === at);
+  const actions = ids.map(([id, stale, changed]) => ({ action: "review", lane: id, threads: awaiting(state, roleOf("reviewer", id)), ...(stale ? { changed: stale } : {}), ...(changed ? { "code-changed": true } : {}) }));
+  return actions.length ? actions : null;
+}
+
+// The phases from 1 through the target that are complete, ascending: each with every phase below it complete and its
+// work done. Phases 1 to 3: the artifact fresh (`notes.md` done) and no thread awaiting its owner. Phase 4: every review
+// lane approved and no thread awaiting a reviewer. None on a frontier naming a malformed file.
+export function completePhases(state, entries) {
+  if (entries[0].action === "malformed") return [];
+  const done = (n) => {
+    const phase = PHASES.find((each) => each.n === n);
+    if (phase) return statusOf(state, phase.path).state === "fresh" && !awaiting(state, phase.owner).length;
+    return reviewLanes(state.config).every((lane) => approvalOf(state, lane).approved) && !awaitedReviewLanes(state).length;
+  };
+  const complete = [];
+  for (let n = 1; n <= state.config.targetPhase && done(n); n++) complete.push(n);
+  return complete;
+}
+
+// The frontier: every action of the first rule that holds.
+export function frontier(state) {
+  if (state.invalid.length) return state.invalid.map(({ path, reason }) => ({ action: "malformed", target: path, reason }));
+  const escalations = state.threads.filter((thread) => thread.status === "escalated");
+  if (escalations.length) return escalations.map((thread) => ({ action: "escalate", target: thread.path }));
+  for (const phase of PHASES) {
+    const actions = phaseActions(state, phase);
+    if (actions) return actions;
+  }
+  return reviewActions(state) ?? [{ action: "complete" }];
+}
+
+// --- check ------------------------------------------------------------------------
+
+// A frontier entry as `rp check` prints it after `frontier `: `<action>[ <target>][ <lane>][: <reason>]`.
+const frontierText = (entry) => `${[entry.action, entry.target, entry.lane].filter(Boolean).join(" ")}${entry.reason ? `: ${entry.reason}` : ""}`;
+
+// A pipeline as `check` reads it, from the working tree or the commit `ref`: its files, its state, the tip, the merge-base
+// at target phase 4, and the frontier.
+async function inspect(root, folder, pipelinesRoot, ref) {
+  const tip = ref ? requireCommit(root, ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
+  const where = ref ? `${ref}:${folder}` : folder;
+  const pipeline = ref ? await readCommit(root, tip, folder) : readWorktree(root, folder);
+  const state = readState(pipeline, where);
+  const mergeBase = state.config.targetPhase === REVIEW_PHASE ? mergeBaseOf(root, state.config.baseBranch, tip) : null;
+  const judged = new Map();
+  state.codeChanged = (approved) => {
+    if (!judged.has(approved)) judged.set(approved, codeChanged(root, approved, mergeBase, tip, pipelinesRoot));
+    return judged.get(approved);
+  };
+  return { pipeline, state, tip, mergeBase, frontier: frontier(state) };
 }
 
 async function cmdCheck(args) {
-  const { out, lines } = await inspectPipeline(args);
-  process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
-}
-
-// --- metrics ----------------------------------------------------------------
-
-// The commits reachable from the tip that touch a path, with every side of every merge.
-const pathLog = (root, tip, path, options) => gitText(root, ["log", "--full-history", ...options, tip, "--", `:(top,literal)${path}`]);
-
-// The author time of a path's history at the tip: `added` is the commit adding it, `touched` the last commit changing it.
-function authored(root, tip, path, when) {
-  const filter = when === "added" ? ["--no-renames", "--diff-filter=A"] : [];
-  const time = pathLog(root, tip, path, ["--format=%aI", ...filter, "-1"]);
-  if (!time) throw new Error(`metrics: no commit ${when === "added" ? "adds" : "touches"} ${path}`);
-  return time;
-}
-
-function duration(seconds) {
-  const parts = [];
-  let rest = seconds;
-  for (const [unit, size] of [["d", 86400], ["h", 3600], ["m", 60]]) {
-    const count = Math.floor(rest / size);
-    if (count || parts.length) parts.push(`${count}${unit}`);
-    rest -= count * size;
-  }
-  return parts.length ? parts.join(" ") : `${rest}s`;
-}
-
-const plural = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
-
-// The success metrics, measured from the tree and its history. Human intervention is later input —
-// every `0-intent/constraint-<n>.md`, `proposal-<n>.md`, or `failure-<n>.md` — and the assisted workflow.
-async function cmdMetrics(args) {
-  const { out, tip, root, pipelineRel, all, configuration, inspection, reviewsOf, latestWaveOf } = await inspectPipeline(args);
-  if (out.contradictions.length) die(`metrics: ${out.frontier}`);
-  const from = authored(root, tip, `${pipelineRel}/0-intent/intent.md`, "added");
-  const to = authored(root, tip, pipelineRel, "touched");
-  const elapsed = { from, to, seconds: Math.round((Date.parse(to) - Date.parse(from)) / 1000) };
-
-  // A wave's reference is the package its implicit lane judged: stamp fixes it as the complete artifact
-  // package. A correction is a later input on one target artifact; its cost is the target's waves whose
-  // reference carries it, through the first valid one.
-  const correction = (art, rel) => {
-    let waves = 0;
-    for (let wave = 1; wave <= latestWaveOf(art.prefix, ""); wave++) {
-      const reference = pinPackage(reviewsOf("").find((r) => r.prefix === art.prefix && r.lane === "" && r.wave === wave)?.data.get("reviewed"));
-      if (!reference?.has(rel)) continue;
-      waves++;
-      if (evaluateWave(configuration, art.prefix, "", wave, { reference, required: reference }, inspection).valid) return { artifact: art.path, waves, accepted: true };
+  const { root, rel } = locate(args._[0] ?? misused("check", "missing <pipeline folder>"));
+  const { folder, pipelinesRoot } = pipelineFolder(rel, "check");
+  const { state, tip, mergeBase, frontier: entries } = await inspect(root, folder, pipelinesRoot, args.ref);
+  const target = state.config.targetPhase;
+  const report = { pipeline: folder, tip, "target-phase": target, frontier: entries };
+  if (!state.invalid.length) {
+    report.phases = PHASES.filter((phase) => phase.n <= target).map((phase) => ({
+      phase: phase.n,
+      artifact: phase.name,
+      path: phase.path,
+      ...statusOf(state, phase.path),
+      lanes: lanesOpen(state, phase).map((lane) => ({ lane: lane.id, path: candidateOf(phase, lane.id), ...statusOf(state, candidateOf(phase, lane.id)) })),
+    }));
+    report.complete = completePhases(state, entries);
+    if (target === REVIEW_PHASE) {
+      report["net-change"] = `${mergeBase}..${tip}`;
+      report.reviews = reviewLanes(state.config).map((lane) => {
+        const { codeChanged: changed, ...approval } = approvalOf(state, lane);
+        return { lane: lane.id, ...approval, ...(changed ? { "code-changed": true } : {}) };
+      });
     }
-    return { artifact: art.path, waves, accepted: false };
-  };
-  const laterInputs = all.filter((d) => laterInput(d.rel)).map((d) => ({
-    path: d.rel,
-    kind: laterInput(d.rel),
-    origin: d.data.get("origin"),
-    corrections: [...new Set(targetPairs(d.rel, d.data).map((t) => t.targetPath))].map((path) => correction(ARTIFACTS.find((a) => a.path === path), d.rel)),
-  }));
-
-  // A commit ran under the workflow of the run configuration in its tree. A phase ran when its folder
-  // holds state, assisted when any commit touching its folder ran assisted — with none, under the
-  // current configuration; its later inputs are those targeting its artifact.
-  const workflows = new Map();
-  const workflowAt = (commit) => {
-    if (!workflows.has(commit)) workflows.set(commit, runConfiguration((path) => {
-      try { return gitBytes(root, ["show", `${commit}:${pipelineRel}/${path}`]).toString("utf8"); } catch { return null; }
-    }, `metrics: ${commit.slice(0, SHORT)}`).workflow);
-    return workflows.get(commit);
-  };
-  const workflowOf = (art) => {
-    const listed = pathLog(root, tip, `${pipelineRel}/${art.phase}`, ["--format=%H"]);
-    return (listed ? listed.split("\n").map(workflowAt) : [configuration.workflow]).includes("assisted") ? "assisted" : "autonomous";
-  };
-  // Work is autonomous when it ran under the autonomous workflow with no later input on it.
-  const how = (assisted, inputs) => (assisted ? "assisted" : inputs.length ? "intervened" : "autonomous");
-  const phases = ARTIFACTS.slice(0, configuration.targetPhase).map((art) => {
-    const ran = all.some((d) => d.rel.startsWith(`${art.phase}/`));
-    const workflow = ran ? workflowOf(art) : null;
-    const inputs = laterInputs.filter((input) => input.corrections.some((c) => c.artifact === art.path)).map((input) => input.path);
-    const plan = planOf(art.phase);
-    return {
-      phase: art.phase,
-      ran,
-      workflow,
-      autonomous: ran ? how(workflow === "assisted", inputs) === "autonomous" : null,
-      laterInputs: inputs,
-      waves: latestWaveOf(art.prefix, ""),
-      ...(art.review ? {
-        tasks: all.filter((d) => d.rel.startsWith(`${art.phase}/tasks/`) && taskFile(plan).test(d.name)).length,
-        attempts: all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${art.phase}/`)).length,
-        reviewWaves: latestWaveOf(art.review, ""),
-      } : {}),
-    };
-  });
-  const ran = phases.filter((p) => p.ran);
-  const autonomy = { autonomous: ran.filter((p) => p.autonomous).length, ran: ran.length };
-  const assisted = ran.some((p) => p.workflow === "assisted");
-  const completion = { complete: out.complete, through: out.completeThrough, targetPhase: configuration.targetPhase, autonomous: out.complete && how(assisted, laterInputs) === "autonomous" };
-  const metrics = { pipeline: pipelineRel, ref: out.ref, elapsed, laterInputs, phases, autonomy, completion };
-
-  const inputsOf = (paths) => (paths.length ? `  inputs: ${paths.join(", ")}` : "");
-  const lines = [out.ref ? `${pipelineRel} @ ${args.ref} (${out.ref.slice(0, SHORT)})` : pipelineRel];
-  lines.push(`elapsed   ${duration(elapsed.seconds)}  (${from} → ${to})`);
-  for (const input of laterInputs)
-    for (const c of input.corrections)
-      lines.push(`input     ${input.path} (${input.kind}, origin: ${[].concat(input.origin).join(", ")}) → ${c.artifact}  ${c.accepted ? `accepted after ${plural(c.waves, "wave")}` : `${plural(c.waves, "wave")} so far`}`);
-  for (const [i, p] of phases.entries()) {
-    const counts = [`waves ${p.waves}`, ...("tasks" in p ? [`tasks ${p.tasks}`, `attempts ${p.attempts}`, `${ARTIFACTS[i].review} review waves ${p.reviewWaves}`] : [])];
-    lines.push(`phase     ${p.phase.padEnd(12)}  ${p.ran ? `${how(p.workflow === "assisted", p.laterInputs).padEnd(10)}  ${counts.join("  ")}${inputsOf(p.laterInputs)}` : "not run"}`);
+    report.threads = state.threads.map((thread) => ({ path: thread.path, status: thread.status, opener: thread.opener, recipient: thread.recipient,
+      about: thread.about, awaits: awaitedRole(thread), "approved-commit": thread.approvedCommit }));
   }
-  lines.push(`autonomy  ${autonomy.autonomous}/${autonomy.ran} phases ran autonomously`);
-  lines.push(`complete  through phase ${completion.through}${completion.complete ? ` — target reached  ${how(assisted, laterInputs)}${inputsOf(laterInputs.map((input) => input.path))}` : ` (target ${completion.targetPhase})`}`);
-  process.stdout.write(args.json ? JSON.stringify(metrics, null, 2) + "\n" : lines.join("\n") + "\n");
+  if (args.json) return process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  const lines = report.frontier.map((entry) => `frontier ${frontierText(entry)}`);
+  const status = (entry) => entry.state === "stale" ? `stale ${entry.stale.join(" ")}` : entry.state;
+  for (const phase of report.phases ?? []) {
+    for (const lane of phase.lanes) lines.push(`candidate ${phase.artifact} ${lane.lane} ${status(lane)}`);
+    lines.push(`artifact ${phase.artifact} ${status(phase)}`);
+  }
+  if (report["net-change"]) lines.push(`net-change ${report["net-change"]}`);
+  const approval = (review) => review.approved ? "approved" : review.stale || review["code-changed"] ? ["stale", ...(review.stale ?? []), ...(review["code-changed"] ? ["code"] : [])].join(" ") : "unapproved";
+  for (const review of report.reviews ?? []) lines.push(`review ${review.lane} ${approval(review)}`);
+  for (const thread of report.threads ?? []) lines.push(`thread ${thread.path} ${thread.status}${thread.awaits ? ` awaits ${thread.awaits}` : ""}`);
+  process.stdout.write(`${lines.join("\n")}\n`);
 }
 
-// A phase review's diff: the net change without --review, the code delta of the review named by --review.
-async function cmdDiff(args) {
-  const folder = args._[0] || die("diff: missing <pipeline-folder>");
-  const { root, abs } = repositoryFor(folder);
-  containedPath("diff", root, abs);
-  pipelineSlugOf(abs);
-  const tip = gitText(root, ["rev-parse", "--verify", `${args.ref ?? "HEAD"}^{commit}`]);
-  const tree = await treeReader(root, abs, args.ref ? tip : null);
-  const base = pipelineBase(root, runConfiguration((path) => tree.read(path), "diff").base, tip);
-  const pipelinesRoot = relative(root, dirname(abs)) || ".";
-  if (!args.review) return process.stdout.write(codeDiff(root, base, tip, pipelinesRoot));
-  const path = relative(abs, containedPath("diff", root, resolve(root, args.review)));
-  const role = pipelineFileRole(path);
-  if (path.startsWith("../") || !role || role.scope || !role.review || role.review.prefix !== role.art.review || tree.read(path) === null) die(`diff: not a phase review of this pipeline: ${args.review}`);
-  const reports = tree.list().filter((rel) => reportOf(rel)).map((rel) => {
-    const parsed = parseFrontmatter(tree.read(rel));
-    if (parsed.error) die(`diff: INVALID FRONTMATTER ${rel}: ${parsed.error}`);
-    return { rel, data: parsed.data };
+// --- certification ----------------------------------------------------------------
+
+// The certification of `subject`, a landed artifact, candidate, or approval parsed under `config`: its required inputs
+// at their identities in the tree of the turn's commit `at`, and on an approval its approved commit. Only
+// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), and the
+// subject's upstream artifacts. One of those malformed, or a required input missing, stops it.
+async function certificationOf(root, folder, config, subject, at, approvedCommit = null) {
+  const upstream = upstreamOf(subject);
+  const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path);
+  const state = parseFiles(await readCommit(root, at, folder, reads), `${at}:${folder}`, config, false);
+  if (state.invalid.length) fail(`${at}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
+  const inputs = requiredInputs(state, subject).map((path) => `${path}@${(state.docs.get(path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)).identity}`).sort();
+  return Buffer.from(`${JSON.stringify({ inputs, ...(approvedCommit ? { "approved-commit": approvedCommit } : {}) }, null, 2)}\n`);
+}
+
+// --- pipelines --------------------------------------------------------------------
+
+// The origins an intent names, read through the file grammar (§ parseFile): each key of its frontmatter as
+// `<key> <value>`, in the order written. An intent the grammar rejects is Invalid.
+export function originsOf(bytes) {
+  return [...parseFile(INTENT, kindOf(INTENT), bytes).values].map(([key, value]) => `${key} ${value}`);
+}
+
+// A pipeline folder is a folder of the pipelines folder root that holds the pipeline configuration. Any other content of the
+// root, such as a project's pipeline tooling, is not a pipeline.
+async function pipelineFoldersIn(root, entries) {
+  const folders = entries.filter((entry) => entry.mode === "040000");
+  const trees = await readTrees(root, folders.map((folder) => folder.oid));
+  return folders.filter((folder) => trees.get(folder.oid).has(CONFIG));
+}
+
+// What discovery reads of a pipeline folder tree: its intent's origins. A pipeline whose intent is missing, not a regular
+// file, or rejected by the file grammar stops the command, naming the intent and the reason; no other file is read.
+async function discoverFolders(root, folders, where) {
+  const trees = await readTrees(root, folders.map((folder) => folder.tree));
+  const intentFolders = await readTrees(root, [...trees.values()].map((entries) => entries.get("0-intent")).filter((entry) => entry?.mode === "040000").map((entry) => entry.oid));
+  const intents = folders.map((folder) => {
+    const intentFolder = trees.get(folder.tree).get("0-intent");
+    const intent = intentFolder?.mode === "040000" ? intentFolders.get(intentFolder.oid).get("intent.md") : null;
+    if (!intent) fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
+    return REGULAR.includes(intent.mode) ? intent.oid : fail(`pipelines: cannot read ${where(folder)}/${INTENT}: not a regular file`);
   });
-  process.stdout.write(codeDelta(root, { tip, base, review: `${relative(root, abs)}/${path}`, attributed: laterPatchIds(role.art.phase, reports), pipelinesRoot }));
+  const wanted = [...new Set(intents)];
+  const blobs = new Map((await readObjects(root, wanted)).map((content, i) => [wanted[i], content]));
+  return folders.map((folder, i) => {
+    try { return { ...folder, origins: originsOf(blobs.get(intents[i])) }; }
+    catch (error) { if (error instanceof Invalid) fail(`pipelines: ${where(folder)}/${INTENT}: ${error.message}`); throw error; }
+  });
 }
 
-// --- cli --------------------------------------------------------------------
+// Every live pipeline folder at a branch tip, and every merged one in the artifact base branch's tree, optionally filtered
+// by issue.
+async function cmdPipelines(args) {
+  // The pipelines folder root: a folder inside a repository, which need not exist in its working tree.
+  const given = args._[0] ?? misused("pipelines", "missing <pipelines folder root>");
+  const { root, rel: pipelinesRoot } = locate(given);
+  if (!pipelinesRoot) fail(`pipelines: the pipelines folder root is a folder inside the repository, not its root: ${given}`);
+  if (existsSync(join(root, pipelinesRoot)) && !statSync(join(root, pipelinesRoot)).isDirectory()) fail(`pipelines: not a folder: ${given}`);
+  const baseCommit = requireCommit(root, args.base ?? misused("pipelines", "--base <artifact base branch> is required"), "--base");
+  const refs = gitText(root, ["for-each-ref", "--format=%(objectname) %(objecttype) %(symref) %(refname)", "refs/heads", "refs/remotes"])
+    .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref]) => type === "commit" && !symref)
+    .map(([commit, , , refname]) => ({ commit, name: refname.replace(/^refs\/(?:heads|remotes)\//, "") }));
+  // The pipelines folder root's tree at a list of commits, through one batch; a commit without it has none.
+  const rootTrees = async (commits) => {
+    const listing = gitText(root, ["cat-file", "--batch-check"], commits.map((commit) => `${commit}:${pipelinesRoot}\n`).join("")).split("\n");
+    return commits.map((_, i) => listing[i]?.match(/^([0-9a-f]{40}|[0-9a-f]{64}) tree /)?.[1] ?? null);
+  };
+  // The folders under each root tree, every one or only the pipeline folders.
+  const foldersOf = async (trees, pipelinesOnly = true) => {
+    const read = await readTrees(root, trees.filter(Boolean));
+    const all = trees.map((tree) => tree ? [...read.get(tree).values()].filter((entry) => entry.mode === "040000") : []);
+    return pipelinesOnly ? Promise.all(all.map((entries) => pipelineFoldersIn(root, entries))) : all;
+  };
+  // Every tree id each folder had in the artifact base branch's history.
+  const history = gitText(root, ["log", "--full-history", "--format=%H", baseCommit, "--", `:(top,literal)${pipelinesRoot}`]).split("\n").filter(Boolean);
+  const seen = new Set((await foldersOf(await rootTrees([baseCommit, ...history]), false)).flat().map((entry) => `${entry.name}\0${entry.oid}`));
+  const live = [];
+  const tipFolders = await foldersOf(await rootTrees(refs.map((ref) => ref.commit)));
+  for (const [i, ref] of refs.entries())
+    for (const entry of tipFolders[i])
+      if (!seen.has(`${entry.name}\0${entry.oid}`)) live.push({ state: "live", ref: ref.name, commit: ref.commit, folder: `${pipelinesRoot}/${entry.name}`, tree: entry.oid });
+  const [baseFolders] = await foldersOf(await rootTrees([baseCommit]));
+  const merged = baseFolders.map((entry) => ({ state: "merged", ref: args.base, commit: baseCommit, folder: `${pipelinesRoot}/${entry.name}`, tree: entry.oid }));
+  const pipelines = await discoverFolders(root, [...live, ...merged], (pipeline) => `${pipeline.ref}:${pipeline.folder}`);
+  const result = pipelines.filter((pipeline) => args.issue === null || pipeline.origins.includes(`issue ${args.issue}`))
+    .map(({ state, ref, commit, folder, origins }) => ({ state, ref, commit, folder, origins }))
+    .sort((a, b) => a.folder.localeCompare(b.folder) || a.state.localeCompare(b.state) || a.ref.localeCompare(b.ref));
+  if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
+}
 
-const COMMAND_OPTIONS = {
-  stamp: new Set(["--pin", "--reviewed", "--mirror"]),
-  check: new Set(["--json", "--ref"]),
-  metrics: new Set(["--json", "--ref"]),
-  diff: new Set(["--ref", "--review"]),
+// --- review lanes -------------------------------------------------------------------
+
+// The messages of a review lane's review base and review head; a lane branch's review head is recognized by them.
+const REVIEW_BASE = "rp review base", REVIEW_HEAD = "rp review head";
+const subjectOf = (root, commit) => gitText(root, ["log", "-1", "--format=%s", commit]);
+const treeOf = (root, commit) => gitText(root, ["rev-parse", "--verify", "--quiet", `${commit}^{tree}`]);
+
+// Runs git plumbing with its own index file, which never consults a working tree: building a tree depends on no
+// worktree's index, HEAD, or files.
+function gitWithIndex(root, index, args, input) {
+  try { return execFileSync("git", args, { cwd: root, input, encoding: "utf8", env: { ...process.env, GIT_INDEX_FILE: index }, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] }).trim(); }
+  catch (error) { fail(`git ${args.join(" ")}: ${error.stderr?.toString().trim() || error.message}`); }
+}
+// `update-index --index-info` lines: each entry at its path, or removed with mode 0.
+const indexInfo = (entries, remove = false) => entries.map((entry) => `${remove ? "0" : entry.mode} ${remove ? "0".repeat(entry.oid.length) : entry.oid}\t${entry.path}\n`).join("");
+
+// The tree of `commit` with the pipelines folder root replaced by `rootEntries`, every file it holds.
+function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
+  gitWithIndex(root, index, ["read-tree", commit]);
+  const removed = lsTree(root, commit, `${pipelinesRoot}/`, true);
+  const input = indexInfo(removed, true) + indexInfo(rootEntries);
+  if (input) gitWithIndex(root, index, ["update-index", "--index-info"], input);
+  return gitWithIndex(root, index, ["write-tree"]);
+}
+
+// The review lane's review base and review head built from the pipeline tip: their trees, and `mergeBase`, the commit
+// the review base sits on. The review base holds the merge-base's tree and the review head the tip's, each with the
+// pipelines folder root replaced by the lane's root: the tip's root without its pipeline folders, plus the lane's view,
+// the pipeline's `0-intent/` and the lane's own threads. `git diff` between them is the net change, the root's tooling
+// stays, and the lane sees no pipeline but its own view. Built from commits alone; only tree objects are written.
+async function reviewBuildOf(root, folder, pipelinesRoot, tip, mergeBase, laneId) {
+  const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
+    && (entry.path.startsWith(`${folder}/0-intent/`) || laneThreadOf(entry.path.slice(folder.length + 1), laneId)));
+  const rootEntries = lsTree(root, tip, `${pipelinesRoot}/`, false).map((entry) => ({ ...entry, name: entry.path.slice(pipelinesRoot.length + 1) }));
+  const pipelines = new Set((await pipelineFoldersIn(root, rootEntries)).map((entry) => `${entry.path}/`));
+  const kept = [...lsTree(root, tip, `${pipelinesRoot}/`, true).filter((entry) => ![...pipelines].some((prefix) => entry.path.startsWith(prefix))), ...view];
+  const directory = mkdtempSync(join(tmpdir(), "rp-review-"));
+  try {
+    const index = join(directory, "index");
+    return { mergeBase, reviewBase: treeWithRoot(root, index, mergeBase, pipelinesRoot, kept), reviewHead: treeWithRoot(root, index, tip, pipelinesRoot, kept) };
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+// Whether `laneTip` is the review head `build` describes: on a review base, each holding its tree, on its merge-base.
+function isBuilt(root, laneTip, build) {
+  const reviewBase = commitOf(root, `${laneTip}^`);
+  return subjectOf(root, laneTip) === REVIEW_HEAD && Boolean(reviewBase) && subjectOf(root, reviewBase) === REVIEW_BASE
+    && treeOf(root, laneTip) === build.reviewHead && treeOf(root, reviewBase) === build.reviewBase && commitOf(root, `${reviewBase}^`) === build.mergeBase;
+}
+// The review head `build` describes, committed: its review base on the merge-base, and the review head on it.
+function commitBuild(root, build) {
+  const reviewBase = gitText(root, ["commit-tree", build.reviewBase, "-p", build.mergeBase, "-m", REVIEW_BASE]);
+  return gitText(root, ["commit-tree", build.reviewHead, "-p", reviewBase, "-m", REVIEW_HEAD]);
+}
+// The review head a review lane's branch holds at `laneTip` or below it, on its first-parent line, or null when it holds
+// none.
+function reviewHeadOf(root, laneTip) {
+  const head = gitText(root, ["rev-list", "--first-parent", "-n", "1", `--grep=^${REVIEW_HEAD}$`, laneTip]);
+  const reviewBase = head && commitOf(root, `${head}^`);
+  return reviewBase && subjectOf(root, reviewBase) === REVIEW_BASE ? head : null;
+}
+// A lane branch's commits that have not landed on the pipeline branch: those `git cherry <tip> <lane tip>` marks `+`,
+// other than a review base or a review head.
+function unlandedOf(root, tip, laneTip) {
+  return gitText(root, ["cherry", tip, laneTip]).split("\n").filter((line) => line.startsWith("+ ")).map((line) => line.slice(2))
+    .filter((commit) => ![REVIEW_BASE, REVIEW_HEAD].includes(subjectOf(root, commit)));
+}
+
+// --- conventions --------------------------------------------------------------------
+
+// The guardrails or resources of the pipeline configuration `config` a profile's assignment carries, each as
+// `### <name>` over `- <field>: <text>`, with the text's later lines indented under its first and its placeholders
+// expanded by `expand`.
+function carriedOf(config, key, profile, expand) {
+  const field = CARRIED.find(([name]) => name === key)[1];
+  return Object.entries(config[key]).filter(([, entry]) => entry.profiles.includes(profile))
+    .map(([name, entry]) => `### ${name}\n\n- ${field}: ${expand(entry.text).split("\n").map((line, i) => i && line ? `  ${line}` : line).join("\n")}`);
+}
+
+// A text with each placeholder that names a pipeline fact or a declared variable replaced by its value in `values`, in
+// one pass; each placeholder it keeps is added to `kept`.
+const expandText = (text, values, kept) => text.replace(PLACEHOLDER, (placeholder, name) => {
+  if (Object.hasOwn(values, name)) return values[name];
+  kept.add(placeholder);
+  return placeholder;
+});
+
+// --- templates ----------------------------------------------------------------------
+
+// The assignment templates, in the skill folder beside this script.
+const TEMPLATES = fileURLToPath(new URL("../templates/", import.meta.url));
+// A path as one POSIX shell word: as written when every character in it is one a shell takes literally, else in single
+// quotes, each quote in it closed, escaped, and reopened.
+const shellWord = (path) => /^[A-Za-z0-9_.\/,:@%+-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`;
+// The command that runs this script, which a role's assignment states.
+const RP = `node ${shellWord(fileURLToPath(import.meta.url))}`;
+const SLOT = /\{\{([#^/]?)([^{}]*)\}\}/g;
+const MARKER = /^\{\{([#^/])([a-z][a-z0-9-]*)\}\}$/;
+
+// A value has something: a true flag, a non-empty text, or a list with an item.
+const hasSomething = (value) => Array.isArray(value) ? value.length > 0 : Boolean(value);
+
+// A template filled with `values`, each a text, a list of texts, or a flag (templates/README.md). Values are inserted
+// as written and never read as template syntax. A template line that breaks the syntax, or a name without a value,
+// stops the command, naming `where` and the line.
+export function fill(template, values, where) {
+  const lines = template.endsWith("\n") ? template.slice(0, -1).split("\n") : template.split("\n");
+  const output = [], open = [];
+  for (const [index, line] of lines.entries()) {
+    const malformed = (reason) => fail(`${where}:${index + 1}: ${reason}`);
+    const valueOf = (name) => Object.hasOwn(values, name) ? values[name] : malformed(`{{${name}}} has no value`);
+    const marker = line.match(MARKER);
+    if (marker) {
+      const [, kind, name] = marker;
+      if (kind !== "/") open.push({ name, kept: hasSomething(valueOf(name)) === (kind === "#") });
+      else if (open.at(-1)?.name === name) open.pop();
+      else malformed(`{{/${name}}} closes no open part`);
+      continue;
+    }
+    let filled = "", last = 0;
+    for (const slot of line.matchAll(SLOT)) {
+      const [token, kind, name] = slot;
+      if (kind) malformed(`${token} marks a part, which stands alone on its line`);
+      if (!/^[a-z][a-z0-9-]*$/.test(name)) malformed(`${token} is no slot`);
+      const value = valueOf(name), before = line.slice(last, slot.index);
+      last = slot.index + token.length;
+      if (typeof value === "string") { filled += before + value; continue; }
+      if (!Array.isArray(value)) malformed(`{{${name}}} is a flag, which only a part tests`);
+      if (last !== line.length) malformed(`{{${name}}} is a list, which ends its line`);
+      const items = value.length ? value : ["none"];
+      if (!`${filled}${before}`.trim()) filled += before + items.join(items.some((item) => item.includes("\n")) ? "\n\n" : "\n");
+      else if (items.length === 1) filled += before + items[0];
+      else filled = `${`${filled}${before}`.trimEnd()}\n${items.map((item) => `  - ${item.split("\n").join("\n    ")}`).join("\n")}`;
+    }
+    if (open.every((part) => part.kept)) output.push(filled + line.slice(last));
+  }
+  if (open.length) fail(`${where}: {{${open.at(-1).name}}} opens a part that is never closed`);
+  return `${output.join("\n")}\n`;
+}
+
+// --- roles and assignments ----------------------------------------------------------
+
+// The roles a thread file name names: both parties of each reading of `<n>-<opener>-<recipient>-<about>.md`.
+function partiesOf(path) {
+  const middle = basename(path).match(new RegExp(`^[1-9]\\d*-(.+)-(?:${Object.keys(OWNERS).join("|")})\\.md$`))?.[1] ?? "";
+  const parties = new Set();
+  for (let at = middle.indexOf("-"); at !== -1; at = middle.indexOf("-", at + 1))
+    if (parseRole(middle.slice(0, at)) && parseRole(middle.slice(at + 1))) [middle.slice(0, at), middle.slice(at + 1)].forEach((party) => parties.add(party));
+  return parties;
+}
+// A role's artifact: its phase and the path it writes, the phase's artifact or its lane's candidate; null for a reviewer.
+function artifactOf(role) {
+  const phase = PHASES.find((each) => each.owner === role.profile);
+  return phase ? { phase, path: role.lane ? candidateOf(phase, role.lane) : phase.path } : null;
+}
+// The pipeline files a role writes: its artifact or candidate, and every thread whose file name names it.
+const writes = (role, path) => path === artifactOf(role)?.path || (kindOf(path)?.kind === "thread" && partiesOf(path).has(role.name));
+// The paths that lead to `rel`: the path itself and each folder that holds it.
+const toward = (rel) => (path) => rel === path || rel.startsWith(`${path}/`);
+// The paths that lead to the files a role writes: each such file and each folder that holds one.
+const towardWrites = (role) => (path) => writes(role, path) || [artifactOf(role)?.path ?? "", "threads/"].some((rel) => rel.startsWith(`${path}/`));
+
+// A role: its name, `<profile>[-<lane>]`, its profile, its lane or null, and its phase, its artifact's or review's.
+function roleFor(profile, lane = null) {
+  const role = { name: lane ? `${profile}-${lane}` : profile, profile, lane };
+  return { ...role, phase: artifactOf(role)?.phase.n ?? REVIEW_PHASE };
+}
+// The roles of a run: each artifact's owner, each production lane, and each review lane.
+const rolesOf = (config) => [...PHASES.map((phase) => roleFor(phase.owner)),
+  ...config.lanes.filter((lane) => lane.profile !== "reviewer").map((lane) => roleFor(lane.profile, lane.id)), ...reviewLanes(config).map((lane) => roleFor("reviewer", lane.id))];
+// A role's branch: the pipeline branch for a role without a lane, its lane's branch otherwise.
+const branchOfRole = (pipelineBranch, role) => role.lane ? laneBranchOf(pipelineBranch, artifactOf(role)?.phase, role.lane) : pipelineBranch;
+// The role a frontier entry other than `malformed` wakes: a review lane's reviewer, or the owner of the artifact it names,
+// in the lane it names.
+function rolesWoken(entry) {
+  if (entry.action === "review") return [roleFor("reviewer", entry.lane)];
+  const phase = PHASES.find((each) => each.name === entry.target);
+  return phase && ["consolidate", "produce", "respond"].includes(entry.action) ? [roleFor(phase.owner, entry.lane ?? null)] : [];
+}
+
+// The turn the frontier gives a role: a producer's or the implementer's mode, the threads awaiting it, the changed
+// inputs of its artifact, and the frontier entries of the malformed files it writes; null when no entry wakes it. A
+// frontier naming malformed files wakes only the roles that write one, a producer or the implementer in Respond.
+function turnOf(state, entries, role) {
+  const turn = (mode, entry = {}) => ({ mode, threads: entry.threads ?? [], changed: entry.changed ?? [], malformed: [] });
+  if (entries[0].action === "malformed") {
+    const malformed = entries.filter((entry) => writes(role, entry.target));
+    return malformed.length ? { ...turn("Respond"), malformed } : null;
+  }
+  const artifact = artifactOf(role);
+  for (const entry of entries) {
+    if (!artifact) { if (entry.action === "review" && entry.lane === role.lane) return turn(null, entry); continue; }
+    if (entry.target !== artifact.phase.name || (entry.lane ?? null) !== role.lane) continue;
+    if (entry.action === "produce") return turn(artifact.phase === IMPLEMENTATION && !role.lane ? "Implement" : "Produce", entry);
+    if (entry.action === "respond") return turn("Respond", entry);
+    if (entry.action === "consolidate") return turn("Consolidate", entry);
+  }
+  return null;
+}
+
+// A review lane's later turn on its review thread while that is open, which then awaits the reviewer: the thread, and
+// the commit the reviewer's last message names; null on a first turn.
+function laterTurnOf(state, role) {
+  const path = reviewThreadOf(state.threads.map((thread) => thread.path), role.lane);
+  const latest = state.threads.find((thread) => thread.path === path);
+  return latest?.status === "open" ? { thread: latest.path, last: latest.messages.findLast((message) => message.author === role.name).commit } : null;
+}
+
+// The commit a changed input names: the latest commit of the role's branch at its turn commit `tip` at which the input
+// has the identity `pinned`, its artifact's certification's pin, or at which it is absent when there is no pin. The diff
+// from it to the turn commit shows what changed since the artifact last landed, whether or not that landing changed it.
+function changedSince(root, folder, tip, input, pinned) {
+  const commits = gitText(root, ["rev-list", tip]).split("\n");
+  const objects = gitText(root, ["cat-file", "--batch-check=%(objectname)"], commits.map((commit) => `${commit}:${folder}/${input}\n`).join("")).split("\n");
+  const at = objects.findIndex((object) => pinned === undefined ? object.endsWith(" missing") : /^[0-9a-f]{40,64}$/.test(object) && identityOf(object) === pinned);
+  return at === -1 ? fail(`no commit of ${tip} holds ${folder}/${input} as its artifact's certification pins it`) : commits[at];
+}
+
+// The files of a woken role's assignment (templates/README.md), each as [path, contents]: the assignment, at
+// `rp/<profile>.md` in the role's private git directory, and on a review lane's later turn the diff it reads beside it.
+// `tip` is the turn commit, and `reviewHead` a reviewer's review head. Everything is read and checked before anything is
+// returned.
+function assignmentOf(ctx, wake, tip, reviewHead) {
+  const { root, folder, pipelinesRoot, state } = ctx, { config } = state;
+  const { role, turn, worktree, branch, gitDir } = wake;
+  const at = (path) => join(worktree, folder, path);
+
+  // The carried texts, expanded for the role. Its merge-base is that of its turn commit with the base branch.
+  const facts = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, "merge-base": mergeBaseOf(root, config.baseBranch, tip) };
+  const variables = Object.fromEntries(Object.entries(config.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => facts[fact])]));
+  const keeps = {};
+  const expand = (key) => (text) => expandText(text, { ...facts, ...variables }, keeps[key] ??= new Set());
+  const laneEntry = role.lane ? config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
+  const carried = {
+    guardrails: carriedOf(config, "guardrails", role.profile, expand("guardrails")),
+    resources: carriedOf(config, "resources", role.profile, expand("resources")),
+    "commit-format": config.commitFormat === null ? "An imperative subject line." : expand("commit-format")(config.commitFormat),
+    brief: laneEntry?.brief ? expand("brief")(laneEntry.brief) : "",
+  };
+  // A reviewer's repair assignment carries the commit format alone; every other assignment, every carried text.
+  const artifact = artifactOf(role);
+  const repair = !artifact && turn.malformed.length > 0;
+  const carries = repair ? ["commit-format"] : Object.keys(carried);
+  const models = modelsOf(config, role);
+  const laterInputs = [...state.docs.values()].filter((doc) => doc.kind === "later" && (!artifact || doc.targets.includes(artifact.phase.name))).map((doc) => at(doc.path));
+  const values = {
+    ...facts, ...carried,
+    facts: carries.some((key) => keeps[key]?.size) ? FACTS.map((name) => `- \`{${name}}\`: ${facts[name]}`.trimEnd()) : [],
+    "turn-commit": tip,
+    rp: RP,
+    "base-branch": config.baseBranch,
+    "subagent-model": models["subagent-model"] ?? "",
+    "pipeline-folder": at(""), "pipeline-folder-arg": shellWord(at("")), intent: at(INTENT), spec: at(PHASES[0].path), "design-doc": at(PHASES[1].path),
+    "later-inputs": laterInputs,
+    "malformed-files": turn.malformed.map(frontierText),
+  };
+  const files = [];
+  let templateName;
+  if (artifact) {
+    templateName = role.profile;
+    const pins = state.docs.get(artifact.path)?.inputs ?? new Map();
+    Object.assign(values, {
+      mode: turn.mode,
+      ...Object.fromEntries(["produce", "respond", "consolidate", "implement"].map((mode) => [mode, turn.mode.toLowerCase() === mode])),
+      "supporting-folder": `${at(artifact.path.replace(/\.md$/, ""))}/`,
+      "changed-inputs": turn.changed.map((input) => `${at(input)} — changed since ${changedSince(root, folder, tip, input, pins.get(input))}`),
+      "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}`),
+      threads: turn.threads.map(at),
+      "write-to": at(artifact.path),
+    });
+  } else {
+    // A review lane's review head sits on its review base; its turn commit is the review head, or above it on a repair in
+    // place.
+    values["review-base"] = requireCommit(root, `${reviewHead}^`, `the review base of ${reviewHead}`);
+    const later = repair ? null : laterTurnOf(state, role);
+    templateName = repair ? "reviewer-repair" : later ? "reviewer-later" : "reviewer-first";
+    if (later) {
+      const diff = join(gitDir, "rp", "reviewer.diff");
+      const from = requireCommit(root, later.last, `the commit ${role.name}'s last message names`);
+      files.push([diff, gitBytes(root, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
+      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff });
+    }
+  }
+  const templatePath = join(TEMPLATES, `${templateName}.md`);
+  let template;
+  try { template = readFileSync(templatePath, "utf8"); } catch (error) { fail(`cannot read ${templatePath}: ${error.message}`); }
+  files.unshift([join(gitDir, "rp", `${role.profile}.md`), fill(template, values, templatePath)]);
+  return files;
+}
+
+// --- turn record ------------------------------------------------------------------
+
+// The turn record, in the pipeline worktree's assignment folder: `turns`, each woken role's latest turn by its name —
+// its worktree, branch, turn commit, and a reviewer's review head; `woke`, the phases of the roles the last applied
+// step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported.
+const recordPath = (root) => gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "rp/turns.json"]);
+const NO_RECORD = { turns: {}, woke: [], complete: [], reported: [] };
+// The turn record of the pipeline worktree `root`, or an empty one before any step was applied there. One that cannot be
+// read or is malformed stops the command, naming it.
+function readRecord(root) {
+  const path = recordPath(root);
+  let bytes;
+  try { bytes = readFileSync(path); }
+  catch (error) { if (error.code === "ENOENT") return structuredClone(NO_RECORD); fail(`cannot read ${path}: ${error.message}`); }
+  const malformed = (reason) => fail(`${path}: ${reason}`);
+  let data;
+  try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }
+  objectAt(data, "turn record", malformed, Object.keys(NO_RECORD));
+  for (const key of ["woke", "complete", "reported"])
+    if (!Array.isArray(data[key]) || !data[key].every((n) => Number.isInteger(n) && n >= 1 && n <= REVIEW_PHASE)) malformed(`${key}: must be a list of phases`);
+  const hash = (value) => typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value);
+  for (const [name, turn] of Object.entries(objectAt(data.turns, "turns", malformed))) {
+    const at = entryName("turns", name), role = parseRole(name);
+    if (!role || role.profile === "owner") malformed(`${at}: names no role <profile>[-<lane>]`);
+    objectAt(turn, at, malformed, ["worktree", "branch", "commit", "review-head"]);
+    for (const key of ["worktree", "branch"]) if (typeof turn[key] !== "string" || !turn[key]) malformed(`${at}.${key}: must be a non-empty string`);
+    if (!hash(turn.commit)) malformed(`${at}.commit: must be a full commit hash`);
+    if (role.profile === "reviewer" ? !hash(turn["review-head"]) : "review-head" in turn) malformed(`${at}.review-head: ${role.profile === "reviewer" ? "must be a full commit hash" : "is only on a reviewer's turn"}`);
+  }
+  return data;
+}
+function writeRecord(root, record) {
+  const path = recordPath(root);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
+}
+
+// --- landing ------------------------------------------------------------------------
+
+// The message of a commit `rp land` makes: its subject in the landing commit format of the pipeline configuration
+// `config`, or the subject alone.
+const landingMessage = (config, subject) => config.landingCommitFormat === null ? subject
+  : config.landingCommitFormat.replace(PLACEHOLDER, (placeholder, name) => name === "subject" ? subject : placeholder);
+// What a commit names a certified file by.
+const nounOf = (subject) => subject.kind === "thread" ? `review lane ${parseRole(subject.opener).lane} approval`
+  : subject.kind === "candidate" ? `${subject.phase.noun} lane ${subject.lane} candidate` : subject.phase.noun;
+
+// The pipeline files that differ between two commits, by pipeline-relative path.
+const changedFiles = (root, folder, from, to) => new Set(gitBytes(root, ["diff", "--name-only", "--no-renames", "-z", from, to, "--", `:(top,literal)${folder}/`])
+  .toString("utf8").split("\0").filter(Boolean).map((path) => path.slice(folder.length + 1)).filter((rel) => kindOf(rel)));
+
+// `commit` picked onto `onto` as `git cherry-pick` picks it, from commits alone: its change from its first parent merged
+// into `onto`'s tree, with its author and message. The paths that conflict, when they do.
+function pick(root, onto, commit) {
+  const parent = requireCommit(root, `${commit}^`, `the parent of ${commit}`);
+  // A commit of `onto`'s tree on that parent: merging `commit` into it merges the change alone.
+  const ours = gitText(root, ["commit-tree", treeOf(root, onto), "-p", parent, "-m", "rp pick"]);
+  const { tree, conflicts } = mergeTree(root, ours, commit);
+  if (conflicts.length) return { conflicts };
+  const [name, email, date] = gitText(root, ["log", "-1", "--format=%an%x00%ae%x00%ad", "--date=raw", commit]).split("\0");
+  const raw = gitBytes(root, ["cat-file", "commit", commit]);
+  const env = { ...process.env, GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_AUTHOR_DATE: date };
+  return { commit: gitText(root, ["commit-tree", tree, "-p", onto], raw.subarray(raw.indexOf("\n\n") + 2), env) };
+}
+
+// A commit on `parent` whose tree is the parent's with each [path, bytes] of `files` written, or removed when its bytes
+// are null, with `message`.
+function commitFiles(root, parent, files, message) {
+  const directory = mkdtempSync(join(tmpdir(), "rp-land-"));
+  try {
+    const index = join(directory, "index");
+    gitWithIndex(root, index, ["read-tree", parent]);
+    gitWithIndex(root, index, ["update-index", "--index-info"], files.map(([path, bytes]) => bytes === null ? `0 ${"0".repeat(parent.length)}\t${path}\n`
+      : `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\n`).join(""));
+    return gitText(root, ["commit-tree", gitWithIndex(root, index, ["write-tree"]), "-p", parent, "-m", message]);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+// What landing a role's turn brings onto the pipeline tip, built from commits alone: `landed`, the commit the pipeline
+// branch would reach, and `changed`, the pipeline files the turn's unlanded commits change; or the paths that conflict.
+// A production lane's branch is merged when it holds unlanded commits. A review lane's unlanded commits after its
+// review head `since` are picked one by one, and none of the commits that built the review head. A role in the pipeline worktree
+// brings nothing: its commits after its turn commit `since` are on the tip already.
+function bringOf(ctx, role, branchTip, since) {
+  const { root, folder, tip, state } = ctx;
+  if (!role.lane) return { landed: tip, changed: changedFiles(root, folder, since, tip) };
+  const unlanded = new Set(unlandedOf(root, tip, branchTip));
+  if (!unlanded.size) return { landed: tip, changed: new Set() };
+  if (role.profile === "reviewer") {
+    let landed = tip;
+    for (const commit of gitText(root, ["rev-list", "--reverse", `${since}..${branchTip}`]).split("\n").filter((each) => unlanded.has(each))) {
+      const picked = pick(root, landed, commit);
+      if (picked.conflicts) return picked;
+      landed = picked.commit;
+    }
+    return { landed, changed: changedFiles(root, folder, since, branchTip) };
+  }
+  const { tree, conflicts } = mergeTree(root, tip, branchTip);
+  if (conflicts.length) return { conflicts };
+  const message = landingMessage(state.config, `Merge ${artifactOf(role).phase.noun} lane ${role.lane}`);
+  return { landed: gitText(root, ["commit-tree", tree, "-p", tip, "-p", branchTip, "-m", message]), changed: changedFiles(root, folder, gitText(root, ["merge-base", tip, branchTip]), branchTip) };
+}
+// The pipeline as the pipeline branch would hold it after `bring`, and the malformed files it brings there, as frontier
+// entries.
+async function landingOf(ctx, bring) {
+  const where = `${bring.landed}:${ctx.folder}`;
+  const pipeline = await readCommit(ctx.root, bring.landed, ctx.folder);
+  const state = readState(pipeline, where);
+  return { pipeline, state, rejected: state.invalid.filter((entry) => bring.changed.has(entry.path)).map(({ path, reason }) => ({ action: "malformed", target: path, reason })) };
+}
+
+// --- next and land ------------------------------------------------------------------
+
+// What `next` and `land` read: the pipeline worktree `root`, its pipeline branch, the pipeline as `check` reads it from
+// the working tree, the main checkout's root, against which a relative worktree folder root resolves, and the turn
+// record.
+async function contextOf(args, command) {
+  const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
+  const { folder, pipelinesRoot } = pipelineFolder(rel, command);
+  const main = worktreesOf(root)[0].path ?? fail(`${command}: the repository has no main checkout`);
+  const pipelineBranch = pipelineBranchOf(root, command);
+  const record = readRecord(root);
+  const inspected = await inspect(root, folder, pipelinesRoot, null);
+  return { root, folder, pipelinesRoot, main: realpathSync(main), pipelineBranch, record, ...inspected };
+}
+// A worktree's private git directory, which holds its assignment folder, `rp/`.
+const gitDirOf = (worktree) => realpathSync(gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-dir"]));
+// The private git directory `git worktree add` gives a new worktree at `path`: `worktrees/<its folder name>` in the
+// common git directory, the name numbered from 1 while it is taken, or `reserved` for another worktree of the plan.
+function newGitDirOf(root, path, reserved) {
+  const common = realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+  let gitDir = join(common, "worktrees", basename(path));
+  for (let n = 1; existsSync(gitDir) || reserved.has(gitDir); n++) gitDir = join(common, "worktrees", `${basename(path)}${n}`);
+  reserved.add(gitDir);
+  return gitDir;
+}
+
+// The step's plan (README.md § `next`): a lane's turn that ended without landing, to land first; or the worktrees,
+// branches, terminations, assignments, and woken roles the frontier dispatches, a lane under repair's beside them.
+async function planOf(ctx) {
+  const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, main } = ctx, { config } = state;
+  const plan = { land: [], fix: [], terminate: [], removals: [], branches: [], creations: [], wakes: [], started: [] };
+  const worktrees = worktreesOf(root);
+  const worktreeOf = (branch) => { const path = worktrees.find((each) => each.branch === branch)?.path; return path ? realpathSync(path) : null; };
+  const roles = rolesOf(config);
+
+  // A lane holding unlanded commits is never moved back, rebuilt, or removed: its turn lands, or its author repairs
+  // what its landing would reject.
+  const repairs = new Map();
+  for (const role of roles.filter((each) => each.lane)) {
+    const branch = branchOfRole(pipelineBranch, role), laneTip = commitOf(root, `refs/heads/${branch}`);
+    if (!laneTip || !unlandedOf(root, tip, laneTip).length) continue;
+    const since = role.profile === "reviewer" ? reviewHeadOf(root, laneTip) ?? fail(`next: ${branch} holds commits the pipeline branch lacks, and no review head`) : null;
+    const bring = bringOf(ctx, role, laneTip, since);
+    const rejected = bring.conflicts ? [] : (await landingOf(ctx, bring)).rejected;
+    if (rejected.length) repairs.set(role.name, { role, rejected });
+    else plan.land.push(role);
+  }
+  if (plan.land.length) return plan;
+
+  // A role's seat: the pipeline worktree for a role without a lane; a lane's worktree on its branch, which holds the
+  // pipeline tip for a production lane and the review head built from it for a review lane, unless the lane is repaired
+  // in place.
+  const reserved = new Set();
+  const seat = async (role, inPlace) => {
+    if (!role.lane) return { worktree: root, branch: pipelineBranch, gitDir: gitDirOf(root) };
+    const branch = branchOfRole(pipelineBranch, role), laneTip = commitOf(root, `refs/heads/${branch}`), worktree = worktreeOf(branch);
+    if (!inPlace && role.profile === "reviewer") {
+      const build = await reviewBuildOf(root, folder, pipelinesRoot, tip, ctx.mergeBase ?? mergeBaseOf(root, config.baseBranch, tip), role.lane);
+      if (!laneTip) plan.branches.push({ branch, action: "create", build });
+      else if (!isBuilt(root, laneTip, build)) plan.branches.push({ branch, action: "move", build, worktree, from: laneTip });
+    } else if (!inPlace) {
+      if (!laneTip) plan.branches.push({ branch, action: "create", target: tip });
+      else if (laneTip !== tip) plan.branches.push({ branch, action: "move", target: tip, worktree, from: laneTip });
+    }
+    if (worktree) return { worktree, branch, gitDir: gitDirOf(worktree) };
+    const path = join(resolve(main, config.worktreeFolderRoot), branch), gitDir = newGitDirOf(root, path, reserved);
+    plan.creations.push({ role, branch, path, gitDir });
+    return { worktree: path, branch, gitDir };
+  };
+  const wake = async (role, turn, rejected = null) => {
+    const place = await seat(role, Boolean(rejected));
+    const repair = !artifactOf(role) && turn.malformed.length > 0;
+    plan.wakes.push({ role, turn, rejected, ...place, assignment: join(place.gitDir, "rp", `${role.profile}.md`), model: modelsOf(config, role).model,
+      resources: repair ? [] : Object.entries(config.resources).filter(([, entry]) => entry.profiles.includes(role.profile)).map(([name]) => name), newInstance: turn.mode === "Consolidate" });
+  };
+
+  if (entries[0].action !== "escalate")
+    for (const { role, rejected } of repairs.values()) await wake(role, { mode: "Respond", threads: [], changed: [], malformed: rejected }, rejected);
+  for (const role of (entries[0].action === "malformed" ? roles : entries.flatMap(rolesWoken)).filter((each) => !repairs.has(each.name))) {
+    const turn = turnOf(state, entries, role);
+    if (!turn) continue;
+    // A consolidation terminates the phase's production lanes and removes their worktrees and branches first.
+    if (turn.mode === "Consolidate")
+      for (const lane of productionLanes(config, artifactOf(role).phase).map((each) => roleFor(role.profile, each.id)).filter((each) => !repairs.has(each.name))) {
+        const branch = branchOfRole(pipelineBranch, lane), worktree = worktreeOf(branch), exists = Boolean(commitOf(root, `refs/heads/${branch}`));
+        if (!worktree && !exists) continue;
+        plan.terminate.push(lane);
+        if (worktree) plan.removals.push({ role: lane, path: worktree });
+        if (exists) plan.branches.push({ branch, action: "delete" });
+      }
+    await wake(role, turn);
+  }
+  if (entries[0].action === "malformed") plan.fix = entries.filter((entry) => !roles.some((role) => writes(role, entry.target)));
+  plan.started = phasesOf(plan.wakes).filter((n) => !record.woke.includes(n));
+  return plan;
+}
+// The phases of the woken roles, ascending.
+const phasesOf = (wakes) => [...new Set(wakes.map((wake) => wake.role.phase))].sort((a, b) => a - b);
+
+// A plan's lines, in the order the orchestrator acts on them (README.md § `next`).
+function planLines(plan, entries) {
+  const lines = entries.map((entry) => `frontier ${frontierText(entry)}`);
+  const landing = (role) => role.lane ? [`hook before-landing-lane ${role.name}`, `hook after-landing-lane ${role.name}`] : [];
+  if (plan.land.length) return [...lines, ...plan.land.flatMap((role) => { const [before, after] = landing(role); return [before, `land ${role.name}`, after]; })];
+  lines.push(...plan.fix.map((entry) => `fix ${frontierText(entry)}`));
+  for (const wake of plan.wakes) lines.push(...(wake.rejected ?? []).map((entry) => `repair ${wake.role.name} ${frontierText(entry)}`));
+  for (const role of plan.terminate)
+    lines.push(`hook before-terminating-agent ${role.name}`, `terminate ${role.name} profile ${role.profile}`, `terminate ${role.name} lane ${role.lane}`, `hook after-terminating-agent ${role.name}`);
+  const worktreeHooks = (moment) => [...plan.removals.map(({ role, path }) => `hook ${moment}-removing-worktree ${role.name} ${path}`),
+    ...plan.creations.map(({ role, path }) => `hook ${moment}-creating-worktree ${role.name} ${path}`)];
+  lines.push(...worktreeHooks("before"), ...plan.removals.map(({ role, path }) => `remove-worktree ${role.name} ${path}`),
+    ...plan.branches.map((branch) => branch.action === "delete" ? `delete-branch ${branch.branch}` : `${branch.action}-branch ${branch.branch} ${branch.build ? "review-head" : branch.target}`),
+    ...plan.creations.map(({ role, branch, path }) => `create-worktree ${role.name} ${branch} ${path}`),
+    ...worktreeHooks("after"), ...plan.started.map((n) => `hook phase-started ${n}`));
+  for (const { role, model, phase, worktree, assignment, resources, newInstance } of plan.wakes) {
+    const field = (key, value) => `wake ${role.name} ${key}${value === undefined ? "" : ` ${value}`}`;
+    lines.push(`hook before-spawning-agent ${role.name}`, field("profile", role.profile), ...(role.lane ? [field("lane", role.lane)] : []), ...(model ? [field("model", model)] : []),
+      field("phase", role.phase), field("worktree", worktree), field("assignment", assignment), ...resources.map((name) => field("resource", name)), ...(newInstance ? [field("new")] : []),
+      `hook after-spawning-agent ${role.name}`, ...landing(role));
+  }
+  return lines;
+}
+
+// Carries out a plan's actions in order: worktree removals, branch deletions, creations, and moves, worktree creations,
+// each woken role's assignment, and the turn record. A failed action stops it, naming the action and its reason; the
+// actions before it stay done, and a plan computed again holds only what remains.
+async function applyPlan(ctx, plan) {
+  const { root, state, frontier: entries, record } = ctx;
+  const act = async (what, action) => {
+    try { return await action(); }
+    catch (error) { if (error instanceof RpError) fail(`next --apply: ${what}: ${error.message}`); throw error; }
+  };
+  for (const { path } of plan.removals) await act(`remove-worktree ${path}`, () => gitText(root, ["worktree", "remove", path]));
+  for (const { branch } of plan.branches.filter((each) => each.action === "delete")) await act(`delete-branch ${branch}`, () => gitText(root, ["branch", "--quiet", "-D", branch]));
+  for (const branch of plan.branches.filter((each) => each.action !== "delete"))
+    await act(`${branch.action}-branch ${branch.branch}`, () => {
+      const target = branch.build ? commitBuild(root, branch.build) : branch.target;
+      if (branch.action === "create") gitText(root, ["branch", "--quiet", branch.branch, target]);
+      else if (branch.worktree) gitText(branch.worktree, ["reset", "--quiet", "--keep", target]);
+      else gitText(root, ["update-ref", `refs/heads/${branch.branch}`, target, branch.from]);
+    });
+  for (const { path, branch, gitDir } of plan.creations)
+    await act(`create-worktree ${path}`, () => {
+      gitText(root, ["worktree", "add", "--quiet", path, branch]);
+      if (gitDirOf(path) !== gitDir) fail(`its private git directory is ${gitDirOf(path)}, not ${gitDir}`);
+    });
+  const turns = { ...record.turns };
+  for (const wake of plan.wakes)
+    await act(`write ${wake.assignment}`, () => {
+      const tip = requireCommit(wake.worktree, "HEAD", "HEAD");
+      const reviewHead = wake.role.profile === "reviewer" ? reviewHeadOf(root, tip) ?? fail(`${wake.worktree} is at ${tip}, which holds no review head`) : null;
+      for (const [path, contents] of assignmentOf(ctx, wake, tip, reviewHead)) {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, contents);
+      }
+      turns[wake.role.name] = { worktree: wake.worktree, branch: wake.branch, commit: tip, ...(reviewHead ? { "review-head": reviewHead } : {}) };
+    });
+  writeRecord(root, { turns, woke: phasesOf(plan.wakes), complete: completePhases(state, entries), reported: [] });
+}
+
+// Prints the step's plan, changing nothing (README.md § `next`); with `--apply`, also carries it out, unless it names
+// turns to land first.
+async function cmdNext(args) {
+  const ctx = await contextOf(args, "next");
+  const plan = await planOf(ctx);
+  process.stdout.write(`${planLines(plan, ctx.frontier).join("\n")}\n`);
+  if (args.apply && !plan.land.length) await applyPlan(ctx, plan);
+}
+
+// Lands a role's recorded turn (README.md § `land`): verifies it, brings its commits onto the pipeline branch, certifies
+// what it landed, and commits, then prints the phases its landing made complete. Every check comes before the pipeline
+// branch moves, so a stop lands nothing.
+async function cmdLand(args) {
+  const ctx = await contextOf(args, "land");
+  const { root, folder, pipelinesRoot, tip, record } = ctx;
+  const name = args.role ?? misused("land", "--role <role> is required");
+  const turn = record.turns[name] ?? fail(`land: no turn of ${name} is recorded: rp next --apply records each role it wakes`);
+  const { profile, lane } = parseRole(name);
+  const role = roleFor(profile, lane);
+  const branchTip = commitOf(root, `refs/heads/${turn.branch}`) ?? fail(`land: ${turn.worktree}: its branch ${turn.branch} does not exist`);
+  if (!commitOf(root, turn.commit) || !isAncestor(root, turn.commit, branchTip)) fail(`land: ${turn.worktree}: ${turn.branch} does not hold the turn commit ${turn.commit}`);
+  const bring = bringOf(ctx, role, branchTip, profile === "reviewer" ? turn["review-head"] : turn.commit);
+  if (bring.conflicts) fail(`land: ${turn.worktree}: landing ${turn.branch} conflicts on ${bring.conflicts.join(", ")}`);
+  const { pipeline, state, rejected } = await landingOf(ctx, bring);
+  if (rejected.length) fail(`land: ${turn.worktree}: the turn brings malformed files:\n${rejected.map(frontierText).join("\n")}`);
+
+  // The role's artifact or candidate is certified at its turn commit; each approval it brings at the review head its
+  // reviewer read, with the pipeline commit that holds it as its approved commit, unless that review head does not resolve or the
+  // commit's code is not its: that approval lands uncertified, any certification its path held removed.
+  const subjects = [], uncertified = [];
+  const artifact = artifactOf(role), doc = artifact && state.docs.get(artifact.path);
+  if (doc) subjects.push([doc, await certificationOf(root, folder, state.config, doc, turn.commit)]);
+  for (const thread of state.threads.filter((each) => isApproval(each) && bring.changed.has(each.path))) {
+    const read = commitOf(root, thread.messages.findLast((message) => message.author === thread.opener).commit);
+    if (read && !codeDiffers(root, read, bring.landed, pipelinesRoot)) subjects.push([thread, await certificationOf(root, folder, state.config, thread, read, bring.landed)]);
+    else if (pipeline.certification(thread.path)) uncertified.push(thread);
+  }
+  const certified = subjects.filter(([subject, bytes]) => !pipeline.certification(subject.path)?.equals(bytes));
+  const files = [...certified, ...uncertified.map((subject) => [subject, null])].map(([subject, bytes]) => [`${folder}/${certificationPath(subject.path)}`, bytes]);
+  const subject = [certified.length && `certify ${certified.map(([each]) => nounOf(each)).join(" and ")}`,
+    uncertified.length && `remove the certification of ${uncertified.map(nounOf).join(" and ")}`].filter(Boolean).join(", and ");
+  const landed = files.length ? commitFiles(root, bring.landed, files, landingMessage(ctx.state.config, `${subject[0].toUpperCase()}${subject.slice(1)}`)) : bring.landed;
+  // The pipeline as `rp check` will read it after the landing, read before the branch moves: the phases complete then
+  // that were not when the step was applied and no earlier landing of it reported.
+  const after = await inspect(root, folder, pipelinesRoot, landed);
+  const reported = completePhases(after.state, after.frontier).filter((n) => !record.complete.includes(n) && !record.reported.includes(n));
+  if (landed !== tip)
+    try { gitText(root, ["merge", "--ff-only", "--quiet", landed]); }
+    catch (error) { if (error instanceof RpError) fail(`land: ${root}: the pipeline branch cannot move to the landing: ${error.message}`); throw error; }
+  if (reported.length) writeRecord(root, { ...record, reported: [...record.reported, ...reported] });
+  process.stdout.write(reported.map((n) => `hook phase-completed ${n}\n`).join(""));
+}
+// Whether `ancestor` is an ancestor of `commit`, or the commit itself.
+function isAncestor(root, ancestor, commit) {
+  try { execFileSync("git", ["merge-base", "--is-ancestor", ancestor, commit], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); return true; }
+  catch (error) { if (error.status === 1) return false; fail(`git merge-base --is-ancestor ${ancestor} ${commit}: ${error.stderr?.toString().trim() || error.message}`); }
+}
+
+// --- role commands ------------------------------------------------------------------
+
+// A wrong use of `command`: what was wrong, then, on a line of its own, what to run instead.
+const wrong = (command, what, instead) => fail(`${command}: ${what}\n${instead}`);
+// A command line `command` does not take: what was wrong, then the command's form.
+const misused = (command, what) => wrong(command, what, `usage: node rp.mjs ${COMMANDS[command].usage}`);
+
+// What a role command acts on: the worktree `root` holding the pipeline folder it is given, the folder, its path `base`
+// in the working tree, and the role `--role` names, which the command acts as. It reads no other pipeline file.
+function seatOf(args, command) {
+  const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
+  const { folder } = pipelineFolder(rel, command);
+  const base = join(root, folder);
+  if (!lstatOf(base)?.isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
+  const name = args.role ?? misused(command, "missing --role <role>");
+  const role = parseRole(name) ?? misused(command, `--role names a role, <profile>[-<lane>]: ${name}`);
+  return { root, folder, base, role: roleFor(role.profile, role.lane) };
+}
+// The pipeline-relative path of the file a path option names against the process directory, or null when it lies
+// outside the pipeline folder at `base`.
+function inFolder(given, base) {
+  const { real } = realOf(given);
+  return real.startsWith(`${base}${sep}`) ? posix(relative(base, real)) : null;
+}
+
+// --- threads ------------------------------------------------------------------------
+
+// A thread header: its frontmatter, each value written in a form the frontmatter grammar reads back as the value; null
+// when no form is.
+function headerOf(values) {
+  const readsAs = (key, form) => { try { return frontmatterValue(key, form); } catch (error) { if (error instanceof Invalid) return null; throw error; } };
+  const lines = [];
+  for (const [key, value] of Object.entries(values)) {
+    const form = /[\r\n]/.test(value) ? undefined : [value, `"${value}"`, `'${value}'`].find((each) => readsAs(key, each) === value);
+    if (form === undefined) return null;
+    lines.push(`${key}: ${form}`);
+  }
+  return Buffer.from(`---\n${lines.join("\n")}\n---\n`);
+}
+// `contents` followed by a message: a blank line, its heading `## <author> — <commit>` on a line of its own, a blank
+// line, and its body as given.
+const withMessage = (contents, author, commit, body) =>
+  Buffer.concat([contents, Buffer.from(`${contents.at(-1) === 0x0a ? "" : "\n"}\n## ${author} — ${commit}\n\n`), body]);
+// A thread file's contents with its frontmatter's `status` set to `status`, every other byte as it was.
+function withStatus(contents, status) {
+  const { start, end } = splitFrontmatter(contents);
+  const line = contents.toString("latin1").slice(start, end).match(/(?:^|\n)status:([^\r\n]*)/);
+  const at = start + line.index + line[0].length - line[1].length;
+  return Buffer.concat([contents.subarray(0, at), Buffer.from(` ${status}`), contents.subarray(at + line[1].length)]);
+}
+
+// A message body: the bytes of the file `--body` names, against the process directory, or of standard input for `-`;
+// null when the command is given none. A body of whitespace alone is a wrong use.
+function bodyOf(args, command, required) {
+  if (args.body === null) return required ? misused(command, "missing --body <file | ->") : null;
+  let body;
+  try { body = readFileSync(args.body === "-" ? 0 : resolve(process.cwd(), args.body)); }
+  catch (error) { fail(`cannot read ${args.body === "-" ? "standard input" : args.body}: ${error.message}`); }
+  return /\S/.test(body.toString("utf8")) ? body : wrong(command, `the body ${args.body === "-" ? "on standard input" : `in ${args.body}`} is empty`,
+    "write the message on standard input, or in the file --body names, and run the command again");
+}
+// The thread file `--thread` names, by its pipeline-relative path, its contents in the working tree, and the thread the
+// file grammar reads in it. A path that names no thread file of the pipeline folder, or a file the grammar rejects, is
+// a wrong use.
+function threadOf(args, seat, command) {
+  const given = args.thread ?? misused(command, "missing --thread <thread file>");
+  const rel = inFolder(given, seat.base);
+  const contents = kindOf(rel ?? "")?.kind === "thread" ? readWorktree(seat.root, seat.folder, toward(rel)).files.get(rel) : undefined;
+  if (!contents) wrong(command, `no thread file of ${seat.folder}: ${given}`, `give --thread a thread file in ${seat.folder}/threads, as rp thread open prints it`);
+  try { return { rel, contents, thread: parseFile(rel, kindOf(rel), contents) }; }
+  catch (error) {
+    if (!(error instanceof Invalid)) throw error;
+    return wrong(command, `malformed ${rel}: ${error.message}`, "repair the file, check it with rp validate, and run the command again");
+  }
+}
+// The refusal of writing in a thread that is not open.
+function notOpen(command, rel, thread) {
+  if (thread.status === "escalated") wrong(command, `${rel} awaits the owner's answer`, "write nothing in it: it is closed answered with the owner's answer");
+  wrong(command, `${rel} is ${thread.status}, and a closed thread is history`, "open a new thread with rp thread open");
+}
+
+// Writes the thread file `contents` at the pipeline-relative path `rel`, with `flag`, and prints its path, once the file
+// grammar accepts it and reads in it `messages`, the messages the command means. `message`, the role's message when the
+// command writes one, must leave the file open to a message after it. Otherwise `command` is refused and nothing is
+// written.
+function writeThread(seat, command, rel, contents, messages, message, flag) {
+  const read = (bytes) => {
+    try { return parseFile(rel, kindOf(rel), bytes); }
+    catch (error) {
+      if (!(error instanceof Invalid)) throw error;
+      return wrong(command, `the thread grammar rejects what it would write: ${error.message}`, "change what it names, and run the command again");
+    }
+  };
+  const heading = (each) => `## ${each.author} — ${each.commit}`;
+  const found = read(contents).messages;
+  if (found.length !== messages.length || found.some((each, i) => heading(each) !== heading(messages[i]))) {
+    if (found.length > messages.length && messages.every((each, i) => heading(each) === heading(found[i])))
+      wrong(command, `the body holds a line the thread grammar reads as a message heading: ${heading(found[messages.length])}`, "change that line, and run the command again");
+    wrong(command, `the thread grammar does not read the message ${heading(messages.at(-1))}: fenced code an earlier message leaves open hides it`, "close that fenced code, check the file with rp validate, and run the command again");
+  }
+  if (message && read(withMessage(contents, message.author, message.commit, Buffer.alloc(0))).messages.length !== messages.length + 1)
+    wrong(command, "the body leaves fenced code open, which hides every message heading after it", "close it, and run the command again");
+  const path = join(seat.base, rel);
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, contents, { flag });
+  } catch (error) {
+    if (error.code === "EEXIST") wrong(command, `${rel} exists`, "run the command again, which takes the next number");
+    fail(`cannot write ${seat.folder}/${rel}: ${error.message}`);
+  }
+  process.stdout.write(`${path}\n`);
+}
+
+// Opens the thread whose header holds `values` with the seat's role's message, at `threads/<n>-<opener>-<recipient>-<about>.md`:
+// `<n>` is one past the highest number among the names `threads/<n>-….md` in the working tree, or 1 when there is none.
+function openThread(seat, command, values, body) {
+  const header = headerOf(values) ?? wrong(command, `--cites cannot be written as a frontmatter value: ${JSON.stringify(values.cites)}`, "cite the thread or the evidence by its path");
+  const threads = join(seat.base, "threads"), stat = lstatOf(threads);
+  if (stat && !stat.isDirectory()) fail(`cannot read ${seat.folder}/threads: a file where a folder belongs`);
+  const numbers = stat ? readdirSync(threads).map((name) => Number(name.match(/^([1-9]\d*)-.+\.md$/)?.[1] ?? 0)) : [];
+  const rel = `threads/${Math.max(0, ...numbers) + 1}-${values.opener}-${values.recipient}-${values.about}.md`;
+  const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
+  writeThread(seat, command, rel, withMessage(header, message.author, message.commit, body), [message], message, "wx");
+}
+// What to run instead of a thread about the intent.
+const ESCALATION = "raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->";
+// The refusal of a thread a production lane would open.
+const laneOpensNone = (command, role) => wrong(command, `${role.name} is a production lane, which opens no thread`, "state it in your candidate: the producer resolves where candidates differ when it consolidates them");
+
+// `thread open`: the role's thread to the owner of the artifact it questions, with its first message.
+function cmdThreadOpen(args) {
+  const command = "thread open", seat = seatOf(args, command), { role } = seat;
+  const about = args.about ?? misused(command, "missing --about <spec | design-doc | implementation>");
+  const artifacts = PHASES.map((phase) => phase.name);
+  if (isProductionLane(role.name)) laneOpensNone(command, role);
+  if (about === "intent") wrong(command, "the intent is the owner's", ESCALATION);
+  if (!artifacts.includes(about)) misused(command, `--about names spec, design-doc, or implementation: ${about}`);
+  if (OWNERS[about] === role.profile) {
+    // The artifacts the role consumes besides the intent: its phase's upstream ones.
+    const consumed = artifactOf(role).phase.upstream.filter((path) => path !== INTENT).map((path) => PHASES.find((phase) => phase.path === path).name);
+    if (!consumed.length) wrong(command, `${role.name} owns ${about}, and consumes the intent alone`, ESCALATION);
+    wrong(command, `${role.name} owns ${about}`, `open a thread about an artifact you consume: --about ${consumed.join(" or ")}`);
+  }
+  openThread(seat, command, { status: "open", opener: role.name, recipient: OWNERS[about], about }, bodyOf(args, command, true));
+}
+
+// `thread escalate`: the role's thread to owner about the intent, citing what the disagreement comes from.
+function cmdThreadEscalate(args) {
+  const command = "thread escalate", seat = seatOf(args, command), { role } = seat;
+  if (!args.cites?.trim()) misused(command, "--cites names the thread the disagreement comes from or the path of its evidence");
+  if (isProductionLane(role.name)) laneOpensNone(command, role);
+  openThread(seat, command, { status: "escalated", opener: role.name, recipient: OWNERS.intent, about: "intent", cites: args.cites }, bodyOf(args, command, true));
+}
+
+// `thread reply`: the role's message at the end of an open thread that awaits it.
+function cmdThreadReply(args) {
+  const command = "thread reply", seat = seatOf(args, command), { role } = seat;
+  const { rel, contents, thread } = threadOf(args, seat, command);
+  const body = bodyOf(args, command, true);
+  if (thread.status !== "open") notOpen(command, rel, thread);
+  if (awaitedRole(thread) !== role.name) wrong(command, `${rel} awaits ${awaitedRole(thread)}`, `only ${awaitedRole(thread)} writes in it now: check --role and --thread`);
+  const message = { author: role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
+  writeThread(seat, command, rel, withMessage(contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
+}
+
+// `thread close`: an open thread the role opened, closed with its closing status (§ closingStatus) or `withdrawn`, with the
+// role's closing message when given one. A review thread is approved without one only when its last message is the
+// reviewer's own and names the commit its worktree stands on, the commit the approval is certified at.
+function cmdThreadClose(args) {
+  const command = "thread close", seat = seatOf(args, command), { role } = seat;
+  const status = args.status ?? misused(command, "missing --status <approved | resolved | withdrawn>");
+  if (!["approved", "resolved", "withdrawn"].includes(status))
+    wrong(command, `--status is approved, resolved, or withdrawn: ${status}`, "close a review thread --status approved and any other --status resolved when its findings are resolved, or close it --status withdrawn when you drop them");
+  const { rel, contents, thread } = threadOf(args, seat, command);
+  const body = bodyOf(args, command, false);
+  if (thread.status !== "open") notOpen(command, rel, thread);
+  if (thread.opener !== role.name) wrong(command, `only its opener, ${thread.opener}, closes ${rel}`, "answer it with rp thread reply");
+  if (status !== "withdrawn" && status !== closingStatus(thread))
+    wrong(command, `${rel} closes ${closingStatus(thread)} when its findings are resolved, not ${status}`, `run the same command with --status ${closingStatus(thread)}`);
+  const commit = requireCommit(seat.root, "HEAD", "HEAD"), last = thread.messages.at(-1);
+  if (status === "approved" && !body && isReview(thread) && (last.author !== role.name || commitOf(seat.root, last.commit) !== commit))
+    wrong(command, `an approval names the commit it approves in its reviewer's last message, and the last message of ${rel} is ${last.author}'s at ${last.commit}`,
+      "run the same command with --body <file | ->: your closing message names the commit you approve");
+  const closed = withStatus(contents, status), message = body && { author: role.name, commit };
+  writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, body) : closed, message ? [...thread.messages, message] : thread.messages, message, "w");
+}
+
+// --- validate -----------------------------------------------------------------------
+
+// `validate`: the `malformed` line `rp check` prints for each of the role's files the file grammar rejects, as they stand
+// in the working tree, or a line saying they are accepted. With `--file`, that file alone, which must be one of them.
+function cmdValidate(args) {
+  const command = "validate", seat = seatOf(args, command), { role } = seat;
+  const only = args.file === null ? null : inFolder(args.file, seat.base);
+  if (args.file !== null && !only)
+    wrong(command, `${args.file} lies outside ${seat.folder}, as --file resolves against the process directory`, `give --file ${seat.base}/<its path in the pipeline folder>`);
+  if (args.file !== null && !writes(role, only))
+    wrong(command, `${args.file} is no file of ${role.name}, whose files are its artifact or candidate and the threads naming it`, "run rp validate without --file to check them all");
+  const pipeline = readWorktree(seat.root, seat.folder, only ? toward(only) : towardWrites(role));
+  if (only && !pipeline.files.has(only)) fail(`cannot read ${seat.folder}/${only}: missing`);
+  const rejected = parseFiles(pipeline, seat.folder, null, false).invalid;
+  const lines = rejected.map(({ path, reason }) => frontierText({ action: "malformed", target: path, reason }));
+  process.stdout.write(`${(lines.length ? lines : [`accepted: ${only ?? `every file of ${role.name}`}`]).join("\n")}\n`);
+}
+
+// --- cli --------------------------------------------------------------------------
+
+// Each command by name, `thread <subcommand>` for a thread command: what runs it, its form, and its options.
+const COMMANDS = {
+  check: { run: cmdCheck, usage: "check <pipeline folder> [--ref <commit>] [--json]", options: { "--ref": "value", "--json": "flag" } },
+  pipelines: { run: cmdPipelines, usage: "pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]", options: { "--base": "value", "--issue": "value", "--json": "flag" } },
+  next: { run: cmdNext, usage: "next <pipeline folder> [--apply]", options: { "--apply": "flag" } },
+  land: { run: cmdLand, usage: "land <pipeline folder> --role <role>", options: { "--role": "value" } },
+  "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->",
+    options: { "--role": "value", "--about": "value", "--body": "value" } },
+  "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->",
+    options: { "--role": "value", "--thread": "value", "--body": "value" } },
+  "thread close": { run: cmdThreadClose, usage: "thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]",
+    options: { "--role": "value", "--thread": "value", "--status": "value", "--body": "value" } },
+  "thread escalate": { run: cmdThreadEscalate, usage: "thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->",
+    options: { "--role": "value", "--cites": "value", "--body": "value" } },
+  validate: { run: cmdValidate, usage: "validate <pipeline folder> --role <role> [--file <path>]", options: { "--role": "value", "--file": "value" } },
 };
+const THREAD_COMMANDS = Object.keys(COMMANDS).filter((name) => name.startsWith("thread "));
 
-function parseArgs(command, argv) {
-  const args = { _: [], pin: [], reviewed: [], mirror: false, json: false, ref: null };
+export function parseArgs(command, argv) {
+  const { options } = COMMANDS[command];
+  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null, about: null, body: null, thread: null, status: null, cites: null, file: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    // Every option is validated here: an unknown one, a missing value, or a value out of range is an error.
-    const value = () => (i + 1 < argv.length ? argv[++i] : die(`${a} expects a value`));
-    if (a.startsWith("--") && !COMMAND_OPTIONS[command].has(a)) die(`${command}: option ${a} is not allowed`);
-    if (a.startsWith("--") && !["--pin", "--reviewed"].includes(a) && used.has(a)) die(`${command}: ${a} may appear only once`);
-    if (a.startsWith("--")) used.add(a);
-    if (a === "--pin") args.pin.push(value());
-    else if (a === "--reviewed") args.reviewed.push(value());
-    else if (a === "--mirror") args.mirror = true;
-    else if (a === "--json") args.json = true;
-    else if (a === "--ref") args.ref = value();
-    else if (a === "--review") args.review = value();
-    else if (a.startsWith("--")) die(`unknown option: ${a}`);
-    else args._.push(a);
+    const arg = argv[i];
+    if (!arg.startsWith("--")) { args._.push(arg); continue; }
+    const type = options[arg] ?? misused(command, `unknown option: ${arg}`);
+    if (used.has(arg)) misused(command, `${arg} may appear only once`);
+    used.add(arg);
+    const key = arg.slice(2);
+    if (type === "flag") { args[key] = true; continue; }
+    args[key] = i + 1 < argv.length ? argv[++i] : misused(command, `${arg} expects a value`);
   }
-  if (args._.length > 1) die(`${command}: unexpected positional argument: ${args._[1]}`);
+  if (args._.length > 1) misused(command, `unexpected argument: ${args._[1]}`);
   return args;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
-  const [cmd, ...rest] = process.argv.slice(2);
-  const help = () =>
-    process.stdout.write(
-      `rp — Radical Pipelines state tooling
+const USAGE = `rp — Radical Pipelines state tooling
 
 Usage:
-  node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror]
-  node rp.mjs check <pipeline-folder> [--ref <branch>] [--json]
-  node rp.mjs metrics <pipeline-folder> [--ref <branch>] [--json]
-  node rp.mjs diff <pipeline-folder> [--ref <branch>] [--review <phase review>]
+${Object.values(COMMANDS).map((command) => `  node rp.mjs ${command.usage}`).join("\n")}
 
-stamp writes frontmatter: pins, review pins (immutable), the lane derived from
-the path and run-config.md, --mirror copies of body declarations (verdict, brief, target,
-origin, outcome — completed | failed | blocked — prior-finding, a task's
-depends-on, a report's commit lines), a report's patch ids, and head — the diff base
-for artifact reviews and convergence. Identity is the first 12 hexadecimal characters of
-git's blob hash of every body byte: stamping never
-changes it. check reports the frontier: contradictions, owner escalations,
-then phases in order up to the target — converge artifacts, review waves, tasks,
-and completion. run-config.md supplies the workflow, target phase, base branch,
-and named lanes. Each named lane's fingerprint derives
-from its id, brief, materials, and after fields.
-metrics measures the success metrics: elapsed time, each later input and the
-waves its targets took to accept it, which phases ran autonomously, and whether
-the target was reached without human intervention.
-diff renders the net change from the base, or with --review that phase review's
-code delta.
-Spec: ../reference/run/state.md
-`,
-    );
-  if (!cmd || cmd === "--help" || cmd === "-h") {
-    help();
-  } else if (!COMMAND_OPTIONS[cmd]) {
-    die(`unknown command: ${cmd}`);
-  } else {
-    const args = parseArgs(cmd, rest);
-  switch (cmd) {
-    case "stamp":
-      try { await cmdStamp(args); }
-      catch (error) { die(error.message); }
-      break;
-    case "check":
-      try { await cmdCheck(args); }
-      catch (error) { die(error.message); }
-      break;
-    case "metrics":
-      try { await cmdMetrics(args); }
-      catch (error) { die(error.message); }
-      break;
-    case "diff":
-      try { await cmdDiff(args); }
-      catch (error) { die(error.message); }
-      break;
-  }
+--body <file> reads a message body from a file, and --body - from standard input; a quoted heredoc, <<'EOF',
+passes the body as written, its backticks and $ included.
+See README.md beside this script.
+`;
+
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  const [first, ...rest] = process.argv.slice(2);
+  try {
+    if (!first || first === "--help" || first === "-h") process.stdout.write(USAGE);
+    else if (first === "thread") {
+      const [subcommand, ...argv] = rest, command = `thread ${subcommand}`;
+      if (!THREAD_COMMANDS.includes(command))
+        fail(`thread: ${subcommand ? `unknown subcommand: ${subcommand}` : "missing subcommand"}\nusage:\n${THREAD_COMMANDS.map((name) => `  node rp.mjs ${COMMANDS[name].usage}`).join("\n")}`);
+      await COMMANDS[command].run(parseArgs(command, argv));
+    } else if (!Object.hasOwn(COMMANDS, first) || THREAD_COMMANDS.includes(first)) fail(`unknown command: ${first}\nrun node rp.mjs --help for the commands`);
+    else await COMMANDS[first].run(parseArgs(first, rest));
+  } catch (error) {
+    if (!(error instanceof RpError)) throw error;
+    process.stderr.write(`rp: ${error.message}\n`);
+    process.exitCode = 1;
   }
 }
