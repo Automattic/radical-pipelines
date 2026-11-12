@@ -1,6 +1,0 @@
-equal worktree-folder-root
-equal landing-commit
-equal commit-format
-equal guardrails
-equal resources
-equal agents (but the implementer model the owner asked for)
