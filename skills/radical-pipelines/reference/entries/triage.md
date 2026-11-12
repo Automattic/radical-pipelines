@@ -59,7 +59,6 @@ Prepare every route of a run before starting it. Address every worktree by absol
 1. Pipeline slug and branch per `../run/state.md` § Names.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
 3. `<pipelines folder root>/<pipeline slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `starts-from` records the starting branch and `re-attempts` the prior pipeline's slug.
-4. Commit it per the **Commit format** convention.
 
 Every branch and worktree you create here fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.
 
@@ -78,6 +77,8 @@ Every branch and worktree you create here fires its `before-`/`after-creating-br
 2. Re-synthesize `intent.md` (`intent-format.md`) and commit it.
 3. Continue.
 
+Last, record the pipeline configuration the run starts under (`../run/state.md` § Pipeline configuration) and commit `config.json` per the **Commit format** convention; a new pipeline commits it with its intent.
+
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Record the pipeline configuration the run starts under (`../run/state.md` § Pipeline configuration) and commit `config.json`. Then fire `run-started` and follow `../run/loop.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Then fire `run-started` and follow `../run/loop.md`.

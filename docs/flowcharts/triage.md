@@ -30,15 +30,16 @@ flowchart TD
     NEED -->|Yes| CONFIRM["In one message: each route and why; the text to write; the configuration — target, lanes, each profile's models, and its guardrails and resources; what a lane change does to the tree; and the open questions. Revise until the owner confirms"]
     NEED -->|No| PREP
     CONFIRM --> PREP{"Prepare every route of the run"}
-    PREP --> P1["New pipeline: slug and branch; branch at the start ref and worktree; synthesize and commit the intent"]
+    PREP --> P1["New pipeline: slug and branch; branch at the start ref and worktree; synthesize the intent"]
     PREP --> P2["Later input: the live branch and worktree, or a new branch for a merged pipeline; write and commit each input"]
     PREP --> P3["Continue: the pipeline's branch and worktree, created when missing"]
     PREP --> P4["Rescope: modify the issue; re-synthesize and commit the intent; continue"]
-    P1 --> RUN
-    P2 --> RUN
-    P3 --> RUN
-    P4 --> RUN
-    RUN["Record unconsumed work directions as later input; record the pipeline configuration from the conventions and commit config.json"] --> START["Fire run-started; run the loop"]
+    P1 --> CFG
+    P2 --> CFG
+    P3 --> CFG
+    P4 --> CFG
+    CFG["Record the pipeline configuration and commit config.json, a new pipeline's with its intent"] --> RUN
+    RUN["Record unconsumed work directions as later input"] --> START["Fire run-started; run the loop"]
     START --> NEXT{"Another run?"}
     NEXT -->|Yes| PREP
 ```
