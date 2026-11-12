@@ -10,7 +10,7 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
+The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. An answer may disagree with a finding: drop the finding when its reasons convince you, and hold it when they do not. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
 
 ```
 {{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread {{thread-arg}} --status approved --body - <<'EOF'

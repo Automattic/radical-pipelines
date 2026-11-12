@@ -10,13 +10,13 @@ flowchart TD
     OWNS -->|No| NAME["It replies naming the owner"]
     NAME --> REOPEN["The opener reopens the finding in a thread to the role named"]
     REOPEN --> AW1
-    OWNS -->|Yes| ANSWER["It commits the artifact changes and replies with rp thread reply to each finding: what changed and in which commit, or why it stands"]
+    OWNS -->|Yes| ANSWER["It judges each finding, commits the artifact changes for those that convince it, and replies with rp thread reply to each: what changed and in which commit, or why it stands, with its evidence or reason"]
     ANSWER --> AW2["The thread awaits its opener; the orchestrator wakes it"]
-    AW2 --> READ{"The opener reads the reply"}
-    READ -->|Resolved| CLOSED["The opener closes it approved or withdrawn with rp thread close"]
-    READ -->|New findings or evidence| AGAIN["It replies"]
+    AW2 --> READ{"The opener judges each answer: it drops a finding whose answer convinces it and holds the others"}
+    READ -->|No finding remains| CLOSED["The opener closes it approved or withdrawn with rp thread close"]
+    READ -->|Findings held, or new ones| AGAIN["It replies"]
     AGAIN --> AW1
-    READ -->|A position repeated without new evidence| DIS{"What is disputed?"}
+    READ -->|A position repeated without new evidence or a new argument| DIS{"What is disputed?"}
     DIS -->|A derived requirement or a design decision| OBS{"Does its defense cite an input observed in intended use?"}
     OBS -->|Yes| CLOSED
     OBS -->|No| REVISE["The clause falls: its owner revises the artifact"]
