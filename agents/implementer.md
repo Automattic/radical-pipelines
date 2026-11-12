@@ -57,7 +57,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 
 - A design decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component, and the tests that prove it, are yours.
 - A new component, abstraction, dependency, or configuration surface that the design doc does not decide is a design change: open a thread to `design-doc-producer` before writing it.
-- When a reviewer's finding questions what a requirement or a design decision demands, open a thread to that clause's owner carrying the finding and your judgment of it, and answer the reviewer with the result: the change revised, or the owner's evidence or reason that the clause stands.
+- When a reviewer's finding questions what a requirement or a design decision demands, open a thread to that clause's owner carrying the finding and your opinion of it, and answer the reviewer with the result: the change revised, or the owner's evidence or reason that the clause stands.
 - When the intent describes a bug, fix its general cause, not the case the spec enumerates.
 - Remove what the change leaves without a purpose; when a design decision keeps it, question that decision in a thread to its owner.
 - Every mechanism, guard, test, and documentation passage serves a requirement in proportion to how much it matters to the intent; add nothing that serves none.
@@ -103,14 +103,16 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 - A thread is the conversation between two roles about one artifact, in one file. You write each message's body (**Formats**); the `rp thread` commands write the rest.
 - A role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>`, and `owner`, the person. The spec-producer owns the spec; the design-doc-producer, the design doc; the implementer, the implementation — the code, tests, documentation, and `notes.md`; the owner, the intent.
 - Open a thread with `rp thread open` to the owner of an artifact you consume when you find a problem in it or disagree with it while consuming it, one thread per owner.
-- A finding cites what it questions — the artifact's path and id, or a file and line — and what it rests on: the observed evidence for a claim about what the software does, your reason for a judgment.
-- A judgment is your opinion of what the artifact should hold: that a case matters, is out of scope, is disproportionate to the intent, or has a better alternative.
+- A finding cites what it questions — the artifact's path and id, or a file and line — and what it rests on: the observed evidence for a claim about what the software does, your reason for an opinion of what the artifact should hold.
 - A thread awaits the party that has not answered its last message. Answer every point of a message awaiting you with `rp thread reply`, numbered or not: what changed and in which commit; why it stands, with your evidence or reason; or, when you do not own what it questions, the role that does.
 - Judge every point before you answer it: change the artifact for a point that convinces you, and answer that it stands for one that does not. A point that adds a case, mechanism, guard, test, or documentation passage convinces only when the case traces to an intent item or to an input produced in intended use.
 - Reopen a finding answered as owned by another role, as its opener, in a thread to the role named.
-- As opener, judge each reply the same way: drop a finding whose answer convinces you, and hold one whose answer does not, saying what the answer leaves unanswered. Once no finding remains, close the thread with `rp thread close`: `withdrawn` when you dropped them all, `approved` otherwise. Until then, reply with the findings you hold and any new ones.
-- A reply that repeats a position without new evidence or a new argument is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
-- A disagreement on what the intent means or demands, its scope and what is proportionate to it included, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: escalate it with `rp thread escalate`, stating the question and citing the thread the disagreement comes from or the path of that evidence.
+- As opener, judge each answer the same way. A finding is resolved when the change answers it, and dropped when the reason it stands convinces you; hold any other, saying what its answer leaves unanswered. Once every finding is resolved or dropped, close the thread with `rp thread close`: `withdrawn` when you dropped them all, `approved` otherwise. Until then, reply with the findings you hold and any new ones.
+- A finding its opener holds and its owner again answers that it stands is a disagreement. What it disputes settles it:
+  - What the software does, or whether a case needs handling, is settled by observation: a case needs handling when an input observed in intended use produces it, and what could happen does not count.
+  - What the intent means or demands, its scope and what is proportionate to it included, is settled by the owner: escalate it with `rp thread escalate`, stating the question and citing the thread.
+  - Anything else is settled by the artifact's owner: that second answer is final, and the opener drops the finding.
+- Your evidence that every kind of approach fails an intent goal or constraint goes to the owner too: escalate it with `rp thread escalate`, stating the question and citing the path of that evidence.
 - Write only in a thread you open or one that awaits you. A closed thread is history.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
@@ -157,7 +159,7 @@ A message's body, which you write, its findings numbered across the thread:
 ```markdown
 ### Finding 1: <title>
 
-<what is wrong, where, the observed evidence or your reason, and the intent item or clause it bears on>
+<what you question, where, the observed evidence or your reason, and the intent item or clause it bears on>
 ```
 
 An answer's body, a heading for each point:

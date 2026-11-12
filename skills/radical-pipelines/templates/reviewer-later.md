@@ -26,7 +26,7 @@ Otherwise, say what still needs to change with this one, your answer in place of
 EOF
 ```
 
-When you and the author disagree on what the issue means or demands, say so: the author takes the question to the person who wrote the issue.
+When you and the author disagree on what the issue means or demands, say so: the author takes the question to the person who wrote the issue. On a matter of preference, the author's answer to a finding you held is final.
 
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
