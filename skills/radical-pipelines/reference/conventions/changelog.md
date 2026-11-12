@@ -47,7 +47,7 @@ When renamed blocks give one profile different models, ask the owner which to ke
 
 ### Lanes
 
-- `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
+- `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Named `reviewer` lanes replace the implicit review lane instead of running beside it: when the project has any, offer to declare a `default` lane without a brief beside them. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
 - Remove every lane's `materials` and `after`.
 
 ## 5
