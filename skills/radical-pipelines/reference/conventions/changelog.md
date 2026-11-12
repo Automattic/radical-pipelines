@@ -10,9 +10,13 @@ Migrate from version 6.
 
 Rewrite the frontmatter as the line `conventions: 7`.
 
-### Entries
+### Tool files
 
-Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, its `subagents` its `subagent-model`, and a lane's brief the lane's text. Rewrite `Worktree folder root` as its value alone. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
+Move the content of each `.rp.<tool>.md` into `.rp.md`, stating the tool it applies to, and delete the file.
+
+### Agents
+
+Split `Agents` into `Lanes`, each profile's lanes and their briefs, and `Models`, each profile's and lane's model and subagent model, every text and value unchanged.
 
 ### Renames
 
@@ -23,7 +27,6 @@ Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and l
 
 ### Additions
 
-- `Landing commit format`, optional: the template of the commits `rp land` makes. Propose one that the commit format's examples follow, such as `{subject} (orchestrator)`.
 - `Variables`, optional: the placeholders the guardrail, resource, commit-format, and brief texts use (`setup.md` § Write).
 
 ## 6

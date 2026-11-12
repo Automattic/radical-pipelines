@@ -103,20 +103,32 @@ describe("frontier", () => {
       ["an empty base", () => configure({ base: " " }), /config\.json: base-branch: must be a revision/],
       ["the worktree folder root missing", () => writeConfig({ "worktree-folder-root": undefined }), /config\.json: worktree-folder-root: missing/],
       ["an unknown key", () => configure({ workflow: "autonomous" }), /config\.json: unexpected key: workflow/],
-      ["a lanes list", () => writeConfig({ lanes: [{ profile: "reviewer", id: "a" }] }), /config\.json: unexpected key: lanes/],
       ["owner directions given as null", () => configure({ "owner-directions": null }), /config\.json: owner-directions: must be a list of strings/],
       ["owner directions holding other than strings", () => configure({ "owner-directions": ["Keep it local.", 2] }), /config\.json: owner-directions: must be a list of strings/],
-      ["agents that are not an object", () => configure({ agents: [] }), /config\.json: agents: must be a JSON object/],
-      ["agents naming an unknown profile", () => configure({ agents: { implementor: {} } }), /agents: unexpected key: implementor/],
-      ["a profile with an unknown key", () => configure({ agents: { implementer: { subagent: "sonnet" } } }), /agents.implementer: unexpected key: subagent/],
-      ["a model that is no name", () => configure({ agents: { reviewer: { model: " " } } }), /agents.reviewer.model: must be a model name/],
-      ["implementer lanes", () => configure({ agents: { implementer: { lanes: { a: {} } } } }), /agents.implementer: unexpected key: lanes/],
-      ["an empty lanes object", () => configure({ agents: { reviewer: { lanes: {} } } }), /agents.reviewer.lanes: must name a lane/],
-      ["a lane with an empty brief", () => configure({ lanes: [{ profile: "reviewer", id: "a", brief: " " }] }), /agents.reviewer.lanes.a.brief: must be a text/],
-      ["a lane with a brief given as a list of lines", () => configure({ lanes: [{ profile: "spec-producer", id: "a", brief: ["One.", "Two."] }] }), /agents.spec-producer.lanes.a.brief: must be a text/],
-      ["a lane with a malformed id", () => configure({ lanes: [lane("reviewer", "A b")] }), /agents.reviewer.lanes."A b": a lane id must match/],
-      ["a lane with a subagent model that is no name", () => configure({ lanes: [{ profile: "reviewer", id: "a", "subagent-model": 5 }] }), /agents.reviewer.lanes.a.subagent-model: must be a model name/],
-      ["a lane with an unknown key", () => configure({ lanes: [{ profile: "reviewer", id: "a", profile_: "x" }] }), /agents.reviewer.lanes.a: unexpected key: profile_/],
+      ["lanes given as a list", () => writeConfig({ lanes: [{ profile: "reviewer", id: "a" }] }), /config\.json: lanes: must be a JSON object/],
+      ["lanes naming an unknown profile", () => configure({ lanes: [lane("implementor", "a")] }), /config\.json: lanes: unexpected key: implementor/],
+      ["implementer lanes", () => configure({ lanes: [lane("implementer", "a")] }), /config\.json: lanes: unexpected key: implementer/],
+      ["a profile's lanes given as a list", () => writeConfig({ lanes: { reviewer: ["a"] } }), /config\.json: lanes\.reviewer: must be a JSON object/],
+      ["a profile's lanes empty", () => writeConfig({ lanes: { reviewer: {} } }), /config\.json: lanes\.reviewer: must name a lane/],
+      ["a lane with a malformed id", () => configure({ lanes: [lane("reviewer", "A b")] }), /config\.json: lanes\.reviewer\."A b": a lane id must match/],
+      ["a lane given as its brief", () => writeConfig({ lanes: { reviewer: { a: "Look closer." } } }), /config\.json: lanes\.reviewer\.a: must be a JSON object/],
+      ["a lane with a model", () => configure({ lanes: [{ profile: "reviewer", id: "a", model: "opus" }] }), /config\.json: lanes\.reviewer\.a: unexpected key: model/],
+      ["a lane with an empty brief", () => configure({ lanes: [{ profile: "reviewer", id: "a", brief: " " }] }), /config\.json: lanes\.reviewer\.a\.brief: must be a text/],
+      ["a lane with a brief given as a list of lines", () => configure({ lanes: [{ profile: "spec-producer", id: "a", brief: ["One.", "Two."] }] }), /config\.json: lanes\.spec-producer\.a\.brief: must be a text/],
+      ["models given as a list", () => configure({ models: [] }), /config\.json: models: must be a JSON object/],
+      ["models for an unknown profile", () => configure({ models: { implementor: { model: "opus" } } }),
+        /config\.json: models\.implementor: names no profile and no lane the run has: spec-producer, design-doc-producer, implementer, reviewer, reviewer-default\n/],
+      ["models for a lane another profile declares", () => configure({ lanes: [lane("spec-producer", "a"), lane("reviewer", "b")], models: { "design-doc-producer-a": { model: "opus" } } }),
+        /config\.json: models\.design-doc-producer-a: names no profile and no lane the run has: spec-producer, design-doc-producer, implementer, reviewer, spec-producer-a, reviewer-b\n/],
+      ["models for a review lane not declared", () => configure({ lanes: [lane("reviewer", "a")], models: { "reviewer-gone": { model: "opus" } } }), /config\.json: models\.reviewer-gone: names no profile and no lane the run has/],
+      ["models for reviewer-default once a review lane is declared", () => configure({ lanes: [lane("reviewer", "a")], models: { "reviewer-default": { model: "opus" } } }),
+        /config\.json: models\.reviewer-default: names no profile and no lane the run has: spec-producer, design-doc-producer, implementer, reviewer, reviewer-a\n/],
+      ["models for a key outside the role grammar", () => configure({ models: { "Spec producer": { model: "opus" } } }), /config\.json: models\."Spec producer": names no profile and no lane the run has/],
+      ["a role's models given as a name", () => configure({ models: { implementer: "opus" } }), /config\.json: models\.implementer: must be a JSON object/],
+      ["a role's models with an unknown key", () => configure({ models: { implementer: { subagent: "sonnet" } } }), /config\.json: models\.implementer: unexpected key: subagent/],
+      ["a model that is no name", () => configure({ models: { reviewer: { model: " " } } }), /config\.json: models\.reviewer\.model: must be a model name/],
+      ["a lane's subagent model that is no name", () => configure({ lanes: [lane("reviewer", "a")], models: { "reviewer-a": { "subagent-model": 5 } } }),
+        /config\.json: models\.reviewer-a\.subagent-model: must be a model name/],
       ["the intent missing", () => remove(INTENT), /cannot read \.pipelines\/demo\/0-intent\/intent.md: missing/],
     ];
     for (const [name, mutate, message] of configurations)
@@ -129,20 +141,26 @@ describe("frontier", () => {
         assert.doesNotMatch(out.stderr, /format/);
       });
 
-    // [what, lanes, the frontier on a pipeline missing its spec, the frontier on a done implementation]
-    const briefless = [
-      ["production lanes without a brief", [{ profile: "spec-producer", id: "a" }, lane("spec-producer", "b")], ["produce spec a", "produce spec b"], ["review default"]],
-      ["review lanes without a brief", [{ profile: "reviewer", id: "a" }, lane("reviewer", "b")], ["produce spec"], ["review a", "review b"]],
-      ["default declared alongside another review lane", [{ profile: "reviewer", id: "default" }, lane("reviewer", "b")], ["produce spec"], ["review default", "review b"]],
-      ["default declared with a brief", [lane("reviewer", "default")], ["produce spec"], ["review default"]],
-      ["lanes with models and a brief of several lines", [{ profile: "spec-producer", id: "a", brief: "One.\n\nTwo.", model: "opus", "subagent-model": "sonnet" }, { profile: "reviewer", id: "b", model: "openai/gpt-6-astra#high" }],
-        ["produce spec a"], ["review b"]],
+    // [what, the lanes and models, the frontier on a pipeline missing its spec, the frontier on a done implementation]
+    const accepted = [
+      ["production lanes without a brief", { lanes: [{ profile: "spec-producer", id: "a" }, lane("spec-producer", "b")] }, ["produce spec a", "produce spec b"], ["review default"]],
+      ["review lanes without a brief", { lanes: [{ profile: "reviewer", id: "a" }, lane("reviewer", "b")] }, ["produce spec"], ["review a", "review b"]],
+      ["default declared alongside another review lane", { lanes: [{ profile: "reviewer", id: "default" }, lane("reviewer", "b")] }, ["produce spec"], ["review default", "review b"]],
+      ["default declared with a brief", { lanes: [lane("reviewer", "default")] }, ["produce spec"], ["review default"]],
+      ["a lane with a brief of several lines", { lanes: [{ profile: "spec-producer", id: "a", brief: "One.\n\nTwo." }] }, ["produce spec a"], ["review default"]],
+      ["models for every profile and every lane's role, each with either key or none", {
+        lanes: [lane("spec-producer", "a"), lane("design-doc-producer", "x"), lane("reviewer", "b")],
+        models: { "spec-producer": { model: "opus", "subagent-model": "sonnet" }, "design-doc-producer": { model: "opus" }, implementer: { "subagent-model": "sonnet" }, reviewer: {},
+          "spec-producer-a": { model: "openai/gpt-6-astra#high" }, "design-doc-producer-x": {}, "reviewer-b": { model: "astra", "subagent-model": "luna" } },
+      }, ["produce spec a"], ["review b"]],
+      ["models for reviewer-default while no review lane is declared", { models: { "reviewer-default": { model: "opus" } } }, ["produce spec"], ["review default"]],
+      ["models for reviewer-default when a lane declares default", { lanes: [lane("reviewer", "default")], models: { "reviewer-default": { model: "opus" } } }, ["produce spec"], ["review default"]],
     ];
-    for (const [what, lanes, missingSpec, done] of briefless)
+    for (const [what, config, missingSpec, done] of accepted)
       it(`accepts ${what}`, () => {
-        pipeline(0, { lanes });
+        pipeline(0, config);
         assert.deepEqual(frontier(), missingSpec);
-        pipeline(3, { lanes });
+        pipeline(3, config);
         assert.deepEqual(frontier(), done);
       });
 

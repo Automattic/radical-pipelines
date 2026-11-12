@@ -303,8 +303,8 @@ function hashWorktree(root, folder, paths) {
 
 // --- pipeline files -------------------------------------------------------------
 
-// The pipeline configuration, and the file beside it that overrides it on one clone, which Git never holds.
-const CONFIG = "config.json", LOCAL_CONFIG = "config.local.json";
+// The pipeline configuration.
+const CONFIG = "config.json";
 const INTENT = "0-intent/intent.md";
 // The phases with an artifact, in order: its artifact's path, the name later inputs, threads, and the frontier give it,
 // the noun a commit names it by, its owner, and its upstream artifacts.
@@ -436,9 +436,9 @@ async function readCommit(root, commit, folder, reads = null) {
 
 // --- parsing ----------------------------------------------------------------------
 
-// The data of a JSON file `rp` reads: the pipeline configuration, config.local.json, a certification, and the turn
-// record. Each check names what is malformed through `malformed(reason)`, which throws; `at` names the entry, as
-// `<key>.<name>…`, or is empty for the whole file.
+// The data of a JSON file `rp` reads: the pipeline configuration, a certification, and the turn record. Each check
+// names what is malformed through `malformed(reason)`, which throws; `at` names the entry, as `<key>.<name>…`, or is
+// empty for the whole file.
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const entryName = (at, name) => `${at}.${/^[a-z0-9][a-z0-9-]*$/.test(name) ? name : JSON.stringify(name)}`;
 // A JSON object, holding only `keys` when given.
@@ -468,31 +468,33 @@ function modelAt(value, at, malformed) {
 // The profiles a role is an instance of.
 export const PROFILES = ["spec-producer", "design-doc-producer", "implementer", "reviewer"];
 const MODELS = ["model", "subagent-model"];
-// The agents of a pipeline configuration: by profile, its model, its subagent model, and its lanes, by lane id, each holding those of
-// `laneKeys`, its brief, model, and subagent model, it has; every member optional.
-export function parseAgents(value, malformed, laneKeys = ["brief", ...MODELS]) {
-  const agents = {};
-  for (const [profile, entry] of Object.entries(objectAt(value, "agents", malformed, PROFILES))) {
-    const at = `agents.${profile}`;
-    objectAt(entry, at, malformed, [...MODELS, ...(LANE_PROFILES.includes(profile) ? ["lanes"] : [])]);
-    const parsed = agents[profile] = {};
-    for (const key of MODELS) if (key in entry) parsed[key] = modelAt(entry[key], `${at}.${key}`, malformed);
-    if (!("lanes" in entry)) continue;
-    if (!Object.keys(objectAt(entry.lanes, `${at}.lanes`, malformed)).length) malformed(`${at}.lanes: must name a lane`);
-    parsed.lanes = {};
-    for (const [id, lane] of Object.entries(entry.lanes)) {
-      const laneAt = entryName(`${at}.lanes`, id);
+// config.json's `lanes`: by `spec-producer`, `design-doc-producer`, or `reviewer`, the profile's lanes by lane id, each
+// holding its brief when it has one. The lanes, each `{ profile, id[, brief] }`.
+function parseLanes(value, malformed) {
+  return Object.entries(objectAt(value, "lanes", malformed, LANE_PROFILES)).flatMap(([profile, lanes]) => {
+    const at = `lanes.${profile}`;
+    if (!Object.keys(objectAt(lanes, at, malformed)).length) malformed(`${at}: must name a lane`);
+    return Object.entries(lanes).map(([id, lane]) => {
+      const laneAt = entryName(at, id);
       if (!LANE_ID.test(id)) malformed(`${laneAt}: a lane id must match ${LANE_ID.source}`);
-      objectAt(lane, laneAt, malformed, laneKeys);
-      parsed.lanes[id] = {};
-      if ("brief" in lane) parsed.lanes[id].brief = textAt(lane.brief, `${laneAt}.brief`, malformed);
-      for (const key of MODELS) if (key in lane) parsed.lanes[id][key] = modelAt(lane[key], `${laneAt}.${key}`, malformed);
-    }
-  }
-  return agents;
+      objectAt(lane, laneAt, malformed, ["brief"]);
+      return { profile, id, ...("brief" in lane ? { brief: textAt(lane.brief, `${laneAt}.brief`, malformed) } : {}) };
+    });
+  });
 }
-// The lanes of a run's agents, each `{ profile, id, ...members }`.
-const lanesOf = (agents) => Object.entries(agents).flatMap(([profile, entry]) => Object.entries(entry.lanes ?? {}).map(([id, lane]) => ({ profile, id, ...lane })));
+// config.json's `models`: by profile, or by the role name of a lane among the roles of the pipeline configuration
+// `config` (§ rolesOf), the model and subagent model it gives, each optional.
+function parseModels(value, config, malformed) {
+  const keys = [...new Set([...PROFILES, ...rolesOf(config).map((role) => role.name)])];
+  const models = {};
+  for (const [key, entry] of Object.entries(objectAt(value, "models", malformed))) {
+    const at = entryName("models", key);
+    if (!keys.includes(key)) malformed(`${at}: names no profile and no lane the run has: ${keys.join(", ")}`);
+    objectAt(entry, at, malformed, MODELS);
+    models[key] = Object.fromEntries(MODELS.filter((field) => field in entry).map((field) => [field, modelAt(entry[field], `${at}.${field}`, malformed)]));
+  }
+  return models;
+}
 
 // The pipeline facts a placeholder may name, each valued for a role and its turn.
 export const FACTS = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "merge-base"];
@@ -501,7 +503,7 @@ const PLACEHOLDER = /(?<!\{)\{([a-z][a-z0-9-]*)\}(?!\})/g;
 const VARIABLE = /^[a-z][a-z0-9-]*$/;
 // The guardrails and the resources, and the label an assignment gives each one's text.
 const CARRIED = [["guardrails", "rule"], ["resources", "resource"]];
-// The conventions the pipeline configuration records, which config.local.json overrides by name.
+// The conventions the pipeline configuration records.
 const CONVENTIONS = ["worktree-folder-root", "landing-commit-format", "commit-format", ...CARRIED.map(([key]) => key), "variables"];
 
 // The conventions `data` holds, each one it holds: the worktree folder root, the landing commit format, the commit
@@ -553,9 +555,9 @@ function conventionsOf(data, malformed) {
 }
 
 // config.json: the target phase, the base branch, and the worktree folder root, each required; every other convention
-// it records, the agents, and the owner's directions, each optional. Nothing reads the directions.
+// it records, the lanes, the models, and the owner's directions, each optional. Nothing reads the directions.
 export function parseConfig(bytes, malformed) {
-  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base-branch", ...CONVENTIONS, "agents", "owner-directions"]);
+  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base-branch", ...CONVENTIONS, "lanes", "models", "owner-directions"]);
   for (const key of ["target-phase", "base-branch", "worktree-folder-root"]) if (!(key in data)) malformed(`${key}: missing`);
   const targetPhase = data["target-phase"];
   if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) malformed("target-phase: must be an integer from 1 to 4");
@@ -563,44 +565,16 @@ export function parseConfig(bytes, malformed) {
   if (typeof baseBranch !== "string" || !baseBranch.trim()) malformed("base-branch: must be a revision, a non-empty string");
   const directions = data["owner-directions"];
   if ("owner-directions" in data && !(Array.isArray(directions) && directions.every((direction) => typeof direction === "string"))) malformed("owner-directions: must be a list of strings");
-  const agents = "agents" in data ? parseAgents(data.agents, malformed) : {};
-  return { targetPhase, baseBranch, agents, lanes: lanesOf(agents), landingCommitFormat: null, commitFormat: null, guardrails: {}, resources: {}, variables: {},
-    ...conventionsOf(data, malformed) };
+  const config = { targetPhase, baseBranch, lanes: "lanes" in data ? parseLanes(data.lanes, malformed) : [], landingCommitFormat: null, commitFormat: null,
+    guardrails: {}, resources: {}, variables: {}, ...conventionsOf(data, malformed) };
+  config.models = "models" in data ? parseModels(data.models, config, malformed) : {};
+  return config;
 }
 
-// config.local.json, over the pipeline configuration `config`: the conventions it overrides, and in `agents` the models
-// and subagent models it overrides, for a profile or for a lane of `config`'s roles (§ rolesOf); each key optional.
-export function parseLocal(bytes, config, malformed) {
-  const data = jsonObjectOf(bytes, malformed, [...CONVENTIONS, "agents"]);
-  const local = conventionsOf(data, malformed);
-  if (!("agents" in data)) return local;
-  local.agents = parseAgents(data.agents, malformed, MODELS);
-  for (const [profile, entry] of Object.entries(local.agents))
-    for (const id of Object.keys(entry.lanes ?? {}))
-      if (!rolesOf(config).some((role) => role.profile === profile && role.lane === id)) malformed(`${entryName(`agents.${profile}.lanes`, id)}: a lane the run does not have`);
-  return local;
-}
-
-// The run `next` and `land` take: the pipeline configuration `config` with config.local.json's `local` over it by
-// name. Each of its worktree folder root, landing commit format, and commit format replaces the committed one; each guardrail,
-// resource, and variable replaces the committed one of its name or is added; each model and subagent model replaces
-// the committed one of its profile or lane.
-function runViewOf(config, local) {
-  const agents = structuredClone(config.agents);
-  for (const [profile, { lanes = {}, ...models }] of Object.entries(local.agents ?? {})) {
-    agents[profile] = { ...agents[profile], ...models };
-    for (const [id, overrides] of Object.entries(lanes)) {
-      const own = agents[profile].lanes ??= {};
-      own[id] = { ...own[id], ...overrides };
-    }
-  }
-  return { ...config, ...local, ...Object.fromEntries(["guardrails", "resources", "variables"].map((key) => [key, { ...config[key], ...local[key] }])), agents, lanes: lanesOf(agents) };
-}
-
-// A role's models in the run: its lane's model and subagent model, else its profile's; null where neither names one.
-export function modelsOf(config, profile, laneId) {
-  const entry = config.agents[profile] ?? {}, lane = laneId ? entry.lanes?.[laneId] ?? {} : {};
-  return Object.fromEntries(MODELS.map((key) => [key, lane[key] ?? entry[key] ?? null]));
+// A role's models: for each of its model and subagent model, its role name's entry in `models`, else its profile's; null
+// where neither gives one.
+export function modelsOf(config, role) {
+  return Object.fromEntries(MODELS.map((key) => [key, config.models[role.name]?.[key] ?? config.models[role.profile]?.[key] ?? null]));
 }
 
 // The production lanes configured for a phase.
@@ -780,13 +754,6 @@ export function readState(pipeline, where) {
   return parseFiles(pipeline, where, config, true);
 }
 
-// Stops when Git tracks the pipeline folder's config.local.json: when the tree of `commit` holds it, or, reading the
-// working tree, the index or the tip's tree does. `where` names the pipeline folder.
-function requireUntracked(root, folder, commit, where) {
-  const holds = (name) => { try { execFileSync("git", ["cat-file", "-e", name], { cwd: root, stdio: "ignore" }); return true; } catch { return false; } };
-  if ((commit ? [commit] : ["", "HEAD"]).some((tree) => holds(`${tree}:${folder}/${LOCAL_CONFIG}`))) fail(`${where}/${LOCAL_CONFIG}: tracked by Git`);
-}
-
 // --- state ------------------------------------------------------------------------
 
 // The required inputs of what is certified. An artifact: its phase's upstream artifacts and every later input that
@@ -942,11 +909,10 @@ export function frontier(state) {
 const frontierText = (entry) => `${[entry.action, entry.target, entry.lane].filter(Boolean).join(" ")}${entry.reason ? `: ${entry.reason}` : ""}`;
 
 // A pipeline as `check` reads it, from the working tree or the commit `ref`: its files, its state, the tip, the merge-base
-// at target phase 4, and the frontier. A config.local.json Git tracks there stops it first.
+// at target phase 4, and the frontier.
 async function inspect(root, folder, pipelinesRoot, ref) {
   const tip = ref ? requireCommit(root, ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
   const where = ref ? `${ref}:${folder}` : folder;
-  requireUntracked(root, folder, ref ? tip : null, where);
   const pipeline = ref ? await readCommit(root, tip, folder) : readWorktree(root, folder);
   const state = readState(pipeline, where);
   const mergeBase = state.config.targetPhase === REVIEW_PHASE ? mergeBaseOf(root, state.config.baseBranch, tip) : null;
@@ -1157,11 +1123,12 @@ function unlandedOf(root, tip, laneTip) {
 
 // --- conventions --------------------------------------------------------------------
 
-// The guardrails or resources of the run `run` a profile's assignment carries, each as `### <name>` over
-// `- <field>: <text>`, with the text's later lines indented under its first and its placeholders expanded by `expand`.
-function carriedOf(run, key, profile, expand) {
+// The guardrails or resources of the pipeline configuration `config` a profile's assignment carries, each as
+// `### <name>` over `- <field>: <text>`, with the text's later lines indented under its first and its placeholders
+// expanded by `expand`.
+function carriedOf(config, key, profile, expand) {
   const field = CARRIED.find(([name]) => name === key)[1];
-  return Object.entries(run[key]).filter(([, entry]) => entry.profiles.includes(profile))
+  return Object.entries(config[key]).filter(([, entry]) => entry.profiles.includes(profile))
     .map(([name, entry]) => `### ${name}\n\n- ${field}: ${expand(entry.text).split("\n").map((line, i) => i && line ? `  ${line}` : line).join("\n")}`);
 }
 
@@ -1309,34 +1276,34 @@ function changedSince(root, folder, tip, input, pinned) {
 // `tip` is the turn commit, and `reviewHead` a reviewer's review head. Everything is read and checked before anything is
 // returned.
 function assignmentOf(ctx, wake, tip, reviewHead) {
-  const { root, folder, pipelinesRoot, state, run } = ctx;
+  const { root, folder, pipelinesRoot, state } = ctx, { config } = state;
   const { role, turn, worktree, branch, gitDir } = wake;
   const at = (path) => join(worktree, folder, path);
 
   // The carried texts, expanded for the role. Its merge-base is that of its turn commit with the base branch.
-  const facts = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, "merge-base": mergeBaseOf(root, state.config.baseBranch, tip) };
-  const variables = Object.fromEntries(Object.entries(run.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => facts[fact])]));
+  const facts = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, "merge-base": mergeBaseOf(root, config.baseBranch, tip) };
+  const variables = Object.fromEntries(Object.entries(config.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => facts[fact])]));
   const keeps = {};
   const expand = (key) => (text) => expandText(text, { ...facts, ...variables }, keeps[key] ??= new Set());
-  const laneEntry = role.lane ? run.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
+  const laneEntry = role.lane ? config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
   const carried = {
-    guardrails: carriedOf(run, "guardrails", role.profile, expand("guardrails")),
-    resources: carriedOf(run, "resources", role.profile, expand("resources")),
-    "commit-format": run.commitFormat === null ? "An imperative subject line." : expand("commit-format")(run.commitFormat),
+    guardrails: carriedOf(config, "guardrails", role.profile, expand("guardrails")),
+    resources: carriedOf(config, "resources", role.profile, expand("resources")),
+    "commit-format": config.commitFormat === null ? "An imperative subject line." : expand("commit-format")(config.commitFormat),
     brief: laneEntry?.brief ? expand("brief")(laneEntry.brief) : "",
   };
   // A reviewer's repair assignment carries the commit format alone; every other assignment, every carried text.
   const artifact = artifactOf(role);
   const repair = !artifact && turn.malformed.length > 0;
   const carries = repair ? ["commit-format"] : Object.keys(carried);
-  const models = modelsOf(run, role.profile, role.lane);
+  const models = modelsOf(config, role);
   const laterInputs = [...state.docs.values()].filter((doc) => doc.kind === "later" && (!artifact || doc.targets.includes(artifact.phase.name))).map((doc) => at(doc.path));
   const values = {
     ...facts, ...carried,
     facts: carries.some((key) => keeps[key]?.size) ? FACTS.map((name) => `- \`{${name}}\`: ${facts[name]}`.trimEnd()) : [],
     "turn-commit": tip,
     rp: RP,
-    "base-branch": state.config.baseBranch,
+    "base-branch": config.baseBranch,
     "subagent-model": models["subagent-model"] ?? "",
     "pipeline-folder": at(""), "pipeline-folder-arg": shellWord(at("")), intent: at(INTENT), spec: at(PHASES[0].path), "design-doc": at(PHASES[1].path),
     "later-inputs": laterInputs,
@@ -1352,7 +1319,7 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       ...Object.fromEntries(["produce", "respond", "consolidate", "implement"].map((mode) => [mode, turn.mode.toLowerCase() === mode])),
       "supporting-folder": `${at(artifact.path.replace(/\.md$/, ""))}/`,
       "changed-inputs": turn.changed.map((input) => `${at(input)} — changed since ${changedSince(root, folder, tip, input, pins.get(input))}`),
-      "lane-candidates": productionLanes(state.config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}`),
+      "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}`),
       threads: turn.threads.map(at),
       "write-to": at(artifact.path),
     });
@@ -1415,9 +1382,10 @@ function writeRecord(root, record) {
 
 // --- landing ------------------------------------------------------------------------
 
-// The message of a commit `rp land` makes: its subject in the run's landing commit format, or the subject alone.
-const landingMessage = (run, subject) => run.landingCommitFormat === null ? subject
-  : run.landingCommitFormat.replace(PLACEHOLDER, (placeholder, name) => name === "subject" ? subject : placeholder);
+// The message of a commit `rp land` makes: its subject in the landing commit format of the pipeline configuration
+// `config`, or the subject alone.
+const landingMessage = (config, subject) => config.landingCommitFormat === null ? subject
+  : config.landingCommitFormat.replace(PLACEHOLDER, (placeholder, name) => name === "subject" ? subject : placeholder);
 // What a commit names a certified file by.
 const nounOf = (subject) => subject.kind === "thread" ? `review lane ${parseRole(subject.opener).lane} approval`
   : subject.kind === "candidate" ? `${subject.phase.noun} lane ${subject.lane} candidate` : subject.phase.noun;
@@ -1459,7 +1427,7 @@ function commitFiles(root, parent, files, message) {
 // review head `since` are picked one by one, and none of the commits that built the review head. A role in the pipeline worktree
 // brings nothing: its commits after its turn commit `since` are on the tip already.
 function bringOf(ctx, role, branchTip, since) {
-  const { root, folder, tip, run } = ctx;
+  const { root, folder, tip, state } = ctx;
   if (!role.lane) return { landed: tip, changed: changedFiles(root, folder, since, tip) };
   const unlanded = new Set(unlandedOf(root, tip, branchTip));
   if (!unlanded.size) return { landed: tip, changed: new Set() };
@@ -1474,14 +1442,13 @@ function bringOf(ctx, role, branchTip, since) {
   }
   const { tree, conflicts } = mergeTree(root, tip, branchTip);
   if (conflicts.length) return { conflicts };
-  const message = landingMessage(run, `Merge ${artifactOf(role).phase.noun} lane ${role.lane}`);
+  const message = landingMessage(state.config, `Merge ${artifactOf(role).phase.noun} lane ${role.lane}`);
   return { landed: gitText(root, ["commit-tree", tree, "-p", tip, "-p", branchTip, "-m", message]), changed: changedFiles(root, folder, gitText(root, ["merge-base", tip, branchTip]), branchTip) };
 }
 // The pipeline as the pipeline branch would hold it after `bring`, and the malformed files it brings there, as frontier
 // entries.
 async function landingOf(ctx, bring) {
   const where = `${bring.landed}:${ctx.folder}`;
-  requireUntracked(ctx.root, ctx.folder, bring.landed, where);
   const pipeline = await readCommit(ctx.root, bring.landed, ctx.folder);
   const state = readState(pipeline, where);
   return { pipeline, state, rejected: state.invalid.filter((entry) => bring.changed.has(entry.path)).map(({ path, reason }) => ({ action: "malformed", target: path, reason })) };
@@ -1490,8 +1457,8 @@ async function landingOf(ctx, bring) {
 // --- next and land ------------------------------------------------------------------
 
 // What `next` and `land` read: the pipeline worktree `root`, its pipeline branch, the pipeline as `check` reads it from
-// the working tree, the run they take (§ runViewOf), the main checkout's root, against which a relative worktree folder
-// root resolves, and the turn record.
+// the working tree, the main checkout's root, against which a relative worktree folder root resolves, and the turn
+// record.
 async function contextOf(args, command) {
   const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
   const { folder, pipelinesRoot } = pipelineFolder(rel, command);
@@ -1499,15 +1466,7 @@ async function contextOf(args, command) {
   const pipelineBranch = pipelineBranchOf(root, command);
   const record = readRecord(root);
   const inspected = await inspect(root, folder, pipelinesRoot, null);
-  const run = runViewOf(inspected.state.config, readLocal(root, folder, inspected.state.config));
-  return { root, folder, pipelinesRoot, main: realpathSync(main), run, pipelineBranch, record, ...inspected };
-}
-// The pipeline worktree's config.local.json, parsed over the pipeline configuration `config`; none when it is absent.
-function readLocal(root, folder, config) {
-  const path = `${folder}/${LOCAL_CONFIG}`, stat = lstatOf(join(root, path));
-  if (!stat) return {};
-  if (!stat.isFile()) fail(`cannot read ${path}: not a regular file`);
-  return parseLocal(readFileSync(join(root, path)), config, (reason) => fail(`${path}: ${reason}`));
+  return { root, folder, pipelinesRoot, main: realpathSync(main), pipelineBranch, record, ...inspected };
 }
 // A worktree's private git directory, which holds its assignment folder, `rp/`.
 const gitDirOf = (worktree) => realpathSync(gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-dir"]));
@@ -1524,11 +1483,11 @@ function newGitDirOf(root, path, reserved) {
 // The step's plan (README.md § `next`): a lane's turn that ended without landing, to land first; or the worktrees,
 // branches, terminations, assignments, and woken roles the frontier dispatches, a lane under repair's beside them.
 async function planOf(ctx) {
-  const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, run, main } = ctx;
+  const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, main } = ctx, { config } = state;
   const plan = { land: [], fix: [], terminate: [], removals: [], branches: [], creations: [], wakes: [], started: [] };
   const worktrees = worktreesOf(root);
   const worktreeOf = (branch) => { const path = worktrees.find((each) => each.branch === branch)?.path; return path ? realpathSync(path) : null; };
-  const roles = rolesOf(state.config);
+  const roles = rolesOf(config);
 
   // A lane holding unlanded commits is never moved back, rebuilt, or removed: its turn lands, or its author repairs
   // what its landing would reject.
@@ -1552,7 +1511,7 @@ async function planOf(ctx) {
     if (!role.lane) return { worktree: root, branch: pipelineBranch, gitDir: gitDirOf(root) };
     const branch = branchOfRole(pipelineBranch, role), laneTip = commitOf(root, `refs/heads/${branch}`), worktree = worktreeOf(branch);
     if (!inPlace && role.profile === "reviewer") {
-      const build = await reviewBuildOf(root, folder, pipelinesRoot, tip, ctx.mergeBase ?? mergeBaseOf(root, state.config.baseBranch, tip), role.lane);
+      const build = await reviewBuildOf(root, folder, pipelinesRoot, tip, ctx.mergeBase ?? mergeBaseOf(root, config.baseBranch, tip), role.lane);
       if (!laneTip) plan.branches.push({ branch, action: "create", build });
       else if (!isBuilt(root, laneTip, build)) plan.branches.push({ branch, action: "move", build, worktree, from: laneTip });
     } else if (!inPlace) {
@@ -1560,15 +1519,15 @@ async function planOf(ctx) {
       else if (laneTip !== tip) plan.branches.push({ branch, action: "move", target: tip, worktree, from: laneTip });
     }
     if (worktree) return { worktree, branch, gitDir: gitDirOf(worktree) };
-    const path = join(resolve(main, run.worktreeFolderRoot), branch), gitDir = newGitDirOf(root, path, reserved);
+    const path = join(resolve(main, config.worktreeFolderRoot), branch), gitDir = newGitDirOf(root, path, reserved);
     plan.creations.push({ role, branch, path, gitDir });
     return { worktree: path, branch, gitDir };
   };
   const wake = async (role, turn, rejected = null) => {
     const place = await seat(role, Boolean(rejected));
     const repair = !artifactOf(role) && turn.malformed.length > 0;
-    plan.wakes.push({ role, turn, rejected, ...place, assignment: join(place.gitDir, "rp", `${role.profile}.md`), model: modelsOf(run, role.profile, role.lane).model,
-      resources: repair ? [] : Object.entries(run.resources).filter(([, entry]) => entry.profiles.includes(role.profile)).map(([name]) => name), newInstance: turn.mode === "Consolidate" });
+    plan.wakes.push({ role, turn, rejected, ...place, assignment: join(place.gitDir, "rp", `${role.profile}.md`), model: modelsOf(config, role).model,
+      resources: repair ? [] : Object.entries(config.resources).filter(([, entry]) => entry.profiles.includes(role.profile)).map(([name]) => name), newInstance: turn.mode === "Consolidate" });
   };
 
   if (entries[0].action !== "escalate")
@@ -1578,7 +1537,7 @@ async function planOf(ctx) {
     if (!turn) continue;
     // A consolidation terminates the phase's production lanes and removes their worktrees and branches first.
     if (turn.mode === "Consolidate")
-      for (const lane of productionLanes(state.config, artifactOf(role).phase).map((each) => roleFor(role.profile, each.id)).filter((each) => !repairs.has(each.name))) {
+      for (const lane of productionLanes(config, artifactOf(role).phase).map((each) => roleFor(role.profile, each.id)).filter((each) => !repairs.has(each.name))) {
         const branch = branchOfRole(pipelineBranch, lane), worktree = worktreeOf(branch), exists = Boolean(commitOf(root, `refs/heads/${branch}`));
         if (!worktree && !exists) continue;
         plan.terminate.push(lane);
@@ -1669,7 +1628,7 @@ async function cmdNext(args) {
 // branch moves, so a stop lands nothing.
 async function cmdLand(args) {
   const ctx = await contextOf(args, "land");
-  const { root, folder, pipelinesRoot, tip, record, run } = ctx;
+  const { root, folder, pipelinesRoot, tip, record } = ctx;
   const name = args.role ?? misused("land", "--role <role> is required");
   const turn = record.turns[name] ?? fail(`land: no turn of ${name} is recorded: rp next --apply records each role it wakes`);
   const { profile, lane } = parseRole(name);
@@ -1696,7 +1655,7 @@ async function cmdLand(args) {
   const files = [...certified, ...uncertified.map((subject) => [subject, null])].map(([subject, bytes]) => [`${folder}/${certificationPath(subject.path)}`, bytes]);
   const subject = [certified.length && `certify ${certified.map(([each]) => nounOf(each)).join(" and ")}`,
     uncertified.length && `remove the certification of ${uncertified.map(nounOf).join(" and ")}`].filter(Boolean).join(", and ");
-  const landed = files.length ? commitFiles(root, bring.landed, files, landingMessage(run, `${subject[0].toUpperCase()}${subject.slice(1)}`)) : bring.landed;
+  const landed = files.length ? commitFiles(root, bring.landed, files, landingMessage(ctx.state.config, `${subject[0].toUpperCase()}${subject.slice(1)}`)) : bring.landed;
   // The pipeline as `rp check` will read it after the landing, read before the branch moves: the phases complete then
   // that were not when the step was applied and no earlier landing of it reported.
   const after = await inspect(root, folder, pipelinesRoot, landed);

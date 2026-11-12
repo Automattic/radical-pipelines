@@ -1,20 +1,6 @@
 # Guardrails
 
-Guardrails are the rules a project's roles must satisfy — prose a profile follows, or a check it runs.
-
-## Format
-
-Each rule is an entry of the Guardrails section (`load.md` § Conventions): a heading naming it, its `profiles` field listing the profiles it binds, and its rule as its text.
-
-```markdown
-### Guardrails
-
-#### tests
-
-- profiles: implementer, reviewer
-
-Run `npm test` and confirm it passes.
-```
+Guardrails are the rules a project's roles must satisfy — prose a profile follows, or a check it runs. Each guardrail has a name, the profiles it binds, and its rule.
 
 ## Obligation
 

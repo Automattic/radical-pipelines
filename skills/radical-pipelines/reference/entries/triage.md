@@ -38,13 +38,13 @@ Group the routed statements by pipeline; each group is one run.
 
 A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `config.json` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `config.json` without one.
 
-For the runs that need it, propose each run's configuration: its current `config.json`, else the **Agents** defaults (`../conventions/agents.md`). In one message, give:
+For the runs that need it, propose each run's configuration: its current `config.json`, else the **Lanes** and **Models** defaults (`../conventions/lanes.md`, `../conventions/models.md`). In one message, give:
 
 - each route and why — or, when no predicate decides, the one deciding question;
 - the text of each intent, constraint, or proposal you will write;
 - the configuration to confirm or change: target phase in plain language without phase numbers, and lanes;
-- each profile's and lane's model and subagent model, and beside it the one `.rp.local.md` overrides it with, marked as this clone's;
-- under each profile, the name of each guardrail and resource the run will carry for it: `.rp.md`'s entries that bind it, with `.rp.local.md`'s over them by name;
+- each profile's and lane's model and subagent model;
+- under each profile, the name of each guardrail and resource the run will carry for it;
 - what a lane change does to the tree: a dropped production lane's folder is removed;
 - the questions steps 1 to 3 left open.
 

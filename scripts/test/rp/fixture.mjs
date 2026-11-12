@@ -45,24 +45,21 @@ export const remove = (rel) => rmSync(abs(P(rel)), { force: true, recursive: tru
 // Has Git ignore `pattern` in the repository, as a line of its exclude file.
 export const ignore = (pattern) => appendFileSync(abs(".git/info/exclude"), `${pattern}\n`);
 
-// The run's `agents`: `agents` with each of `lanes`, `{ profile, id, ...members }`, under its profile's `lanes`.
-export function agentsOf(lanes = [], agents = {}) {
-  const result = structuredClone(agents);
-  for (const { profile, id, ...members } of lanes) {
-    result[profile] ??= {};
-    (result[profile].lanes ??= {})[id] = members;
-  }
+// config.json's `lanes`: each of `lanes`, `{ profile, id, ...members }`, under its profile by its id.
+export function lanesOf(lanes) {
+  const result = {};
+  for (const { profile, id, ...members } of lanes) (result[profile] ??= {})[id] = members;
   return result;
 }
-// The conventions each run configuration records: worktrees under `.worktrees`, which every test repository's Git
+// The conventions each pipeline configuration records: worktrees under `.worktrees`, which every test repository's Git
 // ignores, with `data` over them by key. Each test starts with none but the worktree folder root.
 let recorded = {};
 export function conventions(data = {}) { recorded = data; }
-// The pipeline configuration, `config.json`: the target phase, the base branch, the recorded conventions, the agents, and
-// `extra` keys, written as given.
-export function configure({ targetPhase = 4, base = "main", lanes, agents, ...extra } = {}) {
-  const runAgents = lanes || agents ? { agents: agentsOf(lanes, agents) } : {};
-  write("config.json", `${JSON.stringify({ "target-phase": targetPhase, "base-branch": base, "worktree-folder-root": ".worktrees", ...recorded, ...runAgents, ...extra }, null, 2)}\n`);
+// The pipeline configuration, `config.json`: the target phase, the base branch, the recorded conventions, the lanes, a
+// list of `{ profile, id, ...members }`, and `extra` keys, such as `models`, written as given.
+export function configure({ targetPhase = 4, base = "main", lanes, ...extra } = {}) {
+  write("config.json", `${JSON.stringify({ "target-phase": targetPhase, "base-branch": base, "worktree-folder-root": ".worktrees", ...recorded,
+    ...(lanes ? { lanes: lanesOf(lanes) } : {}), ...extra }, null, 2)}\n`);
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 
@@ -162,11 +159,11 @@ export function newRepo(folder = null) {
 }
 
 // Each test in a new repository on `demo`, in the subfolder `folder` of its temporary folder when given, whose Git
-// ignores `.worktrees` and `config.local.json`, as setup has a project's ignore them, with no conventions recorded.
+// ignores `.worktrees`, as setup has a project's ignore it, with no conventions recorded.
 export function useRepo(folder = null) {
   beforeEach(() => {
     root = newRepo(folder);
-    writeFile(".git/info/exclude", ".worktrees/\nconfig.local.json\n");
+    writeFile(".git/info/exclude", ".worktrees/\n");
     recorded = {};
     writeFile("src/app.js", "export const a = 1;\n");
     commitAll("base");

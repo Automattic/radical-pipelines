@@ -63,7 +63,7 @@ describe("rp next", () => {
   describe("names what each frontier line dispatches", () => {
     it("production lane: each lane's branch at the tip and its worktree under the worktree folder root, the hooks around its creation and no branch hook, and the role to wake there", () => {
       conventions({ resources: { suite: { text: "The suite.", profiles: ["spec-producer"] }, "browser tools": { text: "A browser.", profiles: ["spec-producer", "implementer"] }, other: { text: "X.", profiles: ["implementer"] } } });
-      pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", model: "opus" }, lane("spec-producer", "b")] });
+      pipeline(0, { lanes: [lane("spec-producer", "a"), lane("spec-producer", "b")], models: { "spec-producer-a": { model: "opus" } } });
       const tip = head(), lines = plan();
       assert.deepEqual(lines.slice(0, 2), [`frontier produce spec a`, `frontier produce spec b`]);
       for (const [id, model] of [["a", "opus"], ["b", undefined]]) {

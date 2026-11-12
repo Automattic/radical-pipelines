@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, rmSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
-  PIPELINE, abs, apply, commitAll, commitIn, conventions, git, ignore, lane, laneWorktree, landRole, pipeline, read, remove, root, rp, run, useRepo, wakeOf, write, writeFile,
+  PIPELINE, abs, apply, commitIn, conventions, git, ignore, lane, laneWorktree, landRole, pipeline, read, root, run, useRepo, wakeOf, write, writeFile,
 } from "./fixture.mjs";
 
 const candidate = (id) => `1-spec/lanes/${id}/spec.md`;
@@ -71,68 +70,6 @@ describe("the pipeline configuration", () => {
     same(directions.map((setup) => () => { git(root, "reset", "--quiet", "--hard", before); setup(); }), () => {
       const out = run("land", abs(PIPELINE), "--role", "spec-producer-a");
       return [out, subjects(`${before}..HEAD`), git(root, "ls-tree", "-r", "HEAD", "--", `${PIPELINE}/certification`)];
-    });
-  });
-
-  it("is what rp check reads alone: the frontier and each phase's state are the same with config.local.json present or absent", () => {
-    pipeline(0, { lanes: [lane("spec-producer", "a"), lane("reviewer", "b")], agents: { "spec-producer": { model: "opus" } } });
-    apply();
-    commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n" }, "candidate");
-    landRole("spec-producer-a");
-    const locals = [
-      () => remove("config.local.json"),
-      () => write("config.local.json", JSON.stringify({ "commit-format": "Local.", agents: { "spec-producer": { model: "local" }, reviewer: { lanes: { b: { model: "local" } } } } })),
-    ];
-    assert.match(same(locals, () => rp("check", abs(PIPELINE))), /^frontier consolidate spec$/m);
-    same(locals, () => rp("check", abs(PIPELINE), "--json"));
-  });
-
-  describe("is beside config.local.json, which Git never tracks", () => {
-    const LOCAL = `${PIPELINE}/config.local.json`;
-    const stops = (args) => {
-      const out = run(...args);
-      assert.deepEqual([out.status, out.stdout], [1, ""], `${args.join(" ")}: ${out.stderr}`);
-      return out.stderr;
-    };
-    const commands = () => [["check", abs(PIPELINE)], ["next", abs(PIPELINE), "--apply"], ["land", abs(PIPELINE), "--role", "spec-producer-a"]];
-
-    // [what, how Git comes to track it]
-    const tracked = [
-      ["staged", () => git(root, "add", "--force", LOCAL)],
-      ["committed", () => { git(root, "add", "--force", LOCAL); commitAll("commit the local file"); }],
-      ["removed from the index while the tip holds it", () => { git(root, "add", "--force", LOCAL); commitAll("commit the local file"); git(root, "rm", "--quiet", "--cached", LOCAL); }],
-    ];
-    for (const [what, track] of tracked)
-      it(`stops rp check, rp next, and rp land when ${what}, naming it`, () => {
-        pipeline(0, { lanes: [lane("spec-producer", "a")] });
-        write("config.local.json", "{}\n");
-        apply();
-        track();
-        for (const args of commands()) assert.equal(stops(args), `rp: ${LOCAL}: tracked by Git\n`);
-      });
-
-    it("stops rp next and rp land on a lane's turn that commits it, naming the commit its landing would leave, and lands nothing", () => {
-      pipeline(0, { lanes: [lane("spec-producer", "a")] });
-      apply();
-      const wt = laneWorktree("demo-spec-a");
-      writeFileSync(join(wt, PIPELINE, "config.local.json"), "{}\n");
-      git(wt, "add", "--force", LOCAL);
-      commitIn(wt, { [candidate("a")]: "# Candidate\n" }, "a turn that commits the local file");
-      const before = head();
-      for (const args of commands().slice(1)) assert.match(stops(args), new RegExp(`^rp: [0-9a-f]{40}:${LOCAL.replaceAll(".", "\\.")}: tracked by Git\\n$`));
-      assert.equal(head(), before);
-    });
-
-    it("stops rp check --ref on a commit that holds it, and nothing once a commit removes it", () => {
-      pipeline(0, { lanes: [lane("spec-producer", "a")] });
-      write("config.local.json", "{}\n");
-      for (const args of commands().slice(0, 2)) assert.equal(run(...args).status, 0);
-      git(root, "add", "--force", LOCAL);
-      const holding = commitAll("commit the local file");
-      git(root, "rm", "--quiet", "--cached", LOCAL);
-      commitAll("untrack the local file");
-      for (const args of commands().slice(0, 2)) assert.equal(run(...args).status, 0);
-      assert.equal(stops(["check", abs(PIPELINE), "--ref", holding]), `rp: ${holding}:${LOCAL}: tracked by Git\n`);
     });
   });
 });

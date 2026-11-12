@@ -25,7 +25,6 @@ A pipeline folder is `<pipelines folder root>/<pipeline slug>`, a folder of the 
 | Path | What it is | Frontmatter keys |
 | --- | --- | --- |
 | `config.json` | Pipeline configuration (§ `config.json`) | none: the file is JSON |
-| `config.local.json` | This clone's overrides of the pipeline configuration, read by `next` and `land` alone (§ `config.local.json`) | none: the file is JSON |
 | `0-intent/intent.md` | Intent | `issue`, `starts-from`, `re-attempts`, each optional |
 | `0-intent/constraint-<n>.md`, `proposal-<n>.md`, `failure-<n>.md` | Later input | `target`, required; `origin`, optional and not interpreted |
 | `1-spec/spec.md` | Spec | no frontmatter |
@@ -66,10 +65,15 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
   "guardrails": { "tests": { "text": "Run `npm test` and confirm it passes.", "profiles": ["implementer", "reviewer"] } },
   "resources": { "staging": { "text": "The staging site `{agent}.example.com`.", "profiles": ["implementer", "reviewer"] } },
   "variables": { "agent": "{pipeline-slug}-{role}" },
-  "agents": {
-    "spec-producer": { "model": "large", "subagent-model": "small", "lanes": { "a": { "brief": "…" }, "b": { "model": "small" } } },
+  "lanes": {
+    "spec-producer": { "demands": { "brief": "Read the intent for what it demands." }, "omits": { "brief": "…" } },
+    "reviewer": { "default": {}, "security": { "brief": "…" } }
+  },
+  "models": {
+    "spec-producer": { "model": "large", "subagent-model": "small" },
+    "spec-producer-demands": { "model": "other-large" },
     "implementer": { "model": "large" },
-    "reviewer": { "lanes": { "default": { "model": "large" }, "security": { "brief": "…", "model": "other-large", "subagent-model": "other-small" } } }
+    "reviewer-security": { "model": "other-large", "subagent-model": "other-small" }
   },
   "owner-directions": ["Keep the pipeline branch local."]
 }
@@ -82,30 +86,13 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
 - A **text** is a string holding more than whitespace, its lines separated by newlines: `commit-format`, a guardrail's or a resource's `text`, and a lane's `brief`. An assignment carries it as written, its placeholders expanded.
 - `guardrails` and `resources`, by name: each entry holds its text and `profiles`, a non-empty list of `spec-producer`, `design-doc-producer`, `implementer`, and `reviewer`.
 - `variables`, by name: each a template, a non-empty string whose placeholders name pipeline facts only. A name matches `[a-z][a-z0-9-]*` and is no pipeline fact.
-- `agents`, by profile: optional `model` and `subagent-model`, each a non-empty model name, and for `spec-producer`, `design-doc-producer`, and `reviewer` optional `lanes`, a non-empty object of lanes by id, each with an optional `brief`, `model`, and `subagent-model`. A lane id matches `[a-z0-9][a-z0-9-]*`.
-- A profile's `lanes` are its lanes: production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
-- A role's model is its lane's `model`, else its profile's; its subagent model is its lane's `subagent-model`, else its profile's. Either may be none.
+- `lanes`, by `spec-producer`, `design-doc-producer`, or `reviewer`: each a non-empty object of the profile's lanes by lane id, each lane holding an optional `brief`. A lane id matches `[a-z0-9][a-z0-9-]*`.
+- A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, and review lanes for `reviewer`. Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
+- `models`, by profile, or by the role name `<profile>-<lane>` of a lane the run has: one `lanes` declares, or the review lane `default` while `lanes` declares no `reviewer` lane. Each entry holds an optional `model` and `subagent-model`, each a non-empty model name.
+- A role's model is the `model` of its role name's entry, else of its profile's; its subagent model is the `subagent-model` of its role name's entry, else of its profile's. Either may be none.
 - `owner-directions`: a list of strings, which `rp` validates and otherwise ignores.
 
 No other key exists at any level. `check`, `next`, and `land` read the file where they read every pipeline file, and validate it whole. A missing `config.json` stops them, `rp: cannot read <path>: missing`, as does a missing intent. A file that is not one JSON object, or that breaks these rules, stops them with `rp: <path>: <reason>`, naming a malformed entry as `<key>.<name>…`.
-
-### `config.local.json`
-
-`config.local.json`, beside `config.json` in the pipeline worktree, holds what this clone overrides:
-
-```json
-{
-  "commit-format": "…",
-  "guardrails": { "browser": { "text": "…", "profiles": ["implementer"] } },
-  "agents": { "implementer": { "model": "local-large" }, "reviewer": { "lanes": { "security": { "model": "local-other", "subagent-model": "local-small" } } } }
-}
-```
-
-It may hold `worktree-folder-root`, `landing-commit-format`, `commit-format`, `guardrails`, `resources`, and `variables`, in `config.json`'s schema, and `agents`. Its `agents` holds, for each profile, only `model`, `subagent-model`, and `lanes`. Each lane is one the run has for that profile — one `config.json` declares, or the review lane `default` while it declares no `reviewer` lane — and holds only `model` and `subagent-model`. Every key is optional, and no other key exists at any level. A file that holds any other key, such as `target-phase`, `base-branch`, `owner-directions`, or a lane's `brief`, that names a lane the run does not have, or that is malformed, stops `next` and `land` with `rp: <path>: <reason>`, naming the key's path.
-
-`next` and `land` read `config.json` with `config.local.json`, when present, over it by name. Each of the local file's worktree folder root, landing commit format, and commit format replaces the committed one; each guardrail, resource, and variable replaces the committed one of its name or is added; each `model` and `subagent-model` replaces the committed one of its profile or lane. A role's models then follow `config.json`'s rule over the agents that result, so a profile's model reaches each of its roles whose lane names no model of its own. `check`, `pipelines`, `thread`, and `validate` read none of it, so the frontier and each phase's state are the same on every clone.
-
-When Git tracks the file, `check`, `next`, and `land` stop before anything else with `rp: <path>: tracked by Git`: reading the working tree, when the index or the tip's tree holds it; reading a commit, `check --ref`'s or the pipeline a landing would leave, when that commit's tree holds it.
 
 ### Certification
 
@@ -249,7 +236,7 @@ Without `--json`, one line per pipeline: `<live|merged> <ref> <pipeline folder>`
 node rp.mjs next <pipeline folder> [--apply]
 ```
 
-`<pipeline folder>` is in the **pipeline worktree**, the worktree that has the pipeline branch checked out; its `HEAD` is the **tip**. `next` reads the pipeline as `check` reads it from the working tree, `config.local.json` over its pipeline configuration (§ `config.local.json`), every configured lane's branch and the worktree that has it checked out, and the turn record (§ Turn record), and prints the step's plan. It writes no ref, worktree, file in a worktree, assignment, or turn record; like `check`, it may add objects no ref names to the object store.
+`<pipeline folder>` is in the **pipeline worktree**, the worktree that has the pipeline branch checked out; its `HEAD` is the **tip**. `next` reads the pipeline as `check` reads it from the working tree, every configured lane's branch and the worktree that has it checked out, and the turn record (§ Turn record), and prints the step's plan. It writes no ref, worktree, file in a worktree, assignment, or turn record; like `check`, it may add objects no ref names to the object store.
 
 ### Plan
 
@@ -288,7 +275,7 @@ hook phase-started <phase>
 | `terminate` | A role to terminate before applying, by its profile and its lane |
 | `remove-worktree`, `create-worktree` | A worktree applying removes or creates, with the role it is for |
 | `delete-branch`, `create-branch`, `move-branch` | A branch applying deletes, creates, or moves, and where it leaves it: a commit, or `review-head`, the review head built from the tip (§ Review lanes) |
-| `wake` | A role to wake, one line per fact: its profile; its lane, for a lane's role; its model name, when the run gives it one; its phase; its worktree; the assignment applying writes for it; each resource its assignment carries; and `new` when its turn needs a new instance |
+| `wake` | A role to wake, one line per fact: its profile; its lane, for a lane's role; its model name, when `config.json` gives it one; its phase; its worktree; the assignment applying writes for it; each resource its assignment carries; and `new` when its turn needs a new instance |
 | `hook` | A lifecycle hook the step fires: a worktree's with the role the worktree is for and its path, a spawning, terminating, or landing one's with its role, `phase-started` with its phase. No hook names a branch |
 
 The lines come in the order the orchestrator acts on them. A plan that names a turn to land holds only the frontier and each turn to land between `before-landing-lane` and `after-landing-lane`. Any other plan lists the frontier; the files to fix and to repair; each termination between `before-terminating-agent` and `after-terminating-agent`; the `before-removing-worktree` and `before-creating-worktree` hooks; the actions; the matching `after-` hooks and each `phase-started`; and each role to wake between `before-spawning-agent` and `after-spawning-agent`, which fire only when the orchestrator spawns the role. A lane's role is followed by `before-landing-lane` and `after-landing-lane`, which fire around its landing, once its turn ends.
@@ -309,7 +296,7 @@ The lines come in the order the orchestrator acts on them. A plan that names a t
    | `malformed <path>: <reason>` | Each role that writes a malformed file (§ Assignments), seated as for its lane's line or in the pipeline worktree; each malformed file no role writes, to fix |
    | `escalate <thread>`, `complete` | Nothing |
 3. **Seats.** A role without a lane sits in the pipeline worktree, on the pipeline branch. A lane's role sits in the worktree that has its lane branch checked out, `<pipeline branch>-<spec | design-doc>-<lane>` or `<pipeline branch>-review-<lane>`; when none has, the plan creates one at `<worktree folder root>/<lane branch>`. A production lane's branch is created at the tip or moved forward to it. A review lane's branch is created at the review head built from the tip (§ Review lanes), or moved to it unless it is at a review head that already holds what building it would give: each of the review head and its review base holding the tree building gives, the review base on the current merge-base. A worktree that exists is not created and a branch at its target is not moved, so while the tip stays, a plan printed after the plan was applied names nothing to create, remove, or move.
-4. **Woken roles.** Each is named with its profile, its lane, its model name as the run gives it (§ `config.json`), its phase, its worktree, its assignment, `rp/<profile>.md` in the worktree's private git directory, and the names of the resources its assignment carries: those whose `profiles` hold its profile, none on a reviewer's repair turn. Only a consolidation needs a new instance.
+4. **Woken roles.** Each is named with its profile, its lane, its model name as `config.json` gives it, its phase, its worktree, its assignment, `rp/<profile>.md` in the worktree's private git directory, and the names of the resources its assignment carries: those whose `profiles` hold its profile, none on a reviewer's repair turn. Only a consolidation needs a new instance.
 5. **`phase-started`** is named for each phase of the woken roles that the last applied step woke no role of.
 
 ### Applying
@@ -336,7 +323,7 @@ The **lane's view** of the pipeline is, at the tip, every file under `<pipeline 
 
 The turn record is `rp/turns.json` in the pipeline worktree's private git directory, beside its assignments: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, and a review lane's `review-head`, each commit a full hash; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, and landing adds to `reported`.
 
-Everything `check` stops on, a `config.local.json` that cannot be read or is malformed, a detached pipeline worktree, a turn record that cannot be read or is malformed, a `base-branch` that does not resolve, an unreadable or malformed template, and a git failure stop `next`.
+Everything `check` stops on, a detached pipeline worktree, a turn record that cannot be read or is malformed, a `base-branch` that does not resolve, an unreadable or malformed template, and a git failure stop `next`.
 
 ## `land`
 
@@ -354,7 +341,7 @@ node rp.mjs land <pipeline folder> --role <role>
 6. **Move.** It fast-forwards the pipeline worktree to its last commit with `git merge --ff-only`, which stops on local changes it would overwrite.
 7. **Report.** It prints `hook phase-completed <phase>` for each phase complete after the landing (§ Complete phases) that was not complete when the step was applied and that no earlier landing of the step reported, in phase order, and adds them to the turn record.
 
-Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, a `config.local.json` that cannot be read or is malformed, a detached pipeline worktree, a turn record that cannot be read or is malformed, and a git failure also stop `land`.
+Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, a detached pipeline worktree, a turn record that cannot be read or is malformed, and a git failure also stop `land`.
 
 ## `thread`
 
@@ -391,7 +378,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 
 ## Assignments
 
-`next --apply` writes the assignment of each role it wakes, from `config.json` with `config.local.json` over it (§ `config.local.json`), whichever worktree the role sits in.
+`next --apply` writes the assignment of each role it wakes, from `config.json`, whichever worktree the role sits in.
 
 1. **Turn.** The frontier line that wakes the role gives its turn:
 
@@ -407,7 +394,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 
    A role writes its artifact or candidate, and every thread whose file name names it as opener or recipient: its **files**. The `malformed` lines of those files, and only those, are its malformed files. A lane under repair (§ `next`) gets the turn of a `malformed` line for each malformed file its landing would bring.
 2. **Template.** A reviewer with malformed files gets the repair template. Otherwise its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the template is the later-turn one, and `reviewer.diff` is written beside the assignment: the diff from the commit the reviewer's last message names to the review head, outside the pipelines folder root. Otherwise it is the first-turn one.
-3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as the run writes it, and each assignment states the command that runs `rp` as its role from its worktree (`../templates/README.md` § Values). Each path on that command line is one POSIX shell word, quoted when a character in it is one a shell does not take literally; each path an assignment shows for reading is as written.
+3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as `config.json` writes it, and each assignment states the command that runs `rp` as its role from its worktree (`../templates/README.md` § Values). Each path on that command line is one POSIX shell word, quoted when a character in it is one a shell does not take literally; each path an assignment shows for reading is as written.
 
 ### Placeholders
 
