@@ -196,6 +196,23 @@ describe("assignments", () => {
       assert.deepEqual(values["lane-candidates"], [`x — ${in_(at, doc("x"))}`, `y — ${in_(at, doc("y"))}, written after x`]);
     });
 
+    it("a consolidation brief: carried by a spec consolidation, and by no produce or respond turn of the artifact's producer", () => {
+      const briefs = { "consolidation-briefs": { "spec-producer": "Keep the fewest requirements.", "design-doc-producer": "Prefer less." } };
+      pipeline(0, { lanes: [{ profile: "spec-producer", id: "a" }], ...briefs });
+      write("1-spec/lanes/a/spec.md", "# a\n");
+      land("1-spec/lanes/a/spec.md");
+      const consolidation = assign("spec-producer").values;
+      assert.deepEqual([consolidation.mode, consolidation.brief], [["Consolidate"], ["Keep the fewest requirements."]]);
+      write(SPEC, "# Spec\n");
+      land(SPEC);
+      const produce = assign("design-doc-producer").values;
+      assert.deepEqual([produce.mode, produce.brief], [["Produce"], []]);
+      write(INTENT, `${read(INTENT)}More.\n`);
+      commitAll("the intent changes");
+      const respond = assign("spec-producer").values;
+      assert.deepEqual([respond.mode, respond.brief], [["Respond"], []]);
+    });
+
     it("a lane that comes after others: its previous candidates in its worktree, pinned when its turn lands, and no consolidation brief", () => {
       const doc = (id) => `2-design-doc/lanes/${id}/design-doc.md`;
       pipeline(1, { lanes: [{ profile: "design-doc-producer", id: "x" }, { profile: "design-doc-producer", id: "y", after: ["x"], brief: "Lane brief." }],
