@@ -26,6 +26,9 @@
 
 - Intent: {{intent}}
 - Spec: {{spec}}
+{{#previous-candidates}}
+- Previous candidates: {{previous-candidates}}
+{{/previous-candidates}}
 {{^lane}}
 - Later inputs: {{later-inputs}}
 {{/lane}}

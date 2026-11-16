@@ -27,7 +27,7 @@ function skillWith(templates, name = null) {
 // alone under its own `## <name>` heading.
 const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "merge-base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
   "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "facts"];
-const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "threads", "write-to"];
+const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "previous-candidates", "threads", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
 const echo = (name, values, flags = []) => `${["## template", name, ...flags.flatMap((flag) => [`{{#${flag}}}`, `## ${flag}`, `{{/${flag}}}`]),
   ...values.flatMap((value) => [`## ${value}`, `{{${value}}}`])].join("\n")}\n`;
@@ -181,6 +181,36 @@ describe("assignments", () => {
       assert.deepEqual([values.mode, flagsOf(values)], [["Consolidate"], ["consolidate"]]);
       assert.deepEqual(values["lane-candidates"], [`x — ${in_(at, "2-design-doc/lanes/x/design-doc.md")}`, `y — ${in_(at, "2-design-doc/lanes/y/design-doc.md")}`]);
       assert.deepEqual(values["write-to"], [in_(at, DESIGN)]);
+    });
+
+    it("consolidate: the profile's consolidation brief in place of a lane's, and each candidate written after others marked", () => {
+      const doc = (id) => `2-design-doc/lanes/${id}/design-doc.md`;
+      pipeline(1, { lanes: [{ profile: "design-doc-producer", id: "x", brief: "Lane brief." }, { profile: "design-doc-producer", id: "y", after: ["x"] }],
+        "consolidation-briefs": { "design-doc-producer": "Prefer what {profile} can remove." } });
+      write(doc("x"), "# x\n");
+      land(doc("x"));
+      write(doc("y"), "# y\n");
+      land(doc("y"), { previous: [doc("x")] });
+      const { values } = assign("design-doc-producer"), at = realpathSync(root);
+      assert.deepEqual([values.mode, values.brief, values["previous-candidates"]], [["Consolidate"], ["Prefer what design-doc-producer can remove."], ["none"]]);
+      assert.deepEqual(values["lane-candidates"], [`x — ${in_(at, doc("x"))}`, `y — ${in_(at, doc("y"))}, written after x`]);
+    });
+
+    it("a lane that comes after others: its previous candidates in its worktree, pinned when its turn lands, and no consolidation brief", () => {
+      const doc = (id) => `2-design-doc/lanes/${id}/design-doc.md`;
+      pipeline(1, { lanes: [{ profile: "design-doc-producer", id: "x" }, { profile: "design-doc-producer", id: "y", after: ["x"], brief: "Lane brief." }],
+        "consolidation-briefs": { "design-doc-producer": "Prefer less." } });
+      const first = assign("design-doc-producer-x").values;
+      assert.deepEqual([first.brief, first["previous-candidates"]], [[], ["none"]]);
+      commitIn(laneWorktree("demo-design-doc-x"), { [doc("x")]: "# x\n" }, "candidate x");
+      landRole("design-doc-producer-x");
+      const { values } = assign("design-doc-producer-y"), wt = laneWorktree("demo-design-doc-y");
+      assert.deepEqual([values.mode, values.brief, values["previous-candidates"]], [["Produce"], ["Lane brief."], [in_(wt, doc("x"))]]);
+      assert.equal(readFileSync(in_(wt, doc("x")), "utf8"), "# x\n");
+      commitIn(wt, { [doc("y")]: "# y\n" }, "candidate y");
+      landRole("design-doc-producer-y");
+      const pinned = JSON.parse(read(`certification/${doc("y")}.json`)).inputs.map((pin) => pin.split("@")[0]);
+      assert.deepEqual(pinned, [SPEC, doc("x")]);
     });
 
     const refusals = [

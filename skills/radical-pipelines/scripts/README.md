@@ -67,8 +67,10 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
   "variables": { "agent": "{pipeline-slug}-{role}" },
   "lanes": {
     "spec-producer": { "demands": { "brief": "Read the intent for what it demands." }, "omits": { "brief": "…" } },
+    "design-doc-producer": { "direct": {}, "alternative": { "after": ["direct"] } },
     "reviewer": { "default": {}, "security": { "brief": "…" } }
   },
+  "consolidation-briefs": { "design-doc-producer": "…" },
   "models": {
     "spec-producer": { "model": "large", "subagent-model": "small" },
     "spec-producer-demands": { "model": "other-large" },
@@ -83,10 +85,12 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
 - `base-branch`, required: a revision that resolves to a commit.
 - `worktree-folder-root`, required: the folder holding one worktree per branch, at `<folder>/<branch>`, a non-empty string; a relative one resolves against the main checkout's root, the first worktree `git worktree list` records.
 - `landing-commit-format`: the template of each commit `rp land` makes, a non-empty string holding `{subject}` and no other placeholder (§ Placeholders); `{subject}` is replaced by the commit's subject. Without it, the commit's message is its subject alone.
-- A **text** is a string holding more than whitespace, its lines separated by newlines: `commit-format`, a guardrail's or a resource's `text`, and a lane's `brief`. An assignment carries it as written, its placeholders expanded.
+- A **text** is a string holding more than whitespace, its lines separated by newlines: `commit-format`, a guardrail's or a resource's `text`, a lane's `brief`, and a consolidation brief. An assignment carries it as written, its placeholders expanded.
 - `guardrails` and `resources`, by name: each entry holds its text and `profiles`, a non-empty list of `spec-producer`, `design-doc-producer`, `implementer`, and `reviewer`.
 - `variables`, by name: each a template, a non-empty string whose placeholders name pipeline facts only. A name matches `[a-z][a-z0-9-]*` and is no pipeline fact.
 - `lanes`, by `spec-producer`, `design-doc-producer`, or `reviewer`: each a non-empty object of the profile's lanes by lane id, each lane holding an optional `brief`. A lane id matches `[a-z0-9][a-z0-9-]*`.
+- A `design-doc-producer` lane may also hold `after`: a non-empty list of other lanes of its profile, each named once, whose candidates are its **previous candidates**. No lane comes after itself, directly or through others.
+- `consolidation-briefs`, by `spec-producer` or `design-doc-producer`: the text the profile's consolidation carries as its brief.
 - A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, and review lanes for `reviewer`. Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
 - `models`, by profile, or by the role name `<profile>-<lane>` of a lane the run has: one `lanes` declares, or the review lane `default` while `lanes` declares no `reviewer` lane. Each entry holds an optional `model` and `subagent-model`, each a non-empty model name.
 - A role's model is the `model` of its role name's entry, else of its profile's; its subagent model is the `subagent-model` of its role name's entry, else of its profile's. Either may be none.
@@ -106,7 +110,7 @@ No other key exists at any level. `check`, `next`, and `land` read the file wher
 | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
 | A spec candidate | `0-intent/intent.md` |
 | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
-| A design doc candidate | `1-spec/spec.md` |
+| A design doc candidate | `1-spec/spec.md`; its lane's previous candidates |
 | `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
 | An approval | `0-intent/intent.md`; every later input |
 
@@ -175,8 +179,8 @@ The frontier is every action of the first rule that holds:
 1. **`malformed <path>: <reason>`** for each malformed file.
 2. **`escalate <thread>`** for each `escalated` thread.
 3. The lowest phase whose roles have work. Phases 1 to 3 belong to their artifact's profile, its production lanes included, and phase 4 to the reviewers. Work is an `open` thread awaiting the role, in any phase, or the artifact missing or stale, through the target. `<artifact>` is the artifact's name:
-   - While the artifact is missing, for each configured lane: **`produce <artifact> <lane>`** when its candidate is missing, **`respond <artifact> <lane>`** when it is stale.
-   - Production lanes configured, the artifact missing, and no lane action: **`consolidate <artifact>`**.
+   - While the artifact is missing, for each configured lane whose previous candidates are all fresh: **`produce <artifact> <lane>`** when its candidate is missing, **`respond <artifact> <lane>`** when it is stale.
+   - Production lanes configured, the artifact missing, and every candidate fresh: **`consolidate <artifact>`**.
    - The artifact missing, without production lanes: **`produce <artifact>`**.
    - The artifact stale, or a thread awaiting the artifact's owner: **`respond <artifact>`**. Beyond the target, only the thread counts.
    - Phase 4: **`review <lane>`** for each lane a thread awaits, and, at target phase 4, each configured lane not approved.
@@ -398,7 +402,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 
 ### Placeholders
 
-A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. In an assignment, each placeholder that names a pipeline fact or a variable is replaced by its value for the role, in one pass; a variable's value is its template with each fact replaced.
+A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's or a consolidation brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. In an assignment, each placeholder that names a pipeline fact or a variable is replaced by its value for the role, in one pass; a variable's value is its template with each fact replaced.
 
 | Pipeline fact | Value |
 | --- | --- |

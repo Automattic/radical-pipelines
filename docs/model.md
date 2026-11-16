@@ -148,7 +148,7 @@ Everything about a pipeline is computed from its tree at any commit, as in v3, w
   1. a malformed pipeline file: `malformed <path>: <reason>`; nothing is computed from a malformed file, and the orchestrator wakes its author with the `malformed` lines under **Malformed files** in its assignment, which the role fixes first;
   2. a thread with status `escalated`: `escalate <thread>`;
   3. the lowest phase whose role has work, where work is a thread awaiting the role, in any phase, or its artifact missing or stale, in a phase through the target:
-     - a phase with production lanes and a missing artifact: `produce <artifact> <lane>` for each candidate missing and `respond <artifact> <lane>` for each stale, else `consolidate <artifact>`;
+     - a phase with production lanes and a missing artifact: `produce <artifact> <lane>` for each candidate missing and `respond <artifact> <lane>` for each stale, of the lanes whose previous candidates are all fresh; `consolidate <artifact>` once every candidate is fresh;
      - a missing artifact: `produce <artifact>`;
      - a stale artifact, or a thread awaiting its owner: `respond <artifact>`;
      - phase 4: `review <lane>` for each lane not approved or with a thread awaiting its reviewer;
@@ -161,9 +161,13 @@ A step is `rp` plus the tool: `rp next` plans it, the orchestrator fires the hoo
 
 ## Production lanes
 
-A project may configure production lanes for the spec and the design doc: named lanes, each with a model and an optional brief, that produce a candidate in `lanes/<lane>/` in parallel. A lane decides every question by the same rules as any producer, so its candidate holds only its final reading, and it opens no thread. When every candidate exists, the producer runs in consolidate mode and writes the artifact, resolving where candidates differ.
+A project may configure production lanes for the spec and the design doc: named lanes, each with a model and an optional brief, that produce a candidate in `lanes/<lane>/`, in parallel unless one comes after another. A lane decides every question by the same rules as any producer, so its candidate holds only its final reading, and it opens no thread. When every candidate exists, the producer runs in consolidate mode and writes the artifact, resolving where candidates differ.
 
 Consolidation treats divergence as evidence. A case or decision every lane reached is kept. A case or decision only one lane reached is a question, answered by observing whether intended use produces its input; it is never kept by default. Where lanes chose differently on the same question, the producer decides from the observed evidence and records the alternative in one line. Lanes run on different models when the project configures them so.
+
+Independent lanes check a reading; they do not widen the design space, because nothing asks them to differ. A design doc lane widens it by declaring `after`: the lanes of its profile it comes after. It waits for their candidates, reads them as its previous candidates, and designs from a different approach, the end-to-end model the rest of a design follows from, stating in its Overview each previous approach and what its own changes. When every other approach it examined fails a requirement, its candidate says only that. Such a candidate is an alternative, not an independent reading: where it agrees with a candidate it read, the two count as one lane, and where it differs, the producer chooses between the two as between any options, with the simplest that satisfies the spec among them. Decisions may come from different candidates as long as they form one design. A candidate pins its previous candidates as required inputs, so a lane has work only once they are fresh, and is stale when one of them changes.
+
+Either producer may carry a consolidation brief, configured beside its lanes: a text its assignment carries when it consolidates, directing the choices the rules leave open.
 
 Lanes replace the v3 spec and design doc reviewers. Two independent readings of the intent show both what one reading missed and what one reading added; a reviewer shows only the first.
 
