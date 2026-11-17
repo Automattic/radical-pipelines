@@ -105,7 +105,7 @@ Record it at every run start, and at no other moment from the conventions:
 - `base-branch`: the branch of the unmerged pipeline it started from, else the artifact base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
 - `lanes` and `models`: the lanes, briefs, models, and subagent models the owner confirmed, from the Lanes and Models conventions.
 - Keep `target-phase`, `base-branch`, `lanes`, and `models` as they are unless the owner asks to change them, while confirming the run or during it.
-- `owner-directions`: the owner's directions for the run, one entry per direction. Keep every earlier entry.
+- `orchestrator-directions`: what the owner tells you about how to do your own part of the pipeline's runs that no other key and no convention records, such as to keep the pipeline branch local. One entry per direction, in the owner's words; keep every entry the owner has not withdrawn. No role reads it: route whatever a role must act on through triage (`../entries/triage.md`).
 
 Copy each text and value character for character as the conventions write it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, and each variable's template. Record every guardrail and resource under its name, with the profiles it binds. Never summarize or reword.
 
