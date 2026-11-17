@@ -24,5 +24,6 @@ flowchart TD
     DIS -->|What the intent means or demands| ESC["Either party (the implementer, on a review thread) escalates with rp thread escalate, citing this thread: a thread to owner about intent, status escalated"]
     ESC --> OE["Owner escalation"]
     CLOSED --> HIST["The closed thread stays as history; a refuted case gains a line under Considered and not required"]
-    CLOSED -->|"A review thread's approval goes stale, and no review thread is open"| AW2
+    CLOSED -->|"A review thread's approval goes stale"| STALE["Once no review thread is open, the orchestrator wakes its reviewer on the same thread"]
+    STALE --> READ
 ```

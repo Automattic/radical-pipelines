@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { describe, it } from "node:test";
@@ -341,12 +341,22 @@ describe("rp thread", () => {
       assert.match(read(APPROVAL), new RegExp(`^---\nstatus: approved\n[^]*\n## reviewer-default — ${head()}\n\nStill good\\.\n$`));
     });
 
+    it("its reviewer neither withdraws it nor writes in an approval that is not its lane's review thread", () => {
+      approved();
+      const refused = (out, message) => { assert.equal(out.status, 1); assert.match(out.stderr, message); };
+      refused(threadAs("reviewer-default", "close", ["--thread", abs(P(APPROVAL)), "--status", "withdrawn"]), new RegExp(`^rp: thread close: ${APPROVAL} is approved, and a closed thread is history$`, "m"));
+      const latest = thread({ n: 2, status: "approved", ...REVIEW(), messages: [["reviewer-default", head()]] });
+      refused(threadAs("reviewer-default", "reply", ["--thread", abs(P(APPROVAL))], "One more thing.\n"), new RegExp(`^rp: thread reply: ${APPROVAL} is approved, and a closed thread is history$`, "m"));
+      refused(threadAs("reviewer-default", "close", ["--thread", abs(P(APPROVAL)), "--status", "approved"], "Still good.\n"), new RegExp(`^rp: thread close: ${APPROVAL} is approved, and a closed thread is history$`, "m"));
+      assert.equal(reply("reviewer-default", latest, "One more thing.\n"), latest);
+    });
+
     it("no other role writes in it", () => {
       approved();
       for (const out of [threadAs("implementer", "reply", ["--thread", abs(P(APPROVAL))], "One more thing.\n"), threadAs("implementer", "close", ["--thread", abs(P(APPROVAL)), "--status", "withdrawn"])])
         assert.equal(out.status, 1);
       assert.match(threadAs("implementer", "reply", ["--thread", abs(P(APPROVAL))], "One more thing.\n").stderr, new RegExp(`^rp: thread reply: ${APPROVAL} is approved, and a closed thread is history$`, "m"));
-      assert.match(threadAs("implementer", "close", ["--thread", abs(P(APPROVAL)), "--status", "withdrawn"]).stderr, new RegExp(`^rp: thread close: only its opener, reviewer-default, closes ${APPROVAL}$`, "m"));
+      assert.match(threadAs("implementer", "close", ["--thread", abs(P(APPROVAL)), "--status", "withdrawn"]).stderr, new RegExp(`^rp: thread close: ${APPROVAL} is approved, and a closed thread is history$`, "m"));
     });
   });
 
@@ -355,7 +365,7 @@ describe("rp thread", () => {
     const sh = (command, worktree, body) => spawnSync("sh", ["-c", command.replace(/^<[^>\n]+>$/m, () => body.trimEnd())], { cwd: worktree, encoding: "utf8", input: body });
     const REVIEW_THREAD = "threads/1-reviewer-default-implementer-implementation.md";
     // The lane approves the change and its turn lands; then the code changes, and the step wakes the reviewer again.
-    function wokenAgain() {
+    function wokenAgain(change = () => { writeFile("src/app.js", "export const a = 3;\n"); commitAll("code"); }) {
       pipeline(3);
       const first = wakeOf(apply(), "reviewer-default");
       close("reviewer-default", open("reviewer-default", "implementation", FINDINGS, first.worktree), "approved", undefined, first.worktree);
@@ -363,8 +373,7 @@ describe("rp thread", () => {
       landRole("reviewer-default");
       assert.deepEqual(check().reviews, [{ lane: "default", approved: true }]);
       const approvedCommit = check().threads[0]["approved-commit"];
-      writeFile("src/app.js", "export const a = 3;\n");
-      commitAll("code");
+      change();
       const fields = wakeOf(apply(), "reviewer-default");
       return { worktree: fields.worktree, text: readFileSync(fields.assignment, "utf8"), approvedCommit };
     }
@@ -382,12 +391,29 @@ describe("rp thread", () => {
       assert.ok(read(REVIEW_THREAD).endsWith(`## reviewer-default — ${git(worktree, "rev-parse", "HEAD^").trim()}\n\nThe fix is fine.\n`));
     });
 
-    it("the reviewer says what needs to change in its thread, which awaits the implementer", () => {
+    it("the reviewer approves again after an input alone changed, and its approval pins the input", () => {
+      const { worktree, text } = wokenAgain(() => {
+        write("0-intent/constraint-1.md", "---\ntarget: implementation\n---\n\nKeep the export.\n");
+        write("3-implementation/notes.md", `${read("3-implementation/notes.md")}The export stays.\n`);
+        commitAll("a constraint, and notes that answer it");
+        wakeOf(apply(), "implementer");
+        landRole("implementer");
+      });
+      assert.match(text, new RegExp(`^These changed since then: ${worktree}/${PIPELINE}/0-intent/constraint-1\\.md$`, "m"));
+      assert.equal(sh(statedIn(text)[0], worktree, "The constraint holds.\n").status, 0);
+      commitIn(worktree, {}, "Approve again (reviewer)");
+      landRole("reviewer-default");
+      assert.deepEqual([check().reviews, frontier()], [[{ lane: "default", approved: true }], ["complete"]]);
+      assert.ok(JSON.parse(read(`certification/${REVIEW_THREAD}.json`)).inputs.some((pin) => pin.startsWith("0-intent/constraint-1.md@")));
+    });
+
+    it("the reviewer says what needs to change in its thread, which awaits the implementer and keeps no certification", () => {
       const { worktree, text } = wokenAgain();
       const replied = sh(statedIn(text)[1], worktree, "The fix breaks the export.\n");
       assert.equal(replied.status, 0, replied.stderr);
       commitIn(worktree, {}, "Review the fix (reviewer)");
       landRole("reviewer-default");
+      assert.equal(existsSync(abs(P(`certification/${REVIEW_THREAD}.json`))), false);
       assert.deepEqual([check().threads.map(({ path, status, awaits }) => [path, status, awaits]), frontier()], [[[REVIEW_THREAD, "open", "implementer"]], ["respond implementation"]]);
     });
   });

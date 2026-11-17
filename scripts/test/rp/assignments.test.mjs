@@ -7,7 +7,7 @@ import { after, before, describe, it } from "node:test";
 
 import {
   DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, RP, SPEC, TO_OWNER, TO_SPEC,
-  abs, commitAll, commitIn, configure, conventions, git, ignore, land, landRole, lane, laneWorktree, later, pipeline, read, remove, revise, root, thread, useRepo, wakeOf, withFrontmatter, write, writeFile,
+  abs, certifyAt, commitAll, commitIn, configure, conventions, git, ignore, land, landRole, lane, laneWorktree, later, pipeline, read, remove, revise, root, thread, useRepo, wakeOf, withFrontmatter, write, writeFile,
 } from "./fixture.mjs";
 
 // A copy of `rp` in a skill folder of its own, beside `templates` by name. The tests own these templates, so they
@@ -323,6 +323,32 @@ describe("assignments", () => {
       assert.match(diffOf(path), /-export const a = 2;\n\+export const a = 3;/);
     });
 
+    it("after another lane's rounds of fixes: one later turn, whose diff spans every round since its approved commit", () => {
+      pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] });
+      assign("reviewer-b");
+      const wt = laneWorktree("demo-review-b"), approval = "threads/1-reviewer-b-implementer-implementation.md";
+      commitIn(wt, { [approval]: withFrontmatter({ status: "approved", ...REVIEW("b") }, `\n## reviewer-b — ${head(wt)}\n\nMerge it.\n`) }, "approve");
+      landRole("reviewer-b");
+      const approvedCommit = JSON.parse(read(`certification/${approval}.json`))["approved-commit"];
+      // Lane a asks for two rounds of fixes, each answered with a code change.
+      const rounds = (n) => Array.from({ length: n }, () => [["reviewer-a", "abc1234"], ["implementer", "abc1234"]]).flat();
+      for (const [round, code] of [[1, "export const a = 2;\n"], [2, "export const a = 2;\nexport const b = 2;\n"]]) {
+        thread({ n: 2, ...REVIEW("a"), messages: rounds(round) });
+        writeFile("src/app.js", code);
+        commitAll(`round ${round}`);
+        const out = runWith(ECHO, ["next", abs(PIPELINE)]);
+        assert.deepEqual(out.stdout.split("\n").filter((line) => line.startsWith("frontier ")), ["frontier review a"]);
+      }
+      thread({ n: 2, status: "approved", ...REVIEW("a"), messages: [...rounds(2), ["reviewer-a", head()]] });
+      const tip = commitAll("lane a approves");
+      certifyAt(tip, "threads/2-reviewer-a-implementer-implementation.md");
+      commitAll("certified");
+      const { path, values } = assign("reviewer-b");
+      assert.deepEqual([values.template, values.thread], [["reviewer-later"], [in_(wt, approval)]]);
+      assert.equal(diffOf(path), git(root, "diff", approvedCommit, head(wt), "--", ".", ":(exclude).pipelines"));
+      assert.match(diffOf(path), /-export const a = 1;\n\+export const a = 2;\n\+export const b = 2;/);
+    });
+
     it("when an input changed: the later turn, the changed inputs in its worktree, and an empty diff", () => {
       const { wt } = approved();
       write("0-intent/constraint-1.md", later(NOTES));
@@ -333,19 +359,37 @@ describe("assignments", () => {
       assert.equal(diffOf(path), "");
     });
 
-    it("when it landed uncertified: the later turn, the diff from the commit its reviewer's last message names, and no changed input", () => {
+    // The lane approves while the pipeline branch moves, so its approval lands uncertified.
+    function uncertified(move) {
       pipeline(3);
       assign("reviewer-default");
       const wt = laneWorktree("demo-review-default"), read_ = head(wt);
       commitIn(wt, { [APPROVAL]: withFrontmatter({ status: "approved", ...REVIEW() }, `\n## reviewer-default — ${read_}\n\nMerge it.\n`) }, "approve");
-      writeFile("src/app.js", "export const a = 3;\n");
-      commitAll("code moves while the reviewer works");
+      move();
       landRole("reviewer-default");
       assert.equal(existsSync(abs(P(`certification/${APPROVAL}.json`))), false);
+      return { wt, read_ };
+    }
+
+    it("when it landed uncertified: the later turn, the diff from the commit its reviewer's last message names, and the inputs that differ from it", () => {
+      const { wt, read_ } = uncertified(() => {
+        writeFile("src/app.js", "export const a = 3;\n");
+        write("0-intent/constraint-1.md", later(SPEC));
+        commitAll("code and an input move while the reviewer works");
+        for (const rel of [SPEC, DESIGN, NOTES]) revise(rel);
+        commitAll("certified");
+      });
       const { path, values } = assign("reviewer-default");
-      assert.deepEqual([values.template, values.thread, values["changed-inputs"]], [["reviewer-later"], [in_(wt, APPROVAL)], ["none"]]);
+      assert.deepEqual([values.template, values.thread, values["changed-inputs"]], [["reviewer-later"], [in_(wt, APPROVAL)], [in_(wt, "0-intent/constraint-1.md")]]);
       assert.equal(diffOf(path), git(root, "diff", read_, head(wt), "--", ".", ":(exclude).pipelines"));
       assert.match(diffOf(path), /\+export const a = 3;/);
+    });
+
+    it("when it landed uncertified and the clone lacks the commit its reviewer's last message names: the first turn", () => {
+      uncertified(() => { writeFile("src/app.js", "export const a = 3;\n"); commitAll("code moves while the reviewer works"); });
+      write(APPROVAL, read(APPROVAL).replace(/## reviewer-default — [0-9a-f]+/, `## reviewer-default — ${"1".repeat(40)}`));
+      commitAll("as on a clone without the review head");
+      assert.deepEqual(assign("reviewer-default").values.template, ["reviewer-first"]);
     });
 
     it("when the clone lacks its approved commit: the first turn", () => {

@@ -367,6 +367,15 @@ describe("frontier", () => {
           assert.deepEqual(frontier(), ["review b"]);
         });
 
+      it("an approval without certification is stale, and waits the same way", () => {
+        pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] });
+        thread({ n: 1, ...REVIEW("a"), messages: [["reviewer-a", "abc1234"], ["implementer", "abc1234"]] });
+        thread({ n: 2, status: "approved", ...REVIEW("b") });
+        assert.deepEqual(frontier(), ["review a"]);
+        approve("a", 1);
+        assert.deepEqual(frontier(), ["review b"]);
+      });
+
       it("a withdrawn review thread keeps no lane waiting", () => {
         approved(code);
         thread({ n: 1, status: "withdrawn", ...REVIEW("a") });

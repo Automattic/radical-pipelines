@@ -1303,12 +1303,13 @@ function turnOf(state, entries, role) {
 
 // A review lane's later turn on its review thread, `open` or an approval: the thread, the commit whose code the lane
 // last reviewed, an approval's approved commit or else the one the reviewer's last message names, and whether the
-// thread's certification says which inputs changed. Null on a first turn: the lane has no review thread, withdrew it, or
-// its approval is none, the clone lacking its approved commit.
+// thread's certification pins the inputs it read. Null on a first turn: the lane has no review thread, withdrew it, or
+// the clone lacks the commit its approval last reviewed.
 function laterTurnOf(root, state, role) {
   const latest = laneReviewOf(state, role.lane);
-  if (!latest || latest.status === "withdrawn" || (latest.approvedCommit && !commitOf(root, latest.approvedCommit))) return null;
-  return { thread: latest.path, last: latest.approvedCommit ?? latest.messages.findLast((message) => message.author === role.name).commit, certified: Boolean(latest.approvedCommit) };
+  if (!latest || latest.status === "withdrawn") return null;
+  const last = latest.approvedCommit ?? latest.messages.findLast((message) => message.author === role.name).commit;
+  return isApproval(latest) && !commitOf(root, last) ? null : { thread: latest.path, last, certified: Boolean(latest.approvedCommit) };
 }
 
 // The commit a changed input names: the latest commit of the role's branch at its turn commit `tip` at which the input
@@ -1386,7 +1387,10 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       const diff = join(gitDir, "rp", "reviewer.diff");
       const from = requireCommit(root, later.last, `the commit ${role.name} last reviewed`);
       files.push([diff, gitBytes(root, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
-      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff, "changed-inputs": later.certified ? turn.changed.map(at) : [] });
+      // The inputs that changed since the lane read them: those its approval's certification pins otherwise, or else
+      // those that differ from the commit its reviewer's last message names.
+      const changed = later.certified ? turn.changed : [...changedFiles(root, folder, from, tip)].filter((path) => path === INTENT || kindOf(path).kind === "later").sort();
+      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff, "changed-inputs": changed.map(at) });
     }
   }
   const templatePath = join(TEMPLATES, `${templateName}.md`);
@@ -1695,12 +1699,13 @@ async function cmdLand(args) {
 
   // The role's artifact or candidate is certified at its turn commit; each approval it brings at the review head its
   // reviewer read, with the pipeline commit that holds it as its approved commit, unless that review head does not resolve or the
-  // commit's code is not its: that approval lands uncertified, any certification its path held removed.
+  // commit's code is not its: that approval lands uncertified, any certification its path held removed, as is that of a
+  // review thread the turn brings open or withdrawn.
   const subjects = [], uncertified = [];
   const artifact = artifactOf(role), doc = artifact && state.docs.get(artifact.path);
   if (doc) subjects.push([doc, await certificationOf(root, folder, state.config, doc, turn.commit)]);
-  for (const thread of state.threads.filter((each) => isApproval(each) && bring.changed.has(each.path))) {
-    const read = commitOf(root, thread.messages.findLast((message) => message.author === thread.opener).commit);
+  for (const thread of state.threads.filter((each) => isReview(each) && bring.changed.has(each.path))) {
+    const read = isApproval(thread) && commitOf(root, thread.messages.findLast((message) => message.author === thread.opener).commit);
     if (read && !codeDiffers(root, read, bring.landed, pipelinesRoot)) subjects.push([thread, await certificationOf(root, folder, state.config, thread, read, bring.landed)]);
     else if (pipeline.certification(thread.path)) uncertified.push(thread);
   }
@@ -1879,21 +1884,28 @@ function cmdThreadEscalate(args) {
   openThread(seat, command, { status: "escalated", opener: role.name, recipient: OWNERS.intent, about: "intent", cites: args.cites }, bodyOf(args, command, true));
 }
 
+// Whether `thread`, at `rel`, is the approval the seat's role writes in again: its lane's review thread, approved.
+function ownApproval(seat, rel, thread) {
+  if (!isApproval(thread) || thread.opener !== seat.role.name) return false;
+  return reviewThreadOf(readdirSync(join(seat.base, "threads")).map((name) => `threads/${name}`), seat.role.lane) === rel;
+}
+
 // `thread reply`: the role's message at the end of an open thread that awaits it, or of its own approval, which it opens.
 function cmdThreadReply(args) {
   const command = "thread reply", seat = seatOf(args, command), { role } = seat;
   const { rel, contents, thread } = threadOf(args, seat, command);
   const body = bodyOf(args, command, true);
-  const approval = isApproval(thread) && thread.opener === role.name;
+  const approval = ownApproval(seat, rel, thread);
   if (!approval && thread.status !== "open") notOpen(command, rel, thread);
   if (!approval && awaitedRole(thread) !== role.name) wrong(command, `${rel} awaits ${awaitedRole(thread)}`, `only ${awaitedRole(thread)} writes in it now: check --role and --thread`);
   const message = { author: role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
   writeThread(seat, command, rel, withMessage(approval ? withStatus(contents, "open") : contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
 }
 
-// `thread close`: an open thread the role opened, or its approval, closed with its closing status (§ closingStatus) or `withdrawn`, with the
+// `thread close`: an open thread the role opened, closed with its closing status (§ closingStatus) or `withdrawn`, with the
 // role's closing message when given one. A review thread is approved without one only when its last message is the
-// reviewer's own and names the commit its worktree stands on, the commit the approval is certified at.
+// reviewer's own and names the commit its worktree stands on, the commit the approval is certified at. The role's own
+// approval is closed `approved` again.
 function cmdThreadClose(args) {
   const command = "thread close", seat = seatOf(args, command), { role } = seat;
   const status = args.status ?? misused(command, "missing --status <approved | resolved | withdrawn>");
@@ -1901,7 +1913,7 @@ function cmdThreadClose(args) {
     wrong(command, `--status is approved, resolved, or withdrawn: ${status}`, "close a review thread --status approved and any other --status resolved when its findings are resolved, or close it --status withdrawn when you drop them");
   const { rel, contents, thread } = threadOf(args, seat, command);
   const body = bodyOf(args, command, false);
-  if (thread.status !== "open" && !isApproval(thread)) notOpen(command, rel, thread);
+  if (thread.status !== "open" && !(status === "approved" && ownApproval(seat, rel, thread))) notOpen(command, rel, thread);
   if (thread.opener !== role.name) wrong(command, `only its opener, ${thread.opener}, closes ${rel}`, "answer it with rp thread reply");
   if (status !== "withdrawn" && status !== closingStatus(thread))
     wrong(command, `${rel} closes ${closingStatus(thread)} when its findings are resolved, not ${status}`, `run the same command with --status ${closingStatus(thread)}`);
