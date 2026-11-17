@@ -375,7 +375,11 @@ describe("assignments", () => {
       const { wt, read_ } = uncertified(() => {
         writeFile("src/app.js", "export const a = 3;\n");
         write("0-intent/constraint-1.md", later(SPEC));
-        commitAll("code and an input move while the reviewer works");
+        write("0-intent/constraint-1/evidence.txt", "Evidence, no input.\n");
+        write("0-intent/proposal-2.md", later(SPEC));
+        commitAll("code and inputs move while the reviewer works");
+        remove("0-intent/proposal-2.md");
+        commitAll("an input is removed");
         for (const rel of [SPEC, DESIGN, NOTES]) revise(rel);
         commitAll("certified");
       });

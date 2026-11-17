@@ -1389,7 +1389,7 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       files.push([diff, gitBytes(root, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
       // The inputs that changed since the lane read them: those its approval's certification pins otherwise, or else
       // those that differ from the commit its reviewer's last message names.
-      const changed = later.certified ? turn.changed : [...changedFiles(root, folder, from, tip)].filter((path) => path === INTENT || kindOf(path).kind === "later").sort();
+      const changed = later.certified ? turn.changed : [...changedFiles(root, folder, from, tip)].filter((path) => path === INTENT || state.docs.get(path)?.kind === "later").sort();
       Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff, "changed-inputs": changed.map(at) });
     }
   }
