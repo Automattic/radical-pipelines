@@ -15,7 +15,7 @@ Your review is in {{thread}}.
 What changed in the code since your last message there is {{diff}}.
 {{/code-changed}}
 {{#conflicts}}
-The author resolved conflicts with the base branch in these files. The diff shows each from the conflict's markers to its resolution, and nothing of one whose resolution kept a side whole: {{conflicts}}
+The author resolved conflicts with the base branch in these files. The diff shows a conflict's markers giving way to its resolution, and may show nothing of a conflict without markers, so review each file's resolution: {{conflicts}}
 {{/conflicts}}
 {{^code-changed}}
 The code has not changed since your last message there.
