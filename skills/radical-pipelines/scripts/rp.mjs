@@ -1387,13 +1387,15 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       const diff = join(gitDir, "rp", "reviewer.diff");
       const from = requireCommit(root, later.last, `the commit ${role.name} last reviewed`);
       // What the lane has not reviewed: the turn commit against the commit it last reviewed merged with the merge-base, as
-      // an approval's freshness is judged (§ codeChanged), so a conflict's markers give way to its resolution.
-      const changes = gitBytes(root, ["diff", "--no-ext-diff", mergeTree(root, from, facts["merge-base"]).tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
+      // an approval's freshness is judged (§ codeChanged), so a conflict's markers give way to its resolution. The paths
+      // that conflict outside the pipelines folder root are code that changed, whatever the diff shows of them.
+      const merged = mergeTree(root, from, facts["merge-base"]), conflicts = merged.conflicts.filter((path) => !path.startsWith(`${pipelinesRoot}/`));
+      const changes = gitBytes(root, ["diff", "--no-ext-diff", merged.tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
       files.push([diff, changes]);
       // The inputs that changed since the lane read them: those its approval's certification pins otherwise, or else
       // those that differ from the commit its reviewer's last message names.
       const changed = later.certified ? turn.changed : [...changedFiles(root, folder, from, tip)].filter((path) => path === INTENT || state.docs.get(path)?.kind === "later").sort();
-      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff, "code-changed": changes.length > 0, "changed-inputs": changed.map(at) });
+      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff, "code-changed": changes.length > 0 || conflicts.length > 0, conflicts, "changed-inputs": changed.map(at) });
     }
   }
   const templatePath = join(TEMPLATES, `${templateName}.md`);

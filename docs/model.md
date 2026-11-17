@@ -130,7 +130,7 @@ A thread is the conversation between two roles about one artifact, recorded as o
 
 **What reaches the artifact.** Only the result: the artifact changes, or it does not. When a refutation establishes that a case is not material, the spec's **Considered and not required** gains a line, so the case is not raised again. Threads are never cited from artifacts.
 
-**Lifetime.** Threads stay in the pipeline folder. A role writes only in a thread it opens or one that awaits it, and `rp thread` changes an existing thread only by appending a message or setting its status; a thread closed `resolved`, `withdrawn`, or `answered` is history. A review thread lasts as long as its lane: when its approval goes stale, its reviewer writes in it again, replying, which opens it, or approving again. Before it ends a turn, a role runs `rp validate`, which reports each of its files the file grammar rejects, so the role fixes it within that turn.
+**Lifetime.** Threads stay in the pipeline folder. A role writes only in a thread it opens or one that awaits it, and `rp thread` changes an existing thread only by appending a message or setting its status; a thread closed `resolved`, `withdrawn`, or `answered` is history. A review thread closed `approved` stays its lane's: when its approval goes stale, its reviewer writes in it again, replying, which opens it, or approving again. Before it ends a turn, a role runs `rp validate`, which reports each of its files the file grammar rejects, so the role fixes it within that turn.
 
 ## State
 

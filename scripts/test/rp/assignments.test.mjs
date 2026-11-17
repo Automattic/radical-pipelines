@@ -36,7 +36,7 @@ before(() => {
   ECHO = skillWith({
     ...Object.fromEntries(["spec-producer", "design-doc-producer", "implementer"].map((name) => [name, echo(name, PRODUCER, FLAGS)])),
     "reviewer-first": echo("reviewer-first", [...COMMON, "review-base"]),
-    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff", "changed-inputs"], ["code-changed"]),
+    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff", "conflicts", "changed-inputs"], ["code-changed"]),
     "reviewer-repair": echo("reviewer-repair", [...COMMON, "review-base"]),
   });
 });
@@ -359,6 +359,18 @@ describe("assignments", () => {
       assert.deepEqual([diffOf(path), "code-changed" in values], ["", false]);
     });
 
+    it("after a conflict whose resolution kept a side whole: an empty diff, the code changed, and the path that conflicted", () => {
+      approved();
+      git(root, "checkout", "--quiet", "main");
+      rmSync(abs("src/app.js"));
+      commitAll("the base removes a file the change edits");
+      git(root, "checkout", "--quiet", "demo");
+      assert.throws(() => git(root, "merge", "--quiet", "--no-edit", "main"));
+      commitAll("merge main, keeping the file");
+      const { path, values } = assign("reviewer-default");
+      assert.deepEqual([values.template, diffOf(path), values.conflicts, "code-changed" in values], [["reviewer-later"], "", ["src/app.js"], true]);
+    });
+
     // The base branch adds a file and edits src/app.js, and the pipeline branch merges it, resolving a conflict with
     // `resolved` when the merge stops on one.
     function mergeBase(app, resolved) {
@@ -384,7 +396,8 @@ describe("assignments", () => {
     it("after a merge of the base that conflicted: the diff holds the conflict's markers giving way to its resolution, and nothing the merge brought cleanly", () => {
       approved();
       mergeBase("export const a = 5;\n", "export const a = 7;\n");
-      const diff = diffOf(assign("reviewer-default").path);
+      const { path, values } = assign("reviewer-default"), diff = diffOf(path);
+      assert.deepEqual([values.conflicts, "code-changed" in values], [["src/app.js"], true]);
       assert.deepEqual([...diff.matchAll(/^diff --git a\/(\S+)/gm)].map((match) => match[1]), ["src/app.js"]);
       assert.match(diff, /^-<<<<<<< [^]*^-export const a = 2;\n[^]*^-export const a = 5;\n[^]*^\+export const a = 7;$/m);
     });
