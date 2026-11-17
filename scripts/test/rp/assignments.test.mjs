@@ -362,6 +362,9 @@ describe("assignments", () => {
     // The lane approves while the pipeline branch moves, so its approval lands uncertified.
     function uncertified(move) {
       pipeline(3);
+      write("0-intent/proposal-2.md", later(NOTES));
+      revise(NOTES);
+      commitAll("a later input the reviewer reads");
       assign("reviewer-default");
       const wt = laneWorktree("demo-review-default"), read_ = head(wt);
       commitIn(wt, { [APPROVAL]: withFrontmatter({ status: "approved", ...REVIEW() }, `\n## reviewer-default — ${read_}\n\nMerge it.\n`) }, "approve");
@@ -376,10 +379,8 @@ describe("assignments", () => {
         writeFile("src/app.js", "export const a = 3;\n");
         write("0-intent/constraint-1.md", later(SPEC));
         write("0-intent/constraint-1/evidence.txt", "Evidence, no input.\n");
-        write("0-intent/proposal-2.md", later(SPEC));
-        commitAll("code and inputs move while the reviewer works");
         remove("0-intent/proposal-2.md");
-        commitAll("an input is removed");
+        commitAll("code and inputs move while the reviewer works");
         for (const rel of [SPEC, DESIGN, NOTES]) revise(rel);
         commitAll("certified");
       });

@@ -367,7 +367,7 @@ A message is its heading `## <role> — <commit>` on a line of its own after a b
 
 - `open` or `escalate` by a production lane's role; `open` about the intent, or about the artifact the role owns; `escalate` whose `--cites` is empty;
 - a `--thread` that names no thread file of the pipeline folder, or a file the file grammar rejects;
-- `reply` to a thread that neither awaits the role nor is its own approval; `close` of a thread that is not `open`, by a role other than its opener, or with another status, such as `approved` on a thread other than a review thread; `close` of the role's own approval with a status other than `approved`; an approval without `--body` that the last message does not name;
+- `reply` to a thread that neither awaits the role nor is its own approval; `close` of a thread that is neither `open` nor the role's own approval, by a role other than its opener, or with another status, such as `approved` on a thread other than a review thread, or any but `approved` on its own approval; an approval without `--body` that the last message does not name;
 - a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it.
 
 The owner's answer on a thread to `owner` is written by hand (`../reference/run/loop.md` § Owner escalation).
