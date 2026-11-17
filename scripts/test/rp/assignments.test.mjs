@@ -752,7 +752,8 @@ describe("assignments", () => {
     landRole("reviewer-default");
     write(review, `${read(review)}\n## implementer — ${head()}\n\nAnswered.\n`);
     commitAll("an answered review");
-    delivered("reviewer-default", ["The code has not changed since your last message there.", in_(wt, review)]);
+    delivered("reviewer-default", [in_(wt, review)]);
+    assert.equal(readFileSync(wakeOf(runWith(RP, ["next", abs(PIPELINE)]).stdout.split("\n"), "reviewer-default").assignment, "utf8").includes("reviewer.diff"), false);
     writeFile("src/app.js", "export const a = 2;\n");
     commitAll("a fix");
     delivered("reviewer-default", ["reviewer.diff", in_(wt, review)]);

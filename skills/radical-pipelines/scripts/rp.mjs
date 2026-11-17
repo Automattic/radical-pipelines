@@ -877,14 +877,20 @@ function codeDiffers(root, a, b, pipelinesRoot) {
   return false;
 }
 
+// `commit` merged with the merge-base: the merged tree, and the paths that conflict outside the pipelines folder root;
+// conflicts inside it are ignored.
+function mergedWithBase(root, commit, mergeBase, pipelinesRoot) {
+  const { tree, conflicts } = mergeTree(root, commit, mergeBase);
+  return { tree, conflicts: conflicts.filter((path) => !path.startsWith(`${pipelinesRoot}/`)) };
+}
 // Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the merge-base:
 // a conflict outside the root, or any difference from the merged tree outside it. Null when the clone lacks the commit.
 export function codeChanged(root, approved, mergeBase, tip, pipelinesRoot) {
   const commit = commitOf(root, approved);
   if (!commit) return null;
   if (commit === tip) return false;
-  const { tree, conflicts } = mergeTree(root, commit, mergeBase);
-  return conflicts.some((path) => !path.startsWith(`${pipelinesRoot}/`)) || codeDiffers(root, tree, tip, pipelinesRoot);
+  const { tree, conflicts } = mergedWithBase(root, commit, mergeBase, pipelinesRoot);
+  return conflicts.length > 0 || codeDiffers(root, tree, tip, pipelinesRoot);
 }
 
 // A phase's configured candidates matter while its artifact is missing.
@@ -1388,9 +1394,9 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       const from = requireCommit(root, later.last, `the commit ${role.name} last reviewed`);
       // What the lane has not reviewed: the turn commit against the commit it last reviewed merged with the merge-base, as
       // an approval's freshness is judged (§ codeChanged), so a conflict's markers give way to its resolution. The paths
-      // that conflict outside the pipelines folder root are code that changed, whatever the diff shows of them.
-      const merged = mergeTree(root, from, facts["merge-base"]), conflicts = merged.conflicts.filter((path) => !path.startsWith(`${pipelinesRoot}/`));
-      const changes = gitBytes(root, ["diff", "--no-ext-diff", merged.tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
+      // that conflict are code that changed, whatever the diff shows of them.
+      const { tree, conflicts } = mergedWithBase(root, from, facts["merge-base"], pipelinesRoot);
+      const changes = gitBytes(root, ["diff", "--no-ext-diff", tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
       files.push([diff, changes]);
       // The inputs that changed since the lane read them: those its approval's certification pins otherwise, or else
       // those that differ from the commit its reviewer's last message names.

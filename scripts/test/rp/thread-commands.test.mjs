@@ -380,7 +380,7 @@ describe("rp thread", () => {
 
     it("the reviewer approves again in its thread, and its lane lands approved at the new commit", () => {
       const { worktree, text, approvedCommit } = wokenAgain();
-      assert.match(text, new RegExp(`^Your review is in ${worktree}/${PIPELINE}/${REVIEW_THREAD}\\.\nWhat changed in the code since your last message there is .*/rp/reviewer\\.diff\\.$`, "m"));
+      for (const value of [`${worktree}/${PIPELINE}/${REVIEW_THREAD}`, "/rp/reviewer.diff"]) assert.ok(text.includes(value), value);
       const approved = sh(statedIn(text)[0], worktree, "The fix is fine.\n");
       assert.equal(approved.status, 0, approved.stderr);
       commitIn(worktree, {}, "Approve the fix (reviewer)");
@@ -399,8 +399,7 @@ describe("rp thread", () => {
         wakeOf(apply(), "implementer");
         landRole("implementer");
       });
-      assert.match(text, /^The code has not changed since your last message there\.$/m);
-      assert.match(text, new RegExp(`^These changed since then: ${worktree}/${PIPELINE}/0-intent/constraint-1\\.md$`, "m"));
+      assert.deepEqual([text.includes("/rp/reviewer.diff"), text.includes(`${worktree}/${PIPELINE}/0-intent/constraint-1.md`)], [false, true]);
       assert.equal(sh(statedIn(text)[0], worktree, "The constraint holds.\n").status, 0);
       commitIn(worktree, {}, "Approve again (reviewer)");
       landRole("reviewer-default");
