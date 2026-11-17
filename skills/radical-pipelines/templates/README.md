@@ -17,7 +17,7 @@ Every template may use:
 - `rp`: `node` and the absolute path of the `rp` script writing the assignment, the path one POSIX shell word: as written when every character in it is one a shell takes literally, quoted otherwise. Each template states the role's `rp` commands in the form `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`.
 - `base-branch`: `config.json`'s `base-branch`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
-- `brief`: the lane's brief, its placeholders expanded, or empty.
+- `brief`: the lane's brief, or on a consolidation its profile's consolidation brief, its placeholders expanded, or empty.
 - `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree, as written; and `pipeline-folder-arg`, the pipeline folder's as one shell word, for a command line.
 - `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
 - `malformed-files`: a list of the frontier's `malformed` lines naming a file the role writes, as `rp check` prints them.
@@ -30,7 +30,8 @@ A producer's and the implementer's templates also use:
 - `mode`: `Produce`, `Respond`, `Consolidate`, or `Implement`; and the flags `produce`, `respond`, `consolidate`, and `implement`, true for the turn's mode.
 - `supporting-folder`, `write-to`: the role's supporting folder and artifact, in its worktree.
 - `changed-inputs`: a list of each changed input as `<path> — changed since <commit>`, `<commit>` the latest one on the role's branch at which the input is as its artifact's certification pins it, or absent when it pins none.
-- `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree.
+- `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree, followed by `, written after <lanes>` for a lane that comes after others.
+- `previous-candidates`: a list of the paths of a lane's previous candidates, in its worktree.
 - `threads`: a list of the threads awaiting the role.
 
 A reviewer's templates also use `review-base`, and its later-turn template `thread`, the lane's open review thread, `thread-arg`, that path as one shell word, and `diff`, the diff it reads.

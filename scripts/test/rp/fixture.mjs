@@ -79,8 +79,9 @@ export const NAMES = { [SPEC]: "spec", [DESIGN]: "design-doc", [NOTES]: "impleme
 const LATER = /^0-intent\/(?:constraint|proposal|failure)-[1-9]\d*\.md$/;
 // Certifies the file at `rel`, built directly as landing certifies it, in the working tree of `worktree`: each required
 // input of its kind pinned at its identity in the tree of the commit `at`, and on an approval, a thread, the commit
-// holding it, `worktree`'s HEAD, as its approved commit. Returns the certification.
-export function certifyAt(at, rel, { folder = PIPELINE, worktree = root } = {}) {
+// holding it, `worktree`'s HEAD, as its approved commit. A candidate's required inputs include `previous`, its lane's
+// previous candidates. Returns the certification.
+export function certifyAt(at, rel, { folder = PIPELINE, worktree = root, previous = [] } = {}) {
   const id = (path) => git(worktree, "rev-parse", `${at}:${folder}/${path}`).trim().slice(0, 12);
   const laterInputs = git(worktree, "ls-tree", "-r", "--name-only", at, "--", `${folder}/0-intent/`).split("\n").filter(Boolean)
     .map((path) => path.slice(folder.length + 1)).filter((path) => LATER.test(path));
@@ -88,23 +89,23 @@ export function certifyAt(at, rel, { folder = PIPELINE, worktree = root } = {}) 
     .map((target) => target.trim().replace(/^["']|["']$/g, "").replace(/#.*$/, ""));
   const approval = rel.startsWith("threads/");
   const root_ = Object.keys(UPSTREAM).find((artifact) => rel === artifact || rel.startsWith(`${artifact.split("/")[0]}/lanes/`));
-  const required = approval ? [INTENT, ...laterInputs] : [...UPSTREAM[root_], ...(rel === root_ ? laterInputs.filter((path) => targets(path).includes(NAMES[rel])) : [])];
+  const required = approval ? [INTENT, ...laterInputs] : [...UPSTREAM[root_], ...previous, ...(rel === root_ ? laterInputs.filter((path) => targets(path).includes(NAMES[rel])) : [])];
   const certified = { inputs: required.map((path) => `${path}@${id(path)}`).sort(), ...(approval ? { "approved-commit": git(worktree, "rev-parse", "HEAD").trim() } : {}) };
   const path = join(worktree, folder, `certification/${rel}.json`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(certified, null, 2)}\n`);
   return certified;
 }
-export const certify = (rel) => certifyAt("HEAD", rel);
+export const certify = (rel, options) => certifyAt("HEAD", rel, options);
 // Lands a role's turn: commits the working tree, then certifies the file at that commit.
-export function land(rel) {
+export function land(rel, options) {
   commitAll(`land ${rel}`);
-  return certify(rel);
+  return certify(rel, options);
 }
 // A role revises a file's body and its turn lands.
-export function revise(rel, text = "Revised.") {
+export function revise(rel, text = "Revised.", options) {
   write(rel, `${read(rel)}${text}\n`);
-  return land(rel);
+  return land(rel, options);
 }
 export function commitAll(subject = "work") {
   git(root, "add", "-A");

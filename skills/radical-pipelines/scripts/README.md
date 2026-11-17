@@ -67,8 +67,10 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
   "variables": { "agent": "{pipeline-slug}-{role}" },
   "lanes": {
     "spec-producer": { "demands": { "brief": "Read the intent for what it demands." }, "omits": { "brief": "…" } },
+    "design-doc-producer": { "direct": {}, "alternative": { "after": ["direct"] } },
     "reviewer": { "default": {}, "security": { "brief": "…" } }
   },
+  "consolidation-briefs": { "design-doc-producer": "…" },
   "models": {
     "spec-producer": { "model": "large", "subagent-model": "small" },
     "spec-producer-demands": { "model": "other-large" },
@@ -83,10 +85,12 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
 - `base-branch`, required: a revision that resolves to a commit.
 - `worktree-folder-root`, required: the folder holding one worktree per branch, at `<folder>/<branch>`, a non-empty string; a relative one resolves against the main checkout's root, the first worktree `git worktree list` records.
 - `landing-commit-format`: the template of each commit `rp land` makes, a non-empty string holding `{subject}` and no other placeholder (§ Placeholders); `{subject}` is replaced by the commit's subject. Without it, the commit's message is its subject alone.
-- A **text** is a string holding more than whitespace, its lines separated by newlines: `commit-format`, a guardrail's or a resource's `text`, and a lane's `brief`. An assignment carries it as written, its placeholders expanded.
+- A **text** is a string holding more than whitespace, its lines separated by newlines: `commit-format`, a guardrail's or a resource's `text`, a lane's `brief`, and a consolidation brief. An assignment carries it as written, its placeholders expanded.
 - `guardrails` and `resources`, by name: each entry holds its text and `profiles`, a non-empty list of `spec-producer`, `design-doc-producer`, `implementer`, and `reviewer`.
 - `variables`, by name: each a template, a non-empty string whose placeholders name pipeline facts only. A name matches `[a-z][a-z0-9-]*` and is no pipeline fact.
 - `lanes`, by `spec-producer`, `design-doc-producer`, or `reviewer`: each a non-empty object of the profile's lanes by lane id, each lane holding an optional `brief`. A lane id matches `[a-z0-9][a-z0-9-]*`.
+- A `design-doc-producer` lane may also hold `after`: a non-empty list of other lanes of its profile, each named once, whose candidates are its **previous candidates**. No lane comes after itself, directly or through others.
+- `consolidation-briefs`, by `spec-producer` or `design-doc-producer`: the text the profile's consolidation carries as its brief.
 - A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, and review lanes for `reviewer`. Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
 - `models`, by profile, or by the role name `<profile>-<lane>` of a lane the run has: one `lanes` declares, or the review lane `default` while `lanes` declares no `reviewer` lane. Each entry holds an optional `model` and `subagent-model`, each a non-empty model name.
 - A role's model is the `model` of its role name's entry, else of its profile's; its subagent model is the `subagent-model` of its role name's entry, else of its profile's. Either may be none.
@@ -106,7 +110,7 @@ No other key exists at any level. `check`, `next`, and `land` read the file wher
 | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
 | A spec candidate | `0-intent/intent.md` |
 | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
-| A design doc candidate | `1-spec/spec.md` |
+| A design doc candidate | `1-spec/spec.md`; its lane's previous candidates |
 | `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
 | An approval | `0-intent/intent.md`; every later input |
 
@@ -175,8 +179,8 @@ The frontier is every action of the first rule that holds:
 1. **`malformed <path>: <reason>`** for each malformed file.
 2. **`escalate <thread>`** for each `escalated` thread.
 3. The lowest phase whose roles have work. Phases 1 to 3 belong to their artifact's profile, its production lanes included, and phase 4 to the reviewers. Work is an `open` thread awaiting the role, in any phase, or the artifact missing or stale, through the target. `<artifact>` is the artifact's name:
-   - While the artifact is missing, for each configured lane: **`produce <artifact> <lane>`** when its candidate is missing, **`respond <artifact> <lane>`** when it is stale.
-   - Production lanes configured, the artifact missing, and no lane action: **`consolidate <artifact>`**.
+   - While the artifact is missing, for each configured lane whose previous candidates are all fresh: **`produce <artifact> <lane>`** when its candidate is missing, **`respond <artifact> <lane>`** when it is stale.
+   - Production lanes configured, the artifact missing, and every candidate fresh: **`consolidate <artifact>`**.
    - The artifact missing, without production lanes: **`produce <artifact>`**.
    - The artifact stale, or a thread awaiting the artifact's owner: **`respond <artifact>`**. Beyond the target, only the thread counts.
    - Phase 4: **`review <lane>`** for each lane a thread awaits, and, at target phase 4, each configured lane not approved.
@@ -336,7 +340,7 @@ node rp.mjs land <pipeline folder> --role <role>
 1. **Verify.** The role's branch exists and holds its turn commit; otherwise `land` stops, naming the role's worktree.
 2. **Bring.** From commits alone. A production lane's branch, when it holds unlanded commits (§ `next`), is merged into the tip. A review lane's unlanded commits after its review head are picked onto the tip one by one, keeping their authors and messages, and none of the commits that built the review head. A role in the pipeline worktree has its commits on the tip already. A conflict stops `land`.
 3. **Validate.** The pipeline files the turn's unlanded commits change, or for a role in the pipeline worktree its commits after its turn commit, are validated as `check` validates them, as the pipeline branch would hold them after the landing. A malformed one stops `land` with `rp: land: <worktree>: the turn brings malformed files:`, then each `malformed <path>: <reason>` line as `check` prints it. Whatever stops `check` on the pipeline after the landing, such as a `base-branch` that does not resolve, stops `land` too.
-4. **Certify.** It writes `certification/<path>.json` (§ Certification) for the role's artifact or candidate when it exists, at the turn commit, and for each approval among the files the turn brings, at the commit its reviewer's last message names, with `approved-commit` the last commit brought, the pipeline commit holding it. An approval whose named commit does not resolve, or whose code outside the pipelines folder root differs from that pipeline commit's, lands uncertified, any certification its path held removed, so its lane is not approved. `inputs` are the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit is not certified. Only what certifying reads at that commit is validated there: the intent, every later input (its `target` says whether it applies), and the file's upstream artifacts; one of them malformed, or a required input missing, stops `land`.
+4. **Certify.** It writes `certification/<path>.json` (§ Certification) for the role's artifact or candidate when it exists, at the turn commit, and for each approval among the files the turn brings, at the commit its reviewer's last message names, with `approved-commit` the last commit brought, the pipeline commit holding it. An approval whose named commit does not resolve, or whose code outside the pipelines folder root differs from that pipeline commit's, lands uncertified, any certification its path held removed, so its lane is not approved. `inputs` are the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit is not certified. Only what certifying reads at that commit is validated there: the intent, every later input (its `target` says whether it applies), the file's upstream artifacts, and a candidate's previous candidates; one of them malformed, or a required input missing, stops `land`.
 5. **Commit.** It commits the merge and then the certifications that change or are removed, each subject naming what it landed, such as `Merge spec lane a` or `Certify spec`, in the `landing-commit-format` template when one is set. A landing that changes no certification and brings no commit makes no commit.
 6. **Move.** It fast-forwards the pipeline worktree to its last commit with `git merge --ff-only`, which stops on local changes it would overwrite.
 7. **Report.** It prints `hook phase-completed <phase>` for each phase complete after the landing (§ Complete phases) that was not complete when the step was applied and that no earlier landing of the step reported, in phase order, and adds them to the turn record.
@@ -398,7 +402,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 
 ### Placeholders
 
-A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. In an assignment, each placeholder that names a pipeline fact or a variable is replaced by its value for the role, in one pass; a variable's value is its template with each fact replaced.
+A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's or a consolidation brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. In an assignment, each placeholder that names a pipeline fact or a variable is replaced by its value for the role, in one pass; a variable's value is its template with each fact replaced.
 
 | Pipeline fact | Value |
 | --- | --- |
