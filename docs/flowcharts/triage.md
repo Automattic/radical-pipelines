@@ -39,7 +39,7 @@ flowchart TD
     P3 --> CFG
     P4 --> CFG
     CFG["Record the pipeline configuration and commit config.json, a new pipeline's with its intent"] --> RUN
-    RUN["Record unconsumed work directions as later input"] --> START["Fire run-started; run the loop"]
+    RUN["Record unconsumed statements a role must act on as later input"] --> START["Fire run-started; run the loop"]
     START --> NEXT{"Another run?"}
     NEXT -->|Yes| PREP
 ```

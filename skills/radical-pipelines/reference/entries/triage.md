@@ -81,4 +81,4 @@ Last, record the pipeline configuration the run starts under (`../run/state.md` 
 
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Then fire `run-started` and follow `../run/loop.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record through Later input every statement a role must act on that no route consumed. Then fire `run-started` and follow `../run/loop.md`.

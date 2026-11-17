@@ -10,7 +10,20 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. An answer may disagree with a finding: drop the finding when its reasons convince you, and hold it when they do not. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
+Your review is in {{thread}}.
+{{#code-changed}}
+What changed in the code since your last message there is {{diff}}.
+{{/code-changed}}
+{{#conflicts}}
+The author resolved conflicts with the base branch in these files. The diff shows a conflict's markers giving way to its resolution, and may show nothing of a conflict without markers, so review each file's resolution: {{conflicts}}
+{{/conflicts}}
+{{^code-changed}}
+The code has not changed since your last message there.
+{{/code-changed}}
+{{#changed-inputs}}
+These changed since then: {{changed-inputs}}
+{{/changed-inputs}}
+Check any answer the author gave you, and review what changed and what it affects. An answer may disagree with a finding: drop the finding when its reasons convince you, and hold it when they do not. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
 
 ```
 {{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread {{thread-arg}} --status approved --body - <<'EOF'
@@ -26,7 +39,7 @@ Otherwise, say what still needs to change with this one, your answer in place of
 EOF
 ```
 
-When you and the author disagree on what the issue means or demands, say so: the author takes the question to the person who wrote the issue. On a matter of preference, the author's answer to a finding you held is final.
+When you and the author disagree on what the issue demands, say so, quoting the issue's words it turns on: the author takes the question to the person who wrote the issue. When the author answers a second time that a finding you held stands, and the finding neither shows the code doing something wrong nor quotes the issue, drop it.
 
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 

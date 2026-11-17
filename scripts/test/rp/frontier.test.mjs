@@ -103,8 +103,8 @@ describe("frontier", () => {
       ["an empty base", () => configure({ base: " " }), /config\.json: base-branch: must be a revision/],
       ["the worktree folder root missing", () => writeConfig({ "worktree-folder-root": undefined }), /config\.json: worktree-folder-root: missing/],
       ["an unknown key", () => configure({ workflow: "autonomous" }), /config\.json: unexpected key: workflow/],
-      ["owner directions given as null", () => configure({ "owner-directions": null }), /config\.json: owner-directions: must be a list of strings/],
-      ["owner directions holding other than strings", () => configure({ "owner-directions": ["Keep it local.", 2] }), /config\.json: owner-directions: must be a list of strings/],
+      ["orchestrator directions given as null", () => configure({ "orchestrator-directions": null }), /config\.json: orchestrator-directions: must be a list of strings/],
+      ["orchestrator directions holding other than strings", () => configure({ "orchestrator-directions": ["Keep it local.", 2] }), /config\.json: orchestrator-directions: must be a list of strings/],
       ["lanes given as a list", () => writeConfig({ lanes: [{ profile: "reviewer", id: "a" }] }), /config\.json: lanes: must be a JSON object/],
       ["lanes naming an unknown profile", () => configure({ lanes: [lane("implementor", "a")] }), /config\.json: lanes: unexpected key: implementor/],
       ["implementer lanes", () => configure({ lanes: [lane("implementer", "a")] }), /config\.json: lanes: unexpected key: implementer/],
@@ -338,6 +338,58 @@ describe("frontier", () => {
       writeFile("src/app.js", "export const a = 9;\n");
       commitAll("change");
       assert.deepEqual(check().reviews, [{ lane: "default", approved: false, "code-changed": true }]);
+    });
+
+    describe("a lane whose approval is stale reviews again once no review thread is open", () => {
+      // Lanes a and b approved, in threads 1 and 2; then `stale` makes both approvals stale.
+      function approved(stale) {
+        pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] });
+        approve("a", 1);
+        approve("b", 2);
+        assert.deepEqual(frontier(), ["complete"]);
+        stale();
+      }
+      const code = () => { writeFile("src/app.js", "export const a = 3;\n"); commitAll("change"); };
+      const input = () => { write("0-intent/proposal-1.md", later(SPEC)); revise(SPEC); revise(DESIGN); revise(NOTES); };
+      // Lane a's review thread, open, with the implementer's answer or awaiting it.
+      const reopen = (answered = true) => thread({ n: 1, ...REVIEW("a"), messages: [["reviewer-a", "abc1234"], ...(answered ? [["implementer", "abc1234"]] : [])] });
+
+      for (const [what, stale] of [["the code changed", code], ["an input changed", input]])
+        it(`when ${what}: every stale lane at once without an open review thread, and only the lane a thread awaits while one is open`, () => {
+          approved(stale);
+          assert.deepEqual(frontier(), ["review a", "review b"]);
+          reopen(false);
+          assert.deepEqual(frontier(), ["respond implementation"]);
+          reopen();
+          assert.deepEqual(frontier(), ["review a"]);
+          assert.equal(check().reviews[1].approved, false);
+          approve("a", 1);
+          assert.deepEqual(frontier(), ["review b"]);
+        });
+
+      it("an approval without certification is stale, and waits the same way", () => {
+        pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] });
+        thread({ n: 1, ...REVIEW("a"), messages: [["reviewer-a", "abc1234"], ["implementer", "abc1234"]] });
+        thread({ n: 2, status: "approved", ...REVIEW("b") });
+        assert.deepEqual(frontier(), ["review a"]);
+        approve("a", 1);
+        assert.deepEqual(frontier(), ["review b"]);
+      });
+
+      it("a withdrawn review thread keeps no lane waiting", () => {
+        approved(code);
+        thread({ n: 1, status: "withdrawn", ...REVIEW("a") });
+        assert.deepEqual(frontier(), ["review a", "review b"]);
+      });
+
+      it("a lane that is not approved for another reason reviews while a review thread is open: no review thread, a withdrawn one, or an approval whose approved commit the clone lacks", () => {
+        pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b"), lane("reviewer", "c"), lane("reviewer", "d")] });
+        thread({ n: 1, ...REVIEW("a"), messages: [["reviewer-a", "abc1234"], ["implementer", "abc1234"]] });
+        thread({ n: 2, status: "withdrawn", ...REVIEW("c") });
+        const path = approve("d", 3);
+        write(`certification/${path}.json`, JSON.stringify({ ...JSON.parse(read(`certification/${path}.json`)), "approved-commit": "1".repeat(40) }));
+        assert.deepEqual(frontier(), ["review a", "review b", "review c", "review d"]);
+      });
     });
 
     it("only the lane's highest-numbered review thread counts", () => {

@@ -53,12 +53,12 @@ describe("the pipeline configuration", () => {
     assert.deepEqual(subjects(`${before}..HEAD`), ["Certify spec lane a candidate (orchestrator)", "Merge spec lane a (orchestrator)"]);
   });
 
-  it("holds the owner's directions, which change nothing rp check, rp next, and rp land print or write, whether it holds some, none, or no list", () => {
+  it("holds the owner's directions to the orchestrator, which change nothing rp check, rp next, and rp land print or write, whether it holds some, none, or no list", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     const config = JSON.parse(read("config.json"));
     const directions = [
-      () => write("config.json", JSON.stringify({ ...config, "owner-directions": ["Keep the pipeline branch local.", "Start from `v4`."] })),
-      () => write("config.json", JSON.stringify({ ...config, "owner-directions": [] })),
+      () => write("config.json", JSON.stringify({ ...config, "orchestrator-directions": ["Keep the pipeline branch local.", "Report after every landing."] })),
+      () => write("config.json", JSON.stringify({ ...config, "orchestrator-directions": [] })),
       () => write("config.json", JSON.stringify(config)),
     ];
     same(directions, () => run("check", abs(PIPELINE), "--json"));
