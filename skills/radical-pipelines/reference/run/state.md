@@ -43,7 +43,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, and `notes.md`. Later inputs, 
   | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
   | A spec candidate | `0-intent/intent.md` |
   | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
-  | A design doc candidate | `1-spec/spec.md` |
+  | A design doc candidate | `1-spec/spec.md`; its lane's previous candidates |
   | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
   | A review thread closed `approved` | `0-intent/intent.md`; every later input |
 
@@ -103,13 +103,13 @@ Record it at every run start, and at no other moment from the conventions:
 - `landing-commit-format`: the template of the commits `rp land` makes, holding `{subject}` where each commit's subject goes, as the Commit format convention has your commits read; absent when it says nothing of them.
 - `target-phase`: the phase the run continues through, 1 to 4.
 - `base-branch`: the branch of the unmerged pipeline it started from, else the artifact base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
-- `lanes` and `models`: the lanes, briefs, models, and subagent models the owner confirmed, from the Lanes and Models conventions.
-- Keep `target-phase`, `base-branch`, `lanes`, and `models` as they are unless the owner asks to change them, while confirming the run or during it.
+- `lanes`, `consolidation-briefs`, and `models`: the lanes, briefs, consolidation briefs, models, and subagent models the owner confirmed, from the Lanes and Models conventions.
+- Keep `target-phase`, `base-branch`, `lanes`, `consolidation-briefs`, and `models` as they are unless the owner asks to change them, while confirming the run or during it.
 - `owner-directions`: the owner's directions for the run, one entry per direction. Keep every earlier entry.
 
-Copy each text and value character for character as the conventions write it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, and each variable's template. Record every guardrail and resource under its name, with the profiles it binds. Never summarize or reword.
+Copy each text and value character for character as the conventions write it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, a consolidation brief, the worktree folder root, and each variable's template. Record every guardrail and resource under its name, with the profiles it binds. Never summarize or reword.
 
-A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. A lane without a brief covers its profile's whole scope. Lane ids start with a lowercase letter or digit and continue with those or hyphens. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
+A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. A lane without a brief covers its profile's whole scope. A `design-doc-producer` lane's `after` lists the lanes of its profile it comes after; their candidates are its **previous candidates**. Lane ids start with a lowercase letter or digit and continue with those or hyphens. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
 
 `config.json` remains with a merged pipeline, holding the conventions of its last run start. It does not say whether a run is in progress; to know that, check which roles are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `withdrawn`. Terminate the roles working under a changed lane.
 
@@ -133,7 +133,7 @@ A profile's lanes are production lanes for `spec-producer` and `design-doc-produ
 1. A malformed pipeline file → `malformed <path>: <reason>`. Nothing is computed from a malformed file.
 2. A thread with `status: escalated` → `escalate <thread>`.
 3. The lowest phase whose role has work — a thread awaiting the role, in any phase, or its artifact missing or stale, in a phase through the target. `<artifact>` is the artifact's name:
-   - production lanes declared and the artifact missing → `produce <artifact> <lane>` for each candidate missing and `respond <artifact> <lane>` for each candidate stale, else `consolidate <artifact>`;
+   - production lanes declared and the artifact missing → `produce <artifact> <lane>` for each candidate missing and `respond <artifact> <lane>` for each candidate stale, of the lanes whose previous candidates are all fresh; `consolidate <artifact>` once every candidate is fresh;
    - the artifact missing → `produce <artifact>`;
    - the artifact stale, or a thread awaiting its owner → `respond <artifact>`;
    - phase 4 → `review <lane>` for each lane not approved or with a thread awaiting its reviewer.

@@ -103,6 +103,56 @@ describe("production lanes", () => {
     assert.deepEqual(frontier(), [`consolidate design-doc`]);
   });
 
+  describe("that come after others", () => {
+    const doc = (id) => candidate(id, "2-design-doc", "design-doc.md");
+    const docLane = (id, ...after) => ({ profile: "design-doc-producer", id, ...(after.length ? { after } : {}) });
+    const produceDoc = (id, ...previous) => {
+      write(doc(id), `# Design candidate ${id}\n`);
+      land(doc(id), { previous: previous.map(doc) });
+    };
+
+    it("wait until each previous candidate is fresh, beside the lanes that come after none", () => {
+      pipeline(1, { lanes: [docLane("a"), docLane("b"), docLane("c", "a", "b")] });
+      assert.deepEqual(frontier(), ["produce design-doc a", "produce design-doc b"]);
+      produceDoc("a");
+      assert.deepEqual(frontier(), ["produce design-doc b"]);
+      produceDoc("b");
+      assert.deepEqual(frontier(), ["produce design-doc c"]);
+      produceDoc("c", "a", "b");
+      assert.deepEqual(frontier(), ["consolidate design-doc"]);
+    });
+
+    it("run one at a time when each comes after the one before", () => {
+      pipeline(1, { lanes: [docLane("c", "b"), docLane("b", "a"), docLane("a")] });
+      assert.deepEqual(frontier(), ["produce design-doc a"]);
+      produceDoc("a");
+      assert.deepEqual(frontier(), ["produce design-doc b"]);
+      produceDoc("b", "a");
+      assert.deepEqual(frontier(), ["produce design-doc c"]);
+    });
+
+    it("are stale on a previous candidate they do not pin as it is, and wait while one is stale", () => {
+      pipeline(1, { lanes: [docLane("a"), docLane("b", "a")] });
+      produceDoc("a");
+      produceDoc("b", "a");
+      revise(SPEC);
+      assert.deepEqual(check().frontier, [{ action: "respond", target: "design-doc", lane: "a", changed: [SPEC] }]);
+      revise(doc("a"));
+      assert.deepEqual(check().frontier, [{ action: "respond", target: "design-doc", lane: "b", changed: [SPEC, doc("a")] }]);
+      revise(doc("b"), "Revised.", { previous: [doc("a")] });
+      assert.deepEqual(frontier(), ["consolidate design-doc"]);
+      revise(doc("a"));
+      assert.deepEqual(check().frontier, [{ action: "respond", target: "design-doc", lane: "b", changed: [doc("a")] }]);
+    });
+
+    it("are stale on a previous candidate their certification leaves unpinned", () => {
+      pipeline(1, { lanes: [docLane("a"), docLane("b", "a")] });
+      produceDoc("a");
+      produceDoc("b");
+      assert.deepEqual(check().frontier, [{ action: "respond", target: "design-doc", lane: "b", changed: [doc("a")] }]);
+    });
+  });
+
   it("are not configured by a review lane", () => {
     pipeline(0, { lanes: [lane("reviewer", "a")] });
     assert.deepEqual(frontier(), [`produce spec`]);

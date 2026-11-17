@@ -468,19 +468,50 @@ function modelAt(value, at, malformed) {
 // The profiles a role is an instance of.
 export const PROFILES = ["spec-producer", "design-doc-producer", "implementer", "reviewer"];
 const MODELS = ["model", "subagent-model"];
+// The profile whose production lanes may come after others.
+const AFTER_PROFILE = "design-doc-producer";
+// A lane's `after`: a non-empty list of other lanes of its profile, `lanes` by lane id, each named once.
+function afterAt(value, at, profile, id, lanes, malformed) {
+  if (profile !== AFTER_PROFILE) malformed(`${at}: only a ${AFTER_PROFILE} lane comes after others`);
+  if (!Array.isArray(value) || !value.length) malformed(`${at}: must be a non-empty list of lane ids`);
+  for (const other of value)
+    if (typeof other !== "string" || other === id || !Object.hasOwn(lanes, other)) malformed(`${at}: ${JSON.stringify(other)} names no other lane of ${profile}`);
+  if (new Set(value).size !== value.length) malformed(`${at}: names a lane twice`);
+  return value;
+}
+// Every lane a lane waits for: those it comes after, and those they wait for.
+function waitsFor(lanes, lane, found = new Set()) {
+  for (const id of lane.after ?? []) {
+    if (found.has(id)) continue;
+    found.add(id);
+    waitsFor(lanes, lanes.find((each) => each.profile === lane.profile && each.id === id), found);
+  }
+  return found;
+}
 // config.json's `lanes`: by `spec-producer`, `design-doc-producer`, or `reviewer`, the profile's lanes by lane id, each
-// holding its brief when it has one. The lanes, each `{ profile, id[, brief] }`.
+// holding its brief when it has one, and a `design-doc-producer` lane `after` when it comes after others. No lane waits
+// for itself. The lanes, each `{ profile, id[, brief][, after] }`.
 function parseLanes(value, malformed) {
-  return Object.entries(objectAt(value, "lanes", malformed, LANE_PROFILES)).flatMap(([profile, lanes]) => {
+  const parsed = Object.entries(objectAt(value, "lanes", malformed, LANE_PROFILES)).flatMap(([profile, lanes]) => {
     const at = `lanes.${profile}`;
     if (!Object.keys(objectAt(lanes, at, malformed)).length) malformed(`${at}: must name a lane`);
     return Object.entries(lanes).map(([id, lane]) => {
       const laneAt = entryName(at, id);
       if (!LANE_ID.test(id)) malformed(`${laneAt}: a lane id must match ${LANE_ID.source}`);
-      objectAt(lane, laneAt, malformed, ["brief"]);
-      return { profile, id, ...("brief" in lane ? { brief: textAt(lane.brief, `${laneAt}.brief`, malformed) } : {}) };
+      objectAt(lane, laneAt, malformed, ["brief", "after"]);
+      return { profile, id, ...("brief" in lane ? { brief: textAt(lane.brief, `${laneAt}.brief`, malformed) } : {}),
+        ...("after" in lane ? { after: afterAt(lane.after, `${laneAt}.after`, profile, id, lanes, malformed) } : {}) };
     });
   });
+  for (const lane of parsed)
+    if (waitsFor(parsed, lane).has(lane.id)) malformed(`${entryName(`lanes.${lane.profile}`, lane.id)}.after: the lane comes after itself`);
+  return parsed;
+}
+// config.json's `consolidation-briefs`: by `spec-producer` or `design-doc-producer`, the brief its consolidation carries.
+function parseConsolidationBriefs(value, malformed) {
+  const at = "consolidation-briefs";
+  return Object.fromEntries(Object.entries(objectAt(value, at, malformed, PHASES.filter((phase) => phase.lanes).map((phase) => phase.owner)))
+    .map(([profile, brief]) => [profile, textAt(brief, `${at}.${profile}`, malformed)]));
 }
 // config.json's `models`: by profile, or by the role name of a lane among the roles of the pipeline configuration
 // `config` (§ rolesOf), the model and subagent model it gives, each optional.
@@ -555,9 +586,9 @@ function conventionsOf(data, malformed) {
 }
 
 // config.json: the target phase, the base branch, and the worktree folder root, each required; every other convention
-// it records, the lanes, the models, and the owner's directions, each optional. Nothing reads the directions.
+// it records, the lanes, the consolidation briefs, the models, and the owner's directions, each optional. Nothing reads the directions.
 export function parseConfig(bytes, malformed) {
-  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base-branch", ...CONVENTIONS, "lanes", "models", "owner-directions"]);
+  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base-branch", ...CONVENTIONS, "lanes", "consolidation-briefs", "models", "owner-directions"]);
   for (const key of ["target-phase", "base-branch", "worktree-folder-root"]) if (!(key in data)) malformed(`${key}: missing`);
   const targetPhase = data["target-phase"];
   if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) malformed("target-phase: must be an integer from 1 to 4");
@@ -565,7 +596,8 @@ export function parseConfig(bytes, malformed) {
   if (typeof baseBranch !== "string" || !baseBranch.trim()) malformed("base-branch: must be a revision, a non-empty string");
   const directions = data["owner-directions"];
   if ("owner-directions" in data && !(Array.isArray(directions) && directions.every((direction) => typeof direction === "string"))) malformed("owner-directions: must be a list of strings");
-  const config = { targetPhase, baseBranch, lanes: "lanes" in data ? parseLanes(data.lanes, malformed) : [], landingCommitFormat: null, commitFormat: null,
+  const config = { targetPhase, baseBranch, lanes: "lanes" in data ? parseLanes(data.lanes, malformed) : [],
+    consolidationBriefs: "consolidation-briefs" in data ? parseConsolidationBriefs(data["consolidation-briefs"], malformed) : {}, landingCommitFormat: null, commitFormat: null,
     guardrails: {}, resources: {}, variables: {}, ...conventionsOf(data, malformed) };
   config.models = "models" in data ? parseModels(data.models, config, malformed) : {};
   return config;
@@ -579,6 +611,10 @@ export function modelsOf(config, role) {
 
 // The production lanes configured for a phase.
 const productionLanes = (config, phase) => phase.lanes ? config.lanes.filter((lane) => lane.profile === phase.owner) : [];
+// A production lane's candidate.
+const candidateOf = (phase, laneId) => `${phase.folder}/lanes/${laneId}/${basename(phase.path)}`;
+// The previous candidates of a production lane of `phase`: those of the lanes it comes after.
+const previousCandidates = (config, phase, laneId) => (productionLanes(config, phase).find((lane) => lane.id === laneId)?.after ?? []).map((id) => candidateOf(phase, id));
 // The review lanes: the configured ones, or one lane `default`.
 export function reviewLanes(config) {
   const lanes = config.lanes.filter((lane) => lane.profile === "reviewer");
@@ -757,15 +793,19 @@ export function readState(pipeline, where) {
 // --- state ------------------------------------------------------------------------
 
 // The required inputs of what is certified. An artifact: its phase's upstream artifacts and every later input that
-// targets it. A candidate: its phase's upstream artifacts, what its lane reads; the later inputs targeting its artifact
-// are the artifact's. An approval: the intent and every later input.
+// targets it. A candidate: its phase's upstream artifacts and its lane's previous candidates, what its lane reads; the
+// later inputs targeting its artifact are the artifact's. An approval: the intent and every later input.
 export function requiredInputs(state, subject) {
   const consumes = (doc) => subject.kind === "thread" || (subject.kind === "artifact" && doc.targets.includes(subject.phase.name));
   const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && consumes(doc));
-  return [...upstreamOf(subject), ...later.map((doc) => doc.path)];
+  return [...upstreamOf(state.config, subject), ...later.map((doc) => doc.path)];
 }
-// The upstream artifacts a subject pins, before later inputs.
-const upstreamOf = (subject) => subject.kind === "thread" ? [INTENT] : subject.phase.upstream;
+// What a subject pins before later inputs, under `config`: the intent for an approval; its phase's upstream artifacts
+// for an artifact; those and its lane's previous candidates for a candidate.
+function upstreamOf(config, subject) {
+  if (subject.kind === "thread") return [INTENT];
+  return [...subject.phase.upstream, ...(subject.kind === "candidate" ? previousCandidates(config, subject.phase, subject.lane) : [])];
+}
 
 // The required inputs of a subject that its certification leaves unpinned, or pins at an identity that differs from the
 // current one.
@@ -845,23 +885,27 @@ export function codeChanged(root, approved, mergeBase, tip, pipelinesRoot) {
   return conflicts.some((path) => !path.startsWith(`${pipelinesRoot}/`)) || codeDiffers(root, tree, tip, pipelinesRoot);
 }
 
-const candidateOf = (phase, laneId) => `${phase.folder}/lanes/${laneId}/${basename(phase.path)}`;
 // A phase's configured candidates matter while its artifact is missing.
 const lanesOpen = (state, phase) => statusOf(state, phase.path).state === "missing" ? productionLanes(state.config, phase) : [];
 
 // The actions for a phase whose roles have work, or null. Threads awaiting a role are work in any phase; a missing or stale
 // artifact only through the target. A lane's work is its candidate missing or stale while the artifact is missing, to
-// produce or respond; the artifact's owner's is consolidate, produce, or respond.
+// produce or respond once each of its previous candidates is fresh; the artifact's owner's is consolidate, produce, or
+// respond.
 function phaseActions(state, phase) {
   const inTarget = phase.n <= state.config.targetPhase;
   const status = statusOf(state, phase.path);
   const lanes = inTarget ? lanesOpen(state, phase) : [];
-  const actions = lanes.map((lane) => ({ lane, status: statusOf(state, candidateOf(phase, lane.id)) })).filter((entry) => entry.status.state !== "fresh")
-    .map(({ lane, status: candidate }) => ({ action: candidate.state === "missing" ? "produce" : "respond", target: phase.name, lane: lane.id, ...(candidate.stale ? { changed: candidate.stale } : {}) }));
+  const fresh = (path) => statusOf(state, path).state === "fresh";
+  const unfinished = lanes.filter((lane) => !fresh(candidateOf(phase, lane.id)));
+  const actions = unfinished.filter((lane) => previousCandidates(state.config, phase, lane.id).every(fresh)).map((lane) => {
+    const candidate = statusOf(state, candidateOf(phase, lane.id));
+    return { action: candidate.state === "missing" ? "produce" : "respond", target: phase.name, lane: lane.id, ...(candidate.stale ? { changed: candidate.stale } : {}) };
+  });
   const threads = awaiting(state, phase.owner);
   if (inTarget && status.state === "missing") {
     if (!lanes.length) actions.push({ action: "produce", target: phase.name, threads });
-    else if (!actions.length) actions.push({ action: "consolidate", target: phase.name, threads });
+    else if (!unfinished.length) actions.push({ action: "consolidate", target: phase.name, threads });
   } else if ((inTarget && status.state === "stale") || threads.length)
     actions.push({ action: "respond", target: phase.name, threads, ...(inTarget && status.stale ? { changed: status.stale } : {}) });
   return actions.length ? actions : null;
@@ -967,10 +1011,10 @@ async function cmdCheck(args) {
 
 // The certification of `subject`, a landed artifact, candidate, or approval parsed under `config`: its required inputs
 // at their identities in the tree of the turn's commit `at`, and on an approval its approved commit. Only
-// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), and the
-// subject's upstream artifacts. One of those malformed, or a required input missing, stops it.
+// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), and what
+// the subject pins before later inputs. One of those malformed, or a required input missing, stops it.
 async function certificationOf(root, folder, config, subject, at, approvedCommit = null) {
-  const upstream = upstreamOf(subject);
+  const upstream = upstreamOf(config, subject);
   const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path);
   const state = parseFiles(await readCommit(root, at, folder, reads), `${at}:${folder}`, config, false);
   if (state.invalid.length) fail(`${at}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
@@ -1286,11 +1330,13 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
   const keeps = {};
   const expand = (key) => (text) => expandText(text, { ...facts, ...variables }, keeps[key] ??= new Set());
   const laneEntry = role.lane ? config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
+  // A lane's brief; on a consolidation, its profile's consolidation brief.
+  const brief = turn.mode === "Consolidate" ? config.consolidationBriefs[role.profile] : laneEntry?.brief;
   const carried = {
     guardrails: carriedOf(config, "guardrails", role.profile, expand("guardrails")),
     resources: carriedOf(config, "resources", role.profile, expand("resources")),
     "commit-format": config.commitFormat === null ? "An imperative subject line." : expand("commit-format")(config.commitFormat),
-    brief: laneEntry?.brief ? expand("brief")(laneEntry.brief) : "",
+    brief: brief ? expand("brief")(brief) : "",
   };
   // A reviewer's repair assignment carries the commit format alone; every other assignment, every carried text.
   const artifact = artifactOf(role);
@@ -1319,7 +1365,8 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       ...Object.fromEntries(["produce", "respond", "consolidate", "implement"].map((mode) => [mode, turn.mode.toLowerCase() === mode])),
       "supporting-folder": `${at(artifact.path.replace(/\.md$/, ""))}/`,
       "changed-inputs": turn.changed.map((input) => `${at(input)} — changed since ${changedSince(root, folder, tip, input, pins.get(input))}`),
-      "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}`),
+      "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}${lane.after ? `, written after ${lane.after.join(", ")}` : ""}`),
+      "previous-candidates": role.lane ? previousCandidates(config, artifact.phase, role.lane).map(at) : [],
       threads: turn.threads.map(at),
       "write-to": at(artifact.path),
     });
