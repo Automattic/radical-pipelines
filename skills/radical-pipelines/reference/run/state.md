@@ -90,7 +90,7 @@ cites: <thread path | evidence path>
 - **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and `reviewer-<lane>` for a review lane. Production lanes open no threads: a thread whose opener or recipient is `spec-producer-<lane>` or `design-doc-producer-<lane>` is malformed. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `about` and `recipient` pair as `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`. The opener is any role but `owner`.
 - **Messages** — in the body, each headed `## <role> — <commit>`, written by the opener, the recipient, or, for an owner's answer, by you as `owner`.
 - **Awaits** — an `open` thread awaits its opener when its recipient wrote the last message, and its recipient otherwise.
-- **Status** — the opener closes a review thread `approved` and any other `resolved`, or either `withdrawn`. `escalated` is only the status of a thread to `owner` about `intent`, which a role opens for a disagreement on what the intent means or demands, citing the thread it comes from, or for evidence that every kind of approach fails an intent goal or constraint, citing that evidence; you close it `answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
+- **Status** — the opener closes a review thread `approved` and any other `resolved`, or either `withdrawn`. A reviewer writes again in its approved review thread: a reply opens it, and a close approves it again. `escalated` is only the status of a thread to `owner` about `intent`, which a role opens for a disagreement on what the intent means or demands, citing the thread it comes from, or for evidence that every kind of approach fails an intent goal or constraint, citing that evidence; you close it `answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
 - **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `approved` and fresh.
 
 ## Pipeline configuration
@@ -136,7 +136,7 @@ A profile's lanes are production lanes for `spec-producer` and `design-doc-produ
    - production lanes declared and the artifact missing → `produce <artifact> <lane>` for each candidate missing and `respond <artifact> <lane>` for each candidate stale, of the lanes whose previous candidates are all fresh; `consolidate <artifact>` once every candidate is fresh;
    - the artifact missing → `produce <artifact>`;
    - the artifact stale, or a thread awaiting its owner → `respond <artifact>`;
-   - phase 4 → `review <lane>` for each lane not approved or with a thread awaiting its reviewer.
+   - phase 4 → `review <lane>` for each lane with a thread awaiting its reviewer, and for each lane not approved; a lane whose approval is stale only once no review thread is `open`.
 4. Otherwise → `complete`.
 
 Below the frontier, `rp check` lists the threads awaiting each woken role and the changed inputs of each stale artifact. A missing or malformed configuration, a certification it cannot read, a base branch that does not resolve, or no merge-base stops the command.

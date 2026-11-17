@@ -1,6 +1,6 @@
 # Assignment templates
 
-`rp next --apply` (`../scripts/README.md` § Assignments) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open, or `reviewer-repair.md` when files it wrote are malformed. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
+`rp next --apply` (`../scripts/README.md` § Assignments) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open or approved, or `reviewer-repair.md` when files it wrote are malformed. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
 
 ## Syntax
 
@@ -34,4 +34,4 @@ A producer's and the implementer's templates also use:
 - `previous-candidates`: a list of the paths of a lane's previous candidates, in its worktree.
 - `threads`: a list of the threads awaiting the role.
 
-A reviewer's templates also use `review-base`, and its later-turn template `thread`, the lane's open review thread, `thread-arg`, that path as one shell word, and `diff`, the diff it reads.
+A reviewer's templates also use `review-base`, and its later-turn template `thread`, the lane's review thread, `thread-arg`, that path as one shell word, `diff`, the diff it reads, the flag `code-changed`, true when that diff holds a change or a merge of the base branch conflicted, `conflicts`, a list of the paths that conflicted, and `changed-inputs`, a list of the paths of the inputs that changed since the lane read them.
