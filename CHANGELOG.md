@@ -1,5 +1,25 @@
 # @automattic/radical-pipelines
 
+## 0.23.0
+
+### Minor Changes
+
+- [#382](https://github.com/Automattic/radical-pipelines/pull/382) [`33a5115`](https://github.com/Automattic/radical-pipelines/commit/33a51151e952aec1fc292f83ed6bf8e4afaaa972) Thanks [@luisherranz](https://github.com/luisherranz)! - Let a design doc production lane come after others, and give a producer a consolidation brief.
+  
+  A `design-doc-producer` lane declares `after`, the lanes of its profile it comes after. Their candidates are its previous candidates: required inputs of its own candidate, so `rp` wakes the lane only once they are fresh, lists them in its assignment as **Previous candidates**, and makes its candidate stale when one changes. The lane designs from a different approach than each of them and states in its Overview each previous approach and what its own changes; when every other approach it examined fails a requirement, its candidate says only that. Lanes without `after` still run in parallel from the spec alone. The orchestrator proposes such lanes when the owner wants alternative designs explored.
+  
+  Consolidating the design doc, a candidate written after others counts as one lane with each of those it agrees with, the producer chooses among differing candidates by its decision rules, and decisions taken from different candidates must form one design. `consolidation-briefs` in `config.json`, by `spec-producer` or `design-doc-producer`, gives a producer a brief its assignment carries when it consolidates, directing the choices the consolidation rules leave open.
+
+- [#385](https://github.com/Automattic/radical-pipelines/pull/385) [`0f738bd`](https://github.com/Automattic/radical-pipelines/commit/0f738bdc7be2417bb3ed67bf583afdd92bff3331) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: Rename `owner-directions` to `orchestrator-directions` in the pipeline configuration, and state what it holds and who reads it.
+  
+  `orchestrator-directions` holds what the owner tells the orchestrator about how to do its own part of the pipeline's runs that no other key and no convention records, such as to keep the pipeline branch local. Only the orchestrator reads it, when a run starts and when its context was compacted, and an entry stays until the owner withdraws it. Whatever a role must act on goes through triage, which records it as later input the targeted role's assignment lists.
+  
+  `rp` reports `owner-directions` in `config.json` as an unexpected key: rename it in an existing pipeline's `config.json`, moving any entry a role must act on to a later input.
+
+- [#384](https://github.com/Automattic/radical-pipelines/pull/384) [`1517a55`](https://github.com/Automattic/radical-pipelines/commit/1517a55fd0d9b7da400b04eeda594200ebf9873a) Thanks [@luisherranz](https://github.com/luisherranz)! - Review a stale approval once, in the lane's thread, on what changed.
+  
+  A review lane keeps one review thread. When its approval goes stale, its reviewer takes a later turn in that thread instead of a first turn in a new one: its assignment gives it the diff since its approved commit, without what clean merges of the base branch brought, and lists the inputs that changed, and it approves again or replies with what needs to change, which opens the thread. A lane whose approval is stale is woken only once no review thread is open, so it reviews once what the other lanes' rounds of fixes changed, not after each round. A lane whose approved commit the clone lacks still starts a new review.
+
 ## 0.22.0
 
 ### Minor Changes
