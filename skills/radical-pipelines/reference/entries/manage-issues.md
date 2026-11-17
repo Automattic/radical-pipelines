@@ -26,7 +26,7 @@ Ask one question: the outcome the owner wants. Press only until it is stated as 
 
 ### 3. Invite extras once
 
-Make one open invitation for anything else worth telling later agents — a hard constraint, a hunch worth exploring, or context they cannot discover. Go deeper only as the owner volunteers. Sort the answer:
+Make one open invitation for anything else worth telling the pipeline's roles — a hard constraint, a hunch worth exploring, or context they cannot discover. Go deeper only as the owner volunteers. Sort the answer:
 
 - Binding must or must-not → **Constraints**.
 - Links, prior decisions, motivation → **Context**.

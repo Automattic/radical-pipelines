@@ -1,9 +1,0 @@
-$ rp next <this pipeline's folder>
-rp: unknown command: next
-exit 1
-$ rp land <this pipeline's folder>
-rp: unknown command: land
-exit 1
-$ rp check <this pipeline's folder>
-rp: .pipelines/370-rp-next-and-land/run-config.md: pipeline of an earlier format; it is not continued
-exit 1

@@ -24,7 +24,7 @@ describe("complete phases", () => {
     ["every review lane approved, a thread awaiting a reviewer", () => {
       pipeline(3);
       approve();
-      thread({ n: 2, opener: "reviewer-default", owner: "spec-producer", artifact: "spec", messages: [["reviewer-default", "aaaaaaa"], ["spec-producer", "bbbbbbb"]] });
+      thread({ n: 2, opener: "reviewer-default", recipient: "spec-producer", about: "spec", messages: [["reviewer-default", "aaaaaaa"], ["spec-producer", "bbbbbbb"]] });
     }, [1, 2, 3]],
     ["phases beyond the target", () => pipeline(3, { targetPhase: 2 }), [1, 2]],
     ["the spec missing below a fresh design doc", () => { pipeline(2); remove(SPEC); commitAll("spec removed"); }, []],
@@ -35,7 +35,7 @@ describe("complete phases", () => {
       assert.deepEqual(complete(), phases);
     });
 
-  it("are not reported on an INVALID frontier, as the phases are not", () => {
+  it("are not reported on an malformed frontier, as the phases are not", () => {
     pipeline(3);
     write(DESIGN, "---\n---\n# Design doc\n");
     const report = check();

@@ -6,7 +6,7 @@ import { DESIGN, NOTES, P, PIPELINE, SPEC, approve, certification, commitAll, gi
 
 const APPROVAL = "threads/1-reviewer-default-implementer-implementation.md";
 const checkAt = (at) => JSON.parse(rp("check", `${at}/${PIPELINE}`, "--json"));
-const states = (report) => Object.fromEntries(report.phases.map((phase) => [phase.artifact, phase.stale ?? phase.state]));
+const states = (report) => Object.fromEntries(report.phases.map((phase) => [phase.path, phase.stale ?? phase.state]));
 
 // A pipeline with a code change, approved, squash-merged into the base branch, its branch deleted. Returns the
 // approved commit.
@@ -15,7 +15,7 @@ function squashMerged() {
   writeFile("src/app.js", "export const a = 2;\n");
   commitAll("code");
   approve();
-  const approved = certification(APPROVAL).reviewed;
+  const approved = certification(APPROVAL)["approved-commit"];
   git(root, "checkout", "--quiet", "main");
   git(root, "merge", "--quiet", "--squash", "demo");
   commitAll("Squash demo");
@@ -47,7 +47,7 @@ describe("a pipeline continued after a squash merge", () => {
     laterInput(clone, "0-intent/failure-1.md", NOTES);
     const report = checkAt(clone);
     assert.deepEqual(states(report), { [SPEC]: "fresh", [DESIGN]: "fresh", [NOTES]: ["0-intent/failure-1.md"] });
-    assert.deepEqual(report.frontier, [{ action: "respond", target: NOTES, threads: [], changed: ["0-intent/failure-1.md"] }]);
+    assert.deepEqual(report.frontier, [{ action: "respond", target: "implementation", threads: [], changed: ["0-intent/failure-1.md"] }]);
   });
 
   it("in a clone lacking the approved commit, counts the approval as none and wakes the review lane", () => {

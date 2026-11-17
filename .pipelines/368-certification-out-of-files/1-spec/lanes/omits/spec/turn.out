@@ -1,6 +1,0 @@
---- check: spec stale on the constraint that landed after the turn:
-frontier respond 1-spec/spec.md
-artifact 1-spec/spec.md stale 0-intent/constraint-1.md
---- unchanged artifact, response turn at a later commit, re-stamp:
-frontier complete
-artifact 1-spec/spec.md fresh

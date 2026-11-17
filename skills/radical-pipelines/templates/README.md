@@ -1,6 +1,6 @@
 # Assignment templates
 
-`rp next --apply` (`../scripts/README.md` § Assignments) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open, or `reviewer-repair.md` when files it wrote are rejected. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
+`rp next --apply` (`../scripts/README.md` § Assignments) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open, or `reviewer-repair.md` when files it wrote are malformed. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
 
 ## Syntax
 
@@ -12,25 +12,26 @@
 
 Every template may use:
 
-- The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
-- `turn-commit`: the tip of the role's worktree; a reviewer's is the change, or above it when its lane is repaired in place (`../scripts/README.md` § `next`).
+- The pipeline facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `merge-base` (`../scripts/README.md` § Placeholders).
+- `turn-commit`: the tip of the role's worktree; a reviewer's is the review head, or above it when its lane is repaired in place (`../scripts/README.md` § `next`).
 - `rp`: `node` and the absolute path of the `rp` script writing the assignment, the path one POSIX shell word: as written when every character in it is one a shell takes literally, quoted otherwise. Each template states the role's `rp` commands in the form `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`.
-- `base-branch`: `run-config.json`'s `base`.
+- `base-branch`: `config.json`'s `base-branch`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
-- `brief`: the lane's brief, its placeholders expanded, or empty.
+- `brief`: the lane's brief, or on a consolidation its profile's consolidation brief, its placeholders expanded, or empty.
 - `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree, as written; and `pipeline-folder-arg`, the pipeline folder's as one shell word, for a command line.
 - `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
-- `malformed-files`: a list of the frontier's `INVALID` lines naming a file the role writes, as `rp check` prints them.
+- `malformed-files`: a list of the frontier's `malformed` lines naming a file the role writes, as `rp check` prints them.
 - `guardrails`, `resources`: a list of the entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
 - `commit-format`: the commit format, its placeholders expanded, or `An imperative subject line.` when the project sets none.
-- `vocabulary`: when a carried text keeps a placeholder, a list of each vocabulary fact as `` - `{<name>}`: <value> ``; otherwise no item.
+- `facts`: when a carried text keeps a placeholder, a list of each pipeline fact as `` - `{<name>}`: <value> ``; otherwise no item.
 
 A producer's and the implementer's templates also use:
 
 - `mode`: `Produce`, `Respond`, `Consolidate`, or `Implement`; and the flags `produce`, `respond`, `consolidate`, and `implement`, true for the turn's mode.
 - `supporting-folder`, `write-to`: the role's supporting folder and artifact, in its worktree.
 - `changed-inputs`: a list of each changed input as `<path> — changed since <commit>`, `<commit>` the latest one on the role's branch at which the input is as its artifact's certification pins it, or absent when it pins none.
-- `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree.
+- `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree, followed by `, written after <lanes>` for a lane that comes after others.
+- `previous-candidates`: a list of the paths of a lane's previous candidates, in its worktree.
 - `threads`: a list of the threads awaiting the role.
 
-A reviewer's templates also use `review-base`, and its later-turn request `thread`, the lane's open review thread, `thread-arg`, that path as one shell word, and `diff`, the diff it reads.
+A reviewer's templates also use `review-base`, and its later-turn template `thread`, the lane's open review thread, `thread-arg`, that path as one shell word, and `diff`, the diff it reads.

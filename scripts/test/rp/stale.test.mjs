@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { DESIGN, INTENT, NOTES, P, SPEC, UPSTREAM, abs, certification, check, commitAll, git, later, pipeline, read, remove, revise, root, useRepo, withFrontmatter, write } from "./fixture.mjs";
 
-const states = () => Object.fromEntries(check().phases.map((phase) => [phase.artifact, phase.state === "stale" ? phase.stale : phase.state]));
+const states = () => Object.fromEntries(check().phases.map((phase) => [phase.path, phase.state === "stale" ? phase.stale : phase.state]));
 const change = (rel) => write(rel, read(rel).replace(/\n$/, "\nChanged.\n"));
 const pin = (rel) => `${rel}@${git(root, "hash-object", abs(P(rel))).slice(0, 12)}`;
 const certify = (rel, inputs) => write(`certification/${rel}.json`, `${JSON.stringify({ inputs }, null, 2)}\n`);
@@ -47,7 +47,7 @@ describe("stale", () => {
       alter();
       commitAll("frontmatter changes");
       assert.deepEqual(states()[artifact], [input]);
-      assert.deepEqual(Object.fromEntries(check("--ref", "HEAD").phases.map((phase) => [phase.artifact, phase.stale ?? phase.state]))[artifact], [input]);
+      assert.deepEqual(Object.fromEntries(check("--ref", "HEAD").phases.map((phase) => [phase.path, phase.stale ?? phase.state]))[artifact], [input]);
     });
 
   for (const artifact of Object.keys(UPSTREAM))

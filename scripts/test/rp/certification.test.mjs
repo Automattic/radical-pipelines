@@ -34,14 +34,14 @@ describe("a certification that cannot be read stops the command", () => {
   const malformed = [
     ["invalid JSON", [SPEC_CERTIFICATION, "{"], /not valid JSON/],
     ["JSON that is not an object", [SPEC_CERTIFICATION, "[]"], /must be a JSON object/],
-    ["a key outside inputs", [SPEC_CERTIFICATION, { inputs: [PIN], reviewed: HASH }], /unexpected key: reviewed/],
+    ["a key outside inputs", [SPEC_CERTIFICATION, { inputs: [PIN], "approved-commit": HASH }], /unexpected key: approved-commit/],
     ["no inputs", [SPEC_CERTIFICATION, {}], /missing inputs/],
     ["inputs that are not a list", [SPEC_CERTIFICATION, { inputs: PIN }], /inputs must be a list/],
     ["an ill-formed pin", [SPEC_CERTIFICATION, { inputs: [INTENT] }], /inputs entry must be <path>@<identity>/],
     ["a duplicated pin", [SPEC_CERTIFICATION, { inputs: [PIN, `${INTENT}@0123456789ac`] }], /inputs pins 0-intent\/intent.md twice/],
     ["a pin naming no pinnable path", [SPEC_CERTIFICATION, { inputs: ["notes.txt@0123456789ab"] }], /inputs entry names no pipeline input: notes.txt/],
-    ["an approval's without reviewed", [APPROVAL_CERTIFICATION, { inputs: [PIN] }], /missing reviewed/],
-    ["an approval's reviewed that is no full commit hash", [APPROVAL_CERTIFICATION, { inputs: [PIN], reviewed: "abc1234" }], /reviewed must be a full commit hash/],
+    ["an approval's without an approved commit", [APPROVAL_CERTIFICATION, { inputs: [PIN] }], /missing approved-commit/],
+    ["an approval's approved commit that is no full commit hash", [APPROVAL_CERTIFICATION, { inputs: [PIN], "approved-commit": "abc1234" }], /approved-commit must be a full commit hash/],
   ];
   for (const [what, [path, data], reason] of malformed)
     it(`on ${what}`, () => {
@@ -78,13 +78,13 @@ describe("a certification no present file needs", () => {
     const before = rp("check", abs(PIPELINE));
     certify("certification/1-spec/lanes/b/spec.md.json", "{ malformed");
     assert.equal(rp("check", abs(PIPELINE)), before);
-    assert.deepEqual(check().frontier, [{ action: "consolidate", target: SPEC, threads: [] }]);
+    assert.deepEqual(check().frontier, [{ action: "consolidate", target: "spec", threads: [] }]);
   });
 
   it("is not read for a review thread that is no approval", () => {
     pipeline(3);
     thread(REVIEW());
     certify(APPROVAL_CERTIFICATION, "{ malformed");
-    assert.deepEqual(check().frontier, [{ action: "respond", target: NOTES, threads: ["threads/1-reviewer-default-implementer-implementation.md"] }]);
+    assert.deepEqual(check().frontier, [{ action: "respond", target: "implementation", threads: ["threads/1-reviewer-default-implementer-implementation.md"] }]);
   });
 });

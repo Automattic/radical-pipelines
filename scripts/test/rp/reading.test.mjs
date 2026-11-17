@@ -16,16 +16,16 @@ describe("reading a pipeline", () => {
     commitAll("design");
     remove(SPEC);
     write("threads/1-x.md", "malformed\n");
-    assert.deepEqual(frontier(), ["INVALID threads/1-x.md"]);
-    assert.deepEqual(frontier("--ref", "HEAD"), [`respond ${DESIGN}`]);
-    assert.deepEqual(frontier("--ref", first), [`produce ${DESIGN}`]);
+    assert.deepEqual(frontier(), ["malformed threads/1-x.md"]);
+    assert.deepEqual(frontier("--ref", "HEAD"), [`respond design-doc`]);
+    assert.deepEqual(frontier("--ref", first), [`produce design-doc`]);
     assert.equal(check("--ref", "demo").tip, git(root, "rev-parse", "demo").trim());
   });
 
   it("--ref reads a pipeline folder absent from the working tree", () => {
     pipeline(1);
     git(root, "checkout", "--quiet", "main");
-    assert.deepEqual(frontier("--ref", "demo"), [`produce ${DESIGN}`]);
+    assert.deepEqual(frontier("--ref", "demo"), [`produce design-doc`]);
   });
 
   const failures = [
@@ -57,7 +57,7 @@ describe("reading a pipeline", () => {
     ["a file where a lane folder belongs", () => writeFile(P("1-spec/lanes/a"), "x\n"), /1-spec\/lanes\/a: a file where a folder belongs/],
     ["a folder where the spec belongs", () => { remove(SPEC); writeFile(P(`${SPEC}/x.md`), "x\n"); }, /1-spec\/spec.md: a folder where a pipeline file belongs/],
     ["a folder where a thread belongs", () => writeFile(P("threads/1-x.md/y"), "x\n"), /threads\/1-x.md: a folder where a pipeline file belongs/],
-    ["a folder where run-config.json belongs", () => { remove("run-config.json"); writeFile(P("run-config.json/x"), "x\n"); }, /run-config\.json: a folder where a pipeline file belongs/],
+    ["a folder where config.json belongs", () => { remove("config.json"); writeFile(P("config.json/x"), "x\n"); }, /config\.json: a folder where a pipeline file belongs/],
   ];
   for (const [what, make, message] of wrongKinds)
     for (const ref of [false, true])
@@ -82,7 +82,7 @@ describe("reading a pipeline", () => {
   it("the identity of a CRLF intent is its bytes", () => {
     pipeline(1);
     write(INTENT, read(INTENT).replace(/\n/g, "\r\n"));
-    assert.deepEqual(frontier(), [`respond ${SPEC}`]);
+    assert.deepEqual(frontier(), [`respond spec`]);
   });
 
   // The line-ending conversions git applies between the working tree and a commit: [what, how the repository sets it
@@ -127,7 +127,7 @@ describe("command line", () => {
     ["a missing option value", ["check", ".pipelines/demo", "--ref"], /--ref expects a value/],
     ["a second positional argument", ["check", ".pipelines/demo", "extra"], /unexpected argument: extra/],
     ["a missing positional argument", ["check"], /^rp: check: missing <pipeline folder>\nusage: node rp\.mjs check <pipeline folder> \[--ref <commit>\] \[--json\]$/m],
-    ["a path inside a pipeline folder", ["check", ".pipelines/demo/1-spec"], /cannot read \.pipelines\/demo\/1-spec\/run-config\.json: missing/],
+    ["a path inside a pipeline folder", ["check", ".pipelines/demo/1-spec"], /cannot read \.pipelines\/demo\/1-spec\/config\.json: missing/],
     ["a folder without parent", ["check", ".pipelines"], /a pipeline folder is <pipelines folder root>\/<pipeline slug>: \.pipelines/],
   ];
   for (const [what, [command, ...args], message] of errors)

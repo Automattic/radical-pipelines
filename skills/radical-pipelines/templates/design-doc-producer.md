@@ -26,6 +26,9 @@
 
 - Intent: {{intent}}
 - Spec: {{spec}}
+{{#previous-candidates}}
+- Previous candidates: {{previous-candidates}}
+{{/previous-candidates}}
 {{^lane}}
 - Later inputs: {{later-inputs}}
 {{/lane}}
@@ -61,11 +64,11 @@
 ## Commit format
 
 {{commit-format}}
-{{#vocabulary}}
+{{#facts}}
 
 ## Placeholders
 
 A name in braces left in your Brief, Guardrails, Resources, or Commit format is a placeholder: replace it with the value it stands for, from these values of your turn:
 
-{{vocabulary}}
-{{/vocabulary}}
+{{facts}}
+{{/facts}}

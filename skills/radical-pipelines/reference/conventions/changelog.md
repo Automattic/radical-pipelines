@@ -10,13 +10,23 @@ Migrate from version 6.
 
 Rewrite the frontmatter as the line `conventions: 7`.
 
-### Entries
+### Tool files
 
-Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, and a lane's brief the lane's text. Rewrite `Worktree folder root` as its value alone. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
+Move the content of each `.rp.<tool>.md` into `.rp.md`, stating the tool it applies to, and delete the file.
+
+### Agents
+
+Split `Agents` into `Lanes`, each profile's lanes and their briefs, and `Models`, each profile's and lane's model and subagent model, every text and value unchanged.
+
+### Renames
+
+| Existing lifecycle hook | New heading           |
+| ----------------------- | --------------------- |
+| `before-merging-lanes`  | `before-landing-lane` |
+| `after-merging-lanes`   | `after-landing-lane`  |
 
 ### Additions
 
-- `Landing commit`, optional: the template of the commits `rp land` makes. Propose one that the commit format's examples follow, such as `{subject} (orchestrator)`.
 - `Variables`, optional: the placeholders the guardrail, resource, commit-format, and brief texts use (`setup.md` § Write).
 
 ## 6
@@ -37,7 +47,7 @@ When renamed blocks give one profile different models, ask the owner which to ke
 
 ### Lanes
 
-- `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
+- `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Named `reviewer` lanes replace the implicit review lane instead of running beside it: when the project has any, offer to declare a `default` lane without a brief beside them. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
 - Remove every lane's `materials` and `after`.
 
 ## 5

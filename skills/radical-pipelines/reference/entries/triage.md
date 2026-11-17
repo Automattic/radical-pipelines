@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the base branch's tree.
+`git fetch`, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the artifact base branch's tree.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies' state the tracker cannot report, proceeds without comment.
 
@@ -28,7 +28,7 @@ A request carries one or more statements; route each by the first predicate that
 | A change of scope for a live pipeline                                               | The owner's choice: rescope it, or a new pipeline from its tip (next row)  |
 | New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; the intent's `starts-from` names that branch |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; the intent's `re-attempts` names it                       |
-| New intent                                                                          | A new pipeline from the base branch                                       |
+| New intent                                                                          | A new pipeline from the artifact base branch                              |
 
 When several live pipelines match, take the one the request identifies — by name, or as the only one whose frontier it advances; otherwise ask the owner in step 4 which pipeline, and, for a new pipeline, which tip to start from.
 
@@ -36,15 +36,15 @@ Group the routed statements by pipeline; each group is one run.
 
 ### 4. Confirm the runs
 
-A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.json` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `run-config.json` without one.
+A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `config.json` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `config.json` without one.
 
-For the runs that need it, propose each run's configuration: its current `run-config.json`, else the **Agents** defaults (`../conventions/agents.md`). In one message, give:
+For the runs that need it, propose each run's configuration: its current `config.json`, else the **Lanes** and **Models** defaults (`../conventions/lanes.md`, `../conventions/models.md`). In one message, give:
 
 - each route and why — or, when no predicate decides, the one deciding question;
 - the text of each intent, constraint, or proposal you will write;
 - the configuration to confirm or change: target phase in plain language without phase numbers, and lanes;
-- each profile's and lane's model and subagent model, and beside it the one `.rp.local.md` overrides it with, marked as this clone's;
-- under each profile, the name of each guardrail and resource the run will carry for it: `.rp.md`'s entries that bind it, with `.rp.local.md`'s over them by name;
+- each profile's and lane's model and subagent model;
+- under each profile, the name of each guardrail and resource the run will carry for it;
 - what a lane change does to the tree: a dropped production lane's folder is removed;
 - the questions steps 1 to 3 left open.
 
@@ -59,18 +59,17 @@ Prepare every route of a run before starting it. Address every worktree by absol
 1. Pipeline slug and branch per `../run/state.md` § Names.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
 3. `<pipelines folder root>/<pipeline slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `starts-from` records the starting branch and `re-attempts` the prior pipeline's slug.
-4. Commit it per the **Commit format** convention.
 
 Every branch and worktree you create here fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.
 
 **Later input**
 
-1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; later input joins it.
+1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the artifact base branch, with a worktree. One live branch per pipeline; later input joins it.
 2. Write the input per `intent-format.md` § Later input and commit it.
 
 **Continue**
 
-1. Use the pipeline's branch and worktree, creating them when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
+1. Use the pipeline's branch and worktree, creating them when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the artifact base branch.
 
 **Rescope**
 
@@ -78,6 +77,8 @@ Every branch and worktree you create here fires its `before-`/`after-creating-br
 2. Re-synthesize `intent.md` (`intent-format.md`) and commit it.
 3. Continue.
 
+Last, record the pipeline configuration the run starts under (`../run/state.md` § Pipeline configuration) and commit `config.json` per the **Commit format** convention; a new pipeline commits it with its intent.
+
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Record the run configuration the run starts under (`../run/state.md` § Run configuration) and commit `run-config.json`. Then fire `run-started` and follow `../run/loop.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Then fire `run-started` and follow `../run/loop.md`.

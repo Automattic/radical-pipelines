@@ -1,6 +1,0 @@
-merged lane-a
-merged lane-b
-frontier consolidate 1-spec/spec.md
-lane 1-spec/spec.md a fresh
-lane 1-spec/spec.md b fresh
-artifact 1-spec/spec.md missing
