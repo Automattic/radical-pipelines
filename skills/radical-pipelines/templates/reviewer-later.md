@@ -10,7 +10,11 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
+Your review is in {{thread}}; what changed in the code since your last message there is {{diff}}.
+{{#changed-inputs}}
+The issue changed since then too: {{changed-inputs}}
+{{/changed-inputs}}
+Check each answer the author gave you, and review what changed and what it affects. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
 
 ```
 {{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread {{thread-arg}} --status approved --body - <<'EOF'

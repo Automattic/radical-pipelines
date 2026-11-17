@@ -834,12 +834,14 @@ const awaitedReviewLanes = (state) => [...new Set(state.threads.map(awaitedRole)
   .filter((role) => role.profile === "reviewer").map((role) => role.lane))].sort();
 const roleOf = (profile, laneId) => `${profile}-${laneId}`;
 
-// A review lane's approval: its highest-numbered review thread, approved when it is an approval and fresh. An approval is
+// A review lane's review thread in `state`, or undefined when it has none.
+const laneReviewOf = (state, laneId) => { const path = reviewThreadOf(state.threads.map((thread) => thread.path), laneId); return state.threads.find((thread) => thread.path === path); };
+
+// A review lane's approval: its review thread, approved when it is an approval and fresh. An approval is
 // stale on a changed required input, or when the tip's code is not the approved commit's plus clean merges of the merge-base.
 // One without certification has no code judged; one whose approved commit the clone lacks is no approval.
 function approvalOf(state, lane) {
-  const path = reviewThreadOf(state.threads.map((thread) => thread.path), lane.id);
-  const latest = state.threads.find((thread) => thread.path === path);
+  const latest = laneReviewOf(state, lane.id);
   if (!latest || !isApproval(latest)) return { approved: false };
   const codeChanged = latest.approvedCommit !== null && state.codeChanged(latest.approvedCommit);
   if (codeChanged === null) return { approved: false };
@@ -911,10 +913,12 @@ function phaseActions(state, phase) {
   return actions.length ? actions : null;
 }
 
-// The review lanes with work: through the target, each configured lane not approved; in any phase, each lane a thread awaits.
+// The review lanes with work: through the target, each configured lane not approved, one whose approval is stale only
+// once no review thread is open; in any phase, each lane a thread awaits.
 function reviewActions(state) {
+  const open = state.threads.some((thread) => isReview(thread) && thread.status === "open");
   const lanes = [...(state.config.targetPhase === REVIEW_PHASE ? reviewLanes(state.config) : []).map((lane) => ({ lane, ...approvalOf(state, lane) }))
-    .filter((entry) => !entry.approved).map((entry) => [entry.lane.id, entry.stale, entry.codeChanged]), ...awaitedReviewLanes(state).map((id) => [id])];
+    .filter((entry) => !entry.approved && !(open && (entry.stale || entry.codeChanged))).map((entry) => [entry.lane.id, entry.stale, entry.codeChanged]), ...awaitedReviewLanes(state).map((id) => [id])];
   const ids = lanes.filter(([id], at) => lanes.findIndex(([other]) => other === id) === at);
   const actions = ids.map(([id, stale, changed]) => ({ action: "review", lane: id, threads: awaiting(state, roleOf("reviewer", id)), ...(stale ? { changed: stale } : {}), ...(changed ? { "code-changed": true } : {}) }));
   return actions.length ? actions : null;
@@ -1297,12 +1301,14 @@ function turnOf(state, entries, role) {
   return null;
 }
 
-// A review lane's later turn on its review thread while that is open, which then awaits the reviewer: the thread, and
-// the commit the reviewer's last message names; null on a first turn.
-function laterTurnOf(state, role) {
-  const path = reviewThreadOf(state.threads.map((thread) => thread.path), role.lane);
-  const latest = state.threads.find((thread) => thread.path === path);
-  return latest?.status === "open" ? { thread: latest.path, last: latest.messages.findLast((message) => message.author === role.name).commit } : null;
+// A review lane's later turn on its review thread, `open` or an approval: the thread, the commit whose code the lane
+// last reviewed, an approval's approved commit or else the one the reviewer's last message names, and whether the
+// thread's certification says which inputs changed. Null on a first turn: the lane has no review thread, withdrew it, or
+// its approval is none, the clone lacking its approved commit.
+function laterTurnOf(root, state, role) {
+  const latest = laneReviewOf(state, role.lane);
+  if (!latest || latest.status === "withdrawn" || (latest.approvedCommit && !commitOf(root, latest.approvedCommit))) return null;
+  return { thread: latest.path, last: latest.approvedCommit ?? latest.messages.findLast((message) => message.author === role.name).commit, certified: Boolean(latest.approvedCommit) };
 }
 
 // The commit a changed input names: the latest commit of the role's branch at its turn commit `tip` at which the input
@@ -1374,13 +1380,13 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
     // A review lane's review head sits on its review base; its turn commit is the review head, or above it on a repair in
     // place.
     values["review-base"] = requireCommit(root, `${reviewHead}^`, `the review base of ${reviewHead}`);
-    const later = repair ? null : laterTurnOf(state, role);
+    const later = repair ? null : laterTurnOf(root, state, role);
     templateName = repair ? "reviewer-repair" : later ? "reviewer-later" : "reviewer-first";
     if (later) {
       const diff = join(gitDir, "rp", "reviewer.diff");
-      const from = requireCommit(root, later.last, `the commit ${role.name}'s last message names`);
+      const from = requireCommit(root, later.last, `the commit ${role.name} last reviewed`);
       files.push([diff, gitBytes(root, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
-      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff });
+      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff, "changed-inputs": later.certified ? turn.changed.map(at) : [] });
     }
   }
   const templatePath = join(TEMPLATES, `${templateName}.md`);
@@ -1873,18 +1879,19 @@ function cmdThreadEscalate(args) {
   openThread(seat, command, { status: "escalated", opener: role.name, recipient: OWNERS.intent, about: "intent", cites: args.cites }, bodyOf(args, command, true));
 }
 
-// `thread reply`: the role's message at the end of an open thread that awaits it.
+// `thread reply`: the role's message at the end of an open thread that awaits it, or of its own approval, which it opens.
 function cmdThreadReply(args) {
   const command = "thread reply", seat = seatOf(args, command), { role } = seat;
   const { rel, contents, thread } = threadOf(args, seat, command);
   const body = bodyOf(args, command, true);
-  if (thread.status !== "open") notOpen(command, rel, thread);
-  if (awaitedRole(thread) !== role.name) wrong(command, `${rel} awaits ${awaitedRole(thread)}`, `only ${awaitedRole(thread)} writes in it now: check --role and --thread`);
+  const approval = isApproval(thread) && thread.opener === role.name;
+  if (!approval && thread.status !== "open") notOpen(command, rel, thread);
+  if (!approval && awaitedRole(thread) !== role.name) wrong(command, `${rel} awaits ${awaitedRole(thread)}`, `only ${awaitedRole(thread)} writes in it now: check --role and --thread`);
   const message = { author: role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
-  writeThread(seat, command, rel, withMessage(contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
+  writeThread(seat, command, rel, withMessage(approval ? withStatus(contents, "open") : contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
 }
 
-// `thread close`: an open thread the role opened, closed with its closing status (§ closingStatus) or `withdrawn`, with the
+// `thread close`: an open thread the role opened, or its approval, closed with its closing status (§ closingStatus) or `withdrawn`, with the
 // role's closing message when given one. A review thread is approved without one only when its last message is the
 // reviewer's own and names the commit its worktree stands on, the commit the approval is certified at.
 function cmdThreadClose(args) {
@@ -1894,7 +1901,7 @@ function cmdThreadClose(args) {
     wrong(command, `--status is approved, resolved, or withdrawn: ${status}`, "close a review thread --status approved and any other --status resolved when its findings are resolved, or close it --status withdrawn when you drop them");
   const { rel, contents, thread } = threadOf(args, seat, command);
   const body = bodyOf(args, command, false);
-  if (thread.status !== "open") notOpen(command, rel, thread);
+  if (thread.status !== "open" && !isApproval(thread)) notOpen(command, rel, thread);
   if (thread.opener !== role.name) wrong(command, `only its opener, ${thread.opener}, closes ${rel}`, "answer it with rp thread reply");
   if (status !== "withdrawn" && status !== closingStatus(thread))
     wrong(command, `${rel} closes ${closingStatus(thread)} when its findings are resolved, not ${status}`, `run the same command with --status ${closingStatus(thread)}`);

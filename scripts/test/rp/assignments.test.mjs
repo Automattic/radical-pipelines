@@ -36,7 +36,7 @@ before(() => {
   ECHO = skillWith({
     ...Object.fromEntries(["spec-producer", "design-doc-producer", "implementer"].map((name) => [name, echo(name, PRODUCER, FLAGS)])),
     "reviewer-first": echo("reviewer-first", [...COMMON, "review-base"]),
-    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff"]),
+    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff", "changed-inputs"]),
     "reviewer-repair": echo("reviewer-repair", [...COMMON, "review-base"]),
   });
 });
@@ -288,13 +288,73 @@ describe("assignments", () => {
       const { path, values } = assign("reviewer-a");
       const second = changeOf("a"), diff = join(dirname(path), "reviewer.diff");
       assert.notEqual(second, first);
-      assert.deepEqual([values.template, values.thread, values.diff, values["turn-commit"]], [["reviewer-later"], [in_(wt, reviewThread)], [diff], [second]]);
+      assert.deepEqual([values.template, values.thread, values.diff, values["turn-commit"], values["changed-inputs"]], [["reviewer-later"], [in_(wt, reviewThread)], [diff], [second], ["none"]]);
       assert.equal(readFileSync(diff, "utf8"), git(root, "diff", first, second, "--", ".", ":(exclude).pipelines"));
       assert.match(readFileSync(diff, "utf8"), /export const a = 3/);
       thread({ n: 2, status: "approved", ...REVIEW("a"), messages: [["reviewer-a", first], ["implementer", head()], ["reviewer-a", second]] });
       thread({ n: 3, ...REVIEW("a"), messages: [["reviewer-a", second], ["implementer", head()]] });
       commitAll("approved, then a new review thread answered");
       assert.deepEqual(assign("reviewer-a").values.thread, [in_(wt, "threads/3-reviewer-a-implementer-implementation.md")]);
+    });
+  });
+
+  describe("of a review lane whose approval is stale", () => {
+    const APPROVAL = "threads/1-reviewer-default-implementer-implementation.md";
+    // A reviewer approves the change in its lane and its turn lands: the review head it read, and the approved commit.
+    function approved() {
+      pipeline(3);
+      writeFile("src/app.js", "export const a = 2;\n");
+      commitAll("code");
+      assign("reviewer-default");
+      const wt = laneWorktree("demo-review-default"), read_ = head(wt);
+      commitIn(wt, { [APPROVAL]: withFrontmatter({ status: "approved", ...REVIEW() }, `\n## reviewer-default — ${read_}\n\nMerge it.\n`) }, "approve");
+      landRole("reviewer-default");
+      return { wt, read: read_, approvedCommit: JSON.parse(read(`certification/${APPROVAL}.json`))["approved-commit"] };
+    }
+    const diffOf = (path) => readFileSync(join(dirname(path), "reviewer.diff"), "utf8");
+
+    it("when the code changed: the later turn on its approval, and the diff from its approved commit to this turn's review head", () => {
+      const { wt, approvedCommit } = approved();
+      writeFile("src/app.js", "export const a = 3;\n");
+      commitAll("a fix another lane asked for");
+      const { path, values } = assign("reviewer-default");
+      assert.deepEqual([values.template, values.thread, values["changed-inputs"]], [["reviewer-later"], [in_(wt, APPROVAL)], ["none"]]);
+      assert.equal(diffOf(path), git(root, "diff", approvedCommit, head(wt), "--", ".", ":(exclude).pipelines"));
+      assert.match(diffOf(path), /-export const a = 2;\n\+export const a = 3;/);
+    });
+
+    it("when an input changed: the later turn, the changed inputs in its worktree, and an empty diff", () => {
+      const { wt } = approved();
+      write("0-intent/constraint-1.md", later(NOTES));
+      revise(NOTES);
+      commitAll("notes certified");
+      const { path, values } = assign("reviewer-default");
+      assert.deepEqual([values.template, values.thread, values["changed-inputs"]], [["reviewer-later"], [in_(wt, APPROVAL)], [in_(wt, "0-intent/constraint-1.md")]]);
+      assert.equal(diffOf(path), "");
+    });
+
+    it("when it landed uncertified: the later turn, the diff from the commit its reviewer's last message names, and no changed input", () => {
+      pipeline(3);
+      assign("reviewer-default");
+      const wt = laneWorktree("demo-review-default"), read_ = head(wt);
+      commitIn(wt, { [APPROVAL]: withFrontmatter({ status: "approved", ...REVIEW() }, `\n## reviewer-default — ${read_}\n\nMerge it.\n`) }, "approve");
+      writeFile("src/app.js", "export const a = 3;\n");
+      commitAll("code moves while the reviewer works");
+      landRole("reviewer-default");
+      assert.equal(existsSync(abs(P(`certification/${APPROVAL}.json`))), false);
+      const { path, values } = assign("reviewer-default");
+      assert.deepEqual([values.template, values.thread, values["changed-inputs"]], [["reviewer-later"], [in_(wt, APPROVAL)], ["none"]]);
+      assert.equal(diffOf(path), git(root, "diff", read_, head(wt), "--", ".", ":(exclude).pipelines"));
+      assert.match(diffOf(path), /\+export const a = 3;/);
+    });
+
+    it("when the clone lacks its approved commit: the first turn", () => {
+      approved();
+      write(`certification/${APPROVAL}.json`, JSON.stringify({ ...JSON.parse(read(`certification/${APPROVAL}.json`)), "approved-commit": "1".repeat(40) }));
+      commitAll("as on a clone without the approved commit");
+      const { path, values } = assign("reviewer-default");
+      assert.deepEqual(values.template, ["reviewer-first"]);
+      assert.equal(existsSync(join(dirname(path), "reviewer.diff")), false);
     });
   });
 

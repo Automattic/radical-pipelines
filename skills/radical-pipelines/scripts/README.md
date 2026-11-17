@@ -183,7 +183,7 @@ The frontier is every action of the first rule that holds:
    - Production lanes configured, the artifact missing, and every candidate fresh: **`consolidate <artifact>`**.
    - The artifact missing, without production lanes: **`produce <artifact>`**.
    - The artifact stale, or a thread awaiting the artifact's owner: **`respond <artifact>`**. Beyond the target, only the thread counts.
-   - Phase 4: **`review <lane>`** for each lane a thread awaits, and, at target phase 4, each configured lane not approved.
+   - Phase 4: **`review <lane>`** for each lane a thread awaits, and, at target phase 4, each configured lane not approved; a lane whose approval is stale only once no review thread is `open`.
 4. **`complete`**.
 
 ### Complete phases
@@ -360,14 +360,14 @@ node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path
 
 - `open` writes `threads/<n>-<role>-<recipient>-<about>.md`, `<recipient>` the owner of the artifact `--about` names, with status `open` and the role's message. `<n>` is one more than the highest number among the names `threads/<n>-….md` in the working tree, or 1 when it holds none; `threads/` is created when absent, and an existing file is never replaced.
 - `escalate` writes `threads/<n>-<role>-owner-intent.md`, numbered the same way, with status `escalated`, `cites` the text given, quoted when the frontmatter needs it (§ Frontmatter), and the role's message.
-- `reply` adds the role's message at the end of an `open` thread that awaits it.
-- `close` sets the status of an `open` thread the role opened to `approved` for a review thread or `resolved` for any other, or to `withdrawn`, and with `--body` adds the role's closing message at the end. A review thread is closed `approved` without `--body` only when its last message is the reviewer's and names the commit its worktree stands on, the commit `land` certifies the approval at.
+- `reply` adds the role's message at the end of an `open` thread that awaits it, or of an approval the role opened, which it sets `open`.
+- `close` sets the status of an `open` thread the role opened, or of its approval, to `approved` for a review thread or `resolved` for any other, or to `withdrawn`, and with `--body` adds the role's closing message at the end. A review thread is closed `approved` without `--body` only when its last message is the reviewer's and names the commit its worktree stands on, the commit `land` certifies the approval at.
 
 A message is its heading `## <role> — <commit>` on a line of its own after a blank line, `<commit>` the full hash of the worktree's `HEAD`, then a blank line and the body. Every other byte of the file stays as it was, but for the status `close` sets. The command writes the file only when the file grammar (§ `validate`) accepts it and reads in it the messages the command means, the role's last, and would read a message written after the role's; it then prints the file's absolute path. It writes nothing else: no certification, ref, or other file. Every other use is wrong, and writes nothing:
 
 - `open` or `escalate` by a production lane's role; `open` about the intent, or about the artifact the role owns; `escalate` whose `--cites` is empty;
 - a `--thread` that names no thread file of the pipeline folder, or a file the file grammar rejects;
-- `reply` to a thread that does not await the role; `close` of a thread that is not `open`, by a role other than its opener, or with another status, such as `approved` on a thread other than a review thread; an approval without `--body` that the last message does not name;
+- `reply` to a thread that does not await the role; `close` of a thread that is neither `open` nor an approval, by a role other than its opener, or with another status, such as `approved` on a thread other than a review thread; an approval without `--body` that the last message does not name;
 - a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it.
 
 The owner's answer on a thread to `owner` is written by hand (`../reference/run/loop.md` § Owner escalation).
@@ -397,7 +397,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
    | `malformed <path>: <reason>` | Each role that writes a malformed file; a producer or the implementer in Respond, a reviewer on its repair turn |
 
    A role writes its artifact or candidate, and every thread whose file name names it as opener or recipient: its **files**. The `malformed` lines of those files, and only those, are its malformed files. A lane under repair (§ `next`) gets the turn of a `malformed` line for each malformed file its landing would bring.
-2. **Template.** A reviewer with malformed files gets the repair template. Otherwise its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the template is the later-turn one, and `reviewer.diff` is written beside the assignment: the diff from the commit the reviewer's last message names to the review head, outside the pipelines folder root. Otherwise it is the first-turn one.
+2. **Template.** A reviewer with malformed files gets the repair template. Otherwise its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open` or an approval, the template is the later-turn one, and `reviewer.diff` is written beside the assignment: the diff from the commit the lane last reviewed to the review head, outside the pipelines folder root. That commit is an approval's approved commit, else the one the reviewer's last message names. The assignment lists the changed inputs of a certified approval. Otherwise, as with an approval whose approved commit does not resolve, it is the first-turn one.
 3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as `config.json` writes it, and each assignment states the command that runs `rp` as its role from its worktree (`../templates/README.md` § Values). Each path on that command line is one POSIX shell word, quoted when a character in it is one a shell does not take literally; each path an assignment shows for reading is as written.
 
 ### Placeholders
