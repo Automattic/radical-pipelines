@@ -586,16 +586,16 @@ function conventionsOf(data, malformed) {
 }
 
 // config.json: the target phase, the base branch, and the worktree folder root, each required; every other convention
-// it records, the lanes, the consolidation briefs, the models, and the owner's directions, each optional. Nothing reads the directions.
+// it records, the lanes, the consolidation briefs, the models, and the owner's directions to the orchestrator, each optional. Only the orchestrator reads the directions.
 export function parseConfig(bytes, malformed) {
-  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base-branch", ...CONVENTIONS, "lanes", "consolidation-briefs", "models", "owner-directions"]);
+  const data = jsonObjectOf(bytes, malformed, ["target-phase", "base-branch", ...CONVENTIONS, "lanes", "consolidation-briefs", "models", "orchestrator-directions"]);
   for (const key of ["target-phase", "base-branch", "worktree-folder-root"]) if (!(key in data)) malformed(`${key}: missing`);
   const targetPhase = data["target-phase"];
   if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) malformed("target-phase: must be an integer from 1 to 4");
   const baseBranch = data["base-branch"];
   if (typeof baseBranch !== "string" || !baseBranch.trim()) malformed("base-branch: must be a revision, a non-empty string");
-  const directions = data["owner-directions"];
-  if ("owner-directions" in data && !(Array.isArray(directions) && directions.every((direction) => typeof direction === "string"))) malformed("owner-directions: must be a list of strings");
+  const directions = data["orchestrator-directions"];
+  if ("orchestrator-directions" in data && !(Array.isArray(directions) && directions.every((direction) => typeof direction === "string"))) malformed("orchestrator-directions: must be a list of strings");
   const config = { targetPhase, baseBranch, lanes: "lanes" in data ? parseLanes(data.lanes, malformed) : [],
     consolidationBriefs: "consolidation-briefs" in data ? parseConsolidationBriefs(data["consolidation-briefs"], malformed) : {}, landingCommitFormat: null, commitFormat: null,
     guardrails: {}, resources: {}, variables: {}, ...conventionsOf(data, malformed) };

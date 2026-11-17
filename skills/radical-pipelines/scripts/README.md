@@ -77,7 +77,7 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
     "implementer": { "model": "large" },
     "reviewer-security": { "model": "other-large", "subagent-model": "other-small" }
   },
-  "owner-directions": ["Keep the pipeline branch local."]
+  "orchestrator-directions": ["Keep the pipeline branch local."]
 }
 ```
 
@@ -94,7 +94,7 @@ The pipeline configuration (`../reference/run/state.md` § Pipeline configuratio
 - A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, and review lanes for `reviewer`. Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
 - `models`, by profile, or by the role name `<profile>-<lane>` of a lane the run has: one `lanes` declares, or the review lane `default` while `lanes` declares no `reviewer` lane. Each entry holds an optional `model` and `subagent-model`, each a non-empty model name.
 - A role's model is the `model` of its role name's entry, else of its profile's; its subagent model is the `subagent-model` of its role name's entry, else of its profile's. Either may be none.
-- `owner-directions`: a list of strings, which `rp` validates and otherwise ignores.
+- `orchestrator-directions`: a list of strings, the owner's directions to the orchestrator about its own part of the pipeline's runs. `rp` validates it and otherwise ignores it: no assignment carries it.
 
 No other key exists at any level. `check`, `next`, and `land` read the file where they read every pipeline file, and validate it whole. A missing `config.json` stops them, `rp: cannot read <path>: missing`, as does a missing intent. A file that is not one JSON object, or that breaks these rules, stops them with `rp: <path>: <reason>`, naming a malformed entry as `<key>.<name>…`.
 
