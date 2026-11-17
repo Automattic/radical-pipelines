@@ -36,7 +36,7 @@ before(() => {
   ECHO = skillWith({
     ...Object.fromEntries(["spec-producer", "design-doc-producer", "implementer"].map((name) => [name, echo(name, PRODUCER, FLAGS)])),
     "reviewer-first": echo("reviewer-first", [...COMMON, "review-base"]),
-    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff", "changed-inputs"]),
+    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff", "changed-inputs"], ["code-changed"]),
     "reviewer-repair": echo("reviewer-repair", [...COMMON, "review-base"]),
   });
 });
@@ -356,7 +356,37 @@ describe("assignments", () => {
       commitAll("notes certified");
       const { path, values } = assign("reviewer-default");
       assert.deepEqual([values.template, values.thread, values["changed-inputs"]], [["reviewer-later"], [in_(wt, APPROVAL)], [in_(wt, "0-intent/constraint-1.md")]]);
-      assert.equal(diffOf(path), "");
+      assert.deepEqual([diffOf(path), "code-changed" in values], ["", false]);
+    });
+
+    // The base branch adds a file and edits src/app.js, and the pipeline branch merges it, resolving a conflict with
+    // `resolved` when the merge stops on one.
+    function mergeBase(app, resolved) {
+      git(root, "checkout", "--quiet", "main");
+      writeFile("src/base.js", "export const b = 1;\n");
+      if (app) writeFile("src/app.js", app);
+      commitAll("base moves");
+      git(root, "checkout", "--quiet", "demo");
+      try { git(root, "merge", "--quiet", "--no-edit", "main"); }
+      catch { writeFile("src/app.js", resolved); commitAll("merge main, resolving a conflict"); }
+    }
+
+    it("after a clean merge of the base and a fix: the diff holds the fix, and nothing the merge brought", () => {
+      const { wt } = approved();
+      mergeBase(null);
+      writeFile("src/fix.js", "export const fix = 1;\n");
+      commitAll("a fix");
+      const { path, values } = assign("reviewer-default");
+      assert.deepEqual([values.template, values.thread, "code-changed" in values], [["reviewer-later"], [in_(wt, APPROVAL)], true]);
+      assert.deepEqual([...diffOf(path).matchAll(/^diff --git a\/(\S+)/gm)].map((match) => match[1]), ["src/fix.js"]);
+    });
+
+    it("after a merge of the base that conflicted: the diff holds the conflict's markers giving way to its resolution, and nothing the merge brought cleanly", () => {
+      approved();
+      mergeBase("export const a = 5;\n", "export const a = 7;\n");
+      const diff = diffOf(assign("reviewer-default").path);
+      assert.deepEqual([...diff.matchAll(/^diff --git a\/(\S+)/gm)].map((match) => match[1]), ["src/app.js"]);
+      assert.match(diff, /^-<<<<<<< [^]*^-export const a = 2;\n[^]*^-export const a = 5;\n[^]*^\+export const a = 7;$/m);
     });
 
     // The lane approves while the pipeline branch moves, so its approval lands uncertified.
@@ -709,6 +739,9 @@ describe("assignments", () => {
     landRole("reviewer-default");
     write(review, `${read(review)}\n## implementer — ${head()}\n\nAnswered.\n`);
     commitAll("an answered review");
+    delivered("reviewer-default", ["The code has not changed since your last message there.", in_(wt, review)]);
+    writeFile("src/app.js", "export const a = 2;\n");
+    commitAll("a fix");
     delivered("reviewer-default", ["reviewer.diff", in_(wt, review)]);
     write(review, read(review).replace("status: open", "status: pending"));
     commitAll("a rejected review thread");

@@ -130,7 +130,7 @@ A thread is the conversation between two roles about one artifact, recorded as o
 
 **What reaches the artifact.** Only the result: the artifact changes, or it does not. When a refutation establishes that a case is not material, the spec's **Considered and not required** gains a line, so the case is not raised again. Threads are never cited from artifacts.
 
-**Lifetime.** Threads stay in the pipeline folder. A role writes only in a thread it opens or one that awaits it, and `rp thread` changes an existing thread only by appending a message or setting its status; a closed thread is history, except a review thread closed `approved`: when its approval goes stale, its reviewer replies in it, which opens it, or approves again. Before it ends a turn, a role runs `rp validate`, which reports each of its files the file grammar rejects, so the role fixes it within that turn.
+**Lifetime.** Threads stay in the pipeline folder. A role writes only in a thread it opens or one that awaits it, and `rp thread` changes an existing thread only by appending a message or setting its status; a thread closed `resolved`, `withdrawn`, or `answered` is history. A review thread lasts as long as its lane: when its approval goes stale, its reviewer writes in it again, replying, which opens it, or approving again. Before it ends a turn, a role runs `rp validate`, which reports each of its files the file grammar rejects, so the role fixes it within that turn.
 
 ## State
 
@@ -206,4 +206,4 @@ The active tool's mechanics live in the skill's `tools/<tool>.md`: how to spawn 
 
 **A pipeline whose subject is a virtual machine.** The spec producer starts the machine, reproduces the reported behavior, and writes requirements with `observed:` claims and the inputs it saw. The design doc producer starts it again to check the interfaces it binds. The implementer builds, runs the machine, and verifies. The reviewer starts it and drives the change. Nobody writes about imagined behavior and nobody writes a plan.
 
-**A merge from the base branch during review.** The implementer merges the base into the pipeline branch. The tip is the approved commit plus a clean merge of the base, so every review approval stays fresh. If the merge conflicted, the resolution is code the approval did not cover, the approval goes stale, and the reviewer sees, in its thread, the diff since the commit it approved.
+**A merge from the base branch during review.** The implementer merges the base into the pipeline branch. The tip is the approved commit plus a clean merge of the base, so every review approval stays fresh. If the merge conflicted, the resolution is code the approval did not cover, the approval goes stale, and the reviewer sees, in its thread, the diff from the commit it approved merged with the base: the conflict's markers replaced by its resolution, and nothing the merge brought cleanly.

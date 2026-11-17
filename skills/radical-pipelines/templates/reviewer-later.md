@@ -10,7 +10,13 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-Your review is in {{thread}}; what changed in the code since your last message there is {{diff}}.
+Your review is in {{thread}}.
+{{#code-changed}}
+What changed in the code since your last message there is {{diff}}.
+{{/code-changed}}
+{{^code-changed}}
+The code has not changed since your last message there.
+{{/code-changed}}
 {{#changed-inputs}}
 These changed since then: {{changed-inputs}}
 {{/changed-inputs}}
