@@ -113,6 +113,40 @@ describe("rp start", () => {
     } finally { rmSync(remote, { recursive: true, force: true }); }
   });
 
+  // [the remote's fetch refspecs, the ref the branch starts at]
+  const refspecs = [
+    ["two destinations for the branch", ["+refs/heads/*:refs/remotes/other/*", "+refs/heads/*:refs/remotes/mirror/*"], "refs/remotes/other/demo"],
+    ["a negative refspec that excludes the branch", ["+refs/heads/*:refs/remotes/other/*", "^refs/heads/demo"], "main"],
+  ];
+  for (const [what, specs, starts] of refspecs)
+    it(`reads a remote with ${what}`, () => {
+      const remote = newRepo();
+      try {
+        git(remote, "commit", "--quiet", "--allow-empty", "-m", "remote work");
+        git(remote, "branch", "--quiet", "demo");
+        git(root, "remote", "add", "other", remote);
+        git(root, "fetch", "--quiet", "other");
+        git(root, "config", "--unset-all", "remote.other.fetch");
+        for (const spec of specs.filter((each) => !each.startsWith("^"))) git(root, "config", "--add", "remote.other.fetch", spec);
+        git(root, "fetch", "--quiet", "other");
+        for (const spec of specs.filter((each) => each.startsWith("^"))) git(root, "config", "--add", "remote.other.fetch", spec);
+        start("demo", "--apply");
+        assert.equal(commit("demo"), commit(starts));
+      } finally { rmSync(remote, { recursive: true, force: true }); }
+    });
+
+  it("takes a branch a remote holds under a name that starts with the remote's", () => {
+    const remote = newRepo();
+    try {
+      git(remote, "commit", "--quiet", "--allow-empty", "-m", "remote work");
+      for (const name of ["topic", "origin/topic"]) git(remote, "branch", "--quiet", name);
+      git(root, "remote", "add", "origin", remote);
+      git(root, "fetch", "--quiet", "origin");
+      start("origin/topic", "--apply");
+      assert.equal(commit("refs/heads/origin/topic"), commit("refs/remotes/origin/origin/topic"));
+    } finally { rmSync(remote, { recursive: true, force: true }); }
+  });
+
   it("stops on a remote-tracking branch's name, creating nothing", () => {
     const remote = newRepo();
     try {
@@ -297,6 +331,11 @@ describe("rp stop", () => {
     ["a branch and worktree no turn is recorded on", () => seatAt("demo-spec-a"), false],
     ["a branch and worktree another role's turn is recorded on", () => { seatAt("demo-spec-a"); record({ "spec-producer-b": { branch: "demo-spec-b", worktree: join(at(), ".worktrees", "demo-spec-b") } }); }, false],
     ["a turn recorded for another pipeline branch", () => record({ "spec-producer-a": { branch: "other-spec-a", worktree: seatAt("other-spec-a") } }), false],
+    ["a turn recorded on a branch of its name that lacks the turn commit", () => {
+      const path = join(at(), ".worktrees", "demo-spec-a");
+      git(root, "worktree", "add", "--quiet", "-b", "demo-spec-a", path, "main");
+      record({ "spec-producer-a": { branch: "demo-spec-a", worktree: path } });
+    }, false],
     ["a turn recorded on its branch", () => record({ "spec-producer-a": { branch: "demo-spec-a", worktree: seatAt("demo-spec-a") } }), true],
   ];
   for (const [what, build, removed] of owned)
@@ -308,6 +347,27 @@ describe("rp stop", () => {
       assert.equal(snapshot().refs !== before.refs, removed);
       assert.equal(worktrees().length, removed ? 1 : 2);
     });
+
+  it("leaves alone a branch and worktree created under the name of a lane it removed", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    stop("--apply");
+    seatAt("demo-spec-a");
+    assert.deepEqual(stop(), []);
+    assert.deepEqual(lines("close", abs(PIPELINE)), []);
+  });
+
+  it("stops on a recorded worktree left detached while another has the lane's branch checked out", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    git(laneWorktree("demo-spec-a"), "checkout", "--quiet", "--detach");
+    git(root, "worktree", "add", "--quiet", join(at(), ".worktrees", "elsewhere"), "demo-spec-a");
+    const before = snapshot();
+    const out = run("stop", abs(PIPELINE), "--apply");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /no longer has demo-spec-a checked out/);
+    assert.deepEqual(snapshot(), before);
+  });
 
   it("stops on a recorded worktree that no longer has the lane's branch checked out", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
@@ -405,6 +465,17 @@ describe("rp close", () => {
     close("--apply");
     assert.deepEqual(worktrees(), [at()]);
     assert.deepEqual(branches(), ["demo", "main"]);
+  });
+
+  it("stops when run again, removing nothing of the pipeline in the checkout that held its worktree", () => {
+    git(root, "checkout", "--quiet", "-b", "first");
+    record({ "spec-producer-a": { branch: "first-spec-a", worktree: seatAt("first-spec-a") } });
+    close("--apply");
+    const before = snapshot();
+    const out = run("close", folder(), "--apply");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /not a folder in the working tree/);
+    assert.deepEqual(snapshot(), before);
   });
 
   it("keeps a pipeline worktree that is the main checkout", () => {
