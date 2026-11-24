@@ -119,17 +119,11 @@ export async function run(ctx) {
   });
 
   await runCheck(results, "an automation's prompt starts a turn in the session that created it", async () => {
-    const tick = nonce();
+    const tickNonce = nonce();
+    const tick = nativeToolPrompt("shell", { command: "pwd" }, tickNonce);
     await runCode(`return await tools.automation.create({ name: "one tick", trigger: { type: "at", at: "in 2 seconds" }, action: { type: "prompt", prompt: ${JSON.stringify(tick)} } });`);
-    await pollMessages(
-      server,
-      orchestrator.id,
-      (messages) => {
-        const prompted = messages.find((message) => message.type === "user" && message.text === tick);
-        return prompted && messages.find((message) => message.type === "assistant" && message.time.created > prompted.time.created);
-      },
-      { label: "a turn answering the automation's prompt in the orchestrator" },
-    );
+    const answered = await pollToolResult(server, orchestrator.id, tickNonce, { label: "the turn the automation's prompt starts in the orchestrator" });
+    assert.equal(answered.error, undefined, `the tick's turn failed: ${answered.error?.message}`);
   });
 
   /**
