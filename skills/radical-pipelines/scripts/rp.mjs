@@ -342,8 +342,8 @@ export function kindOf(rel) {
 // The folders that can hold pipeline files.
 const holdsFiles = (rel) => rel === "" || rel === "threads" || rel === "0-intent" || PHASES.some((phase) =>
   rel === phase.folder || (phase.lanes && (rel === `${phase.folder}/lanes` || new RegExp(`^${phase.folder}/lanes/[^/]+$`).test(rel))));
-// What a pin may name: the intent, a later input, an artifact, or a lane candidate.
-const pinnable = (rel) => ["intent", "later", "artifact", "candidate"].includes(kindOf(rel)?.kind);
+// What a pin may name: the intent, a later input, an artifact, a lane candidate, or a thread.
+const pinnable = (rel) => ["intent", "later", "artifact", "candidate", "thread"].includes(kindOf(rel)?.kind);
 // What is certified beside an approval: an artifact or a lane candidate.
 const pins = (kind) => ["artifact", "candidate"].includes(kind?.kind);
 
@@ -767,7 +767,7 @@ function parseFiles(pipeline, where, config, certified) {
     if (kind.kind === "config") continue;
     try {
       const file = parseFile(path, kind, bytes, config);
-      if (file.kind === "thread") state.threads.push(file);
+      if (file.kind === "thread") state.threads.push({ ...file, identity: pipeline.identities.get(path) });
       else state.docs.set(path, { ...file, identity: pipeline.identities.get(path) });
     } catch (error) {
       if (!(error instanceof Invalid)) throw error;
@@ -792,14 +792,18 @@ export function readState(pipeline, where) {
 
 // --- state ------------------------------------------------------------------------
 
-// The required inputs of what is certified. An artifact: its phase's upstream artifacts and every later input that
-// targets it. A candidate: its phase's upstream artifacts and its lane's previous candidates, what its lane reads; the
-// later inputs targeting its artifact are the artifact's. An approval: the intent and every later input.
+// The required inputs of what is certified. An artifact: its phase's upstream artifacts, every later input that
+// targets it, and every `answered` thread its owner opened. A candidate: its phase's upstream artifacts and its lane's
+// previous candidates, what its lane reads; the later inputs targeting its artifact are the artifact's. An approval: the
+// intent and every later input.
 export function requiredInputs(state, subject) {
   const consumes = (doc) => subject.kind === "thread" || (subject.kind === "artifact" && doc.targets.includes(subject.phase.name));
   const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && consumes(doc));
-  return [...upstreamOf(state.config, subject), ...later.map((doc) => doc.path)];
+  const answers = subject.kind === "artifact" ? state.threads.filter((thread) => thread.status === "answered" && thread.opener === subject.phase.owner) : [];
+  return [...upstreamOf(state.config, subject), ...later.map((doc) => doc.path), ...answers.map((thread) => thread.path)];
 }
+// The identity of a required input in `state`, or undefined when the file is absent.
+const identityIn = (state, path) => (state.docs.get(path) ?? state.threads.find((thread) => thread.path === path))?.identity;
 // What a subject pins before later inputs, under `config`: the intent for an approval; its phase's upstream artifacts
 // for an artifact; those and its lane's previous candidates for a candidate.
 function upstreamOf(config, subject) {
@@ -810,7 +814,7 @@ function upstreamOf(config, subject) {
 // The required inputs of a subject that its certification leaves unpinned, or pins at an identity that differs from the
 // current one.
 export function staleInputs(state, subject) {
-  return requiredInputs(state, subject).filter((input) => !subject.inputs.has(input) || subject.inputs.get(input) !== state.docs.get(input)?.identity);
+  return requiredInputs(state, subject).filter((input) => !subject.inputs.has(input) || subject.inputs.get(input) !== identityIn(state, input));
 }
 
 // The implementation is done when `notes.md`'s frontmatter `status` is `done`.
@@ -1037,14 +1041,16 @@ async function cmdCheck(args) {
 
 // The certification of `subject`, a landed artifact, candidate, or approval parsed under `config`: its required inputs
 // at their identities in the tree of the turn's commit `at`, and on an approval its approved commit. Only
-// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), and what
-// the subject pins before later inputs. One of those malformed, or a required input missing, stops it.
+// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), the threads
+// an artifact's owner opened to the person (their `status` says whether they apply), and what the subject pins before
+// later inputs. One of those malformed, or a required input missing, stops it.
 async function certificationOf(root, folder, config, subject, at, approvedCommit = null) {
   const upstream = upstreamOf(config, subject);
-  const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path);
+  const answers = subject.kind === "artifact" ? new RegExp(`^threads/\\d+-${subject.phase.owner}-${OWNERS.intent}-intent\\.md$`) : null;
+  const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || Boolean(answers?.test(path));
   const state = parseFiles(await readCommit(root, at, folder, reads), `${at}:${folder}`, config, false);
   if (state.invalid.length) fail(`${at}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
-  const inputs = requiredInputs(state, subject).map((path) => `${path}@${(state.docs.get(path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)).identity}`).sort();
+  const inputs = requiredInputs(state, subject).map((path) => `${path}@${identityIn(state, path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)}`).sort();
   return Buffer.from(`${JSON.stringify({ inputs, ...(approvedCommit ? { "approved-commit": approvedCommit } : {}) }, null, 2)}\n`);
 }
 
@@ -1397,7 +1403,6 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}${lane.after ? `, written after ${lane.after.join(", ")}` : ""}`),
       "previous-candidates": role.lane ? previousCandidates(config, artifact.phase, role.lane).map(at) : [],
       threads: turn.threads.map(at),
-      "owner-answers": state.threads.filter((thread) => thread.status === "answered" && thread.opener === role.name).map((thread) => at(thread.path)),
       "base-conflicts": artifact.phase === IMPLEMENTATION && !role.lane ? state.baseConflicts() : [],
       "write-to": at(artifact.path),
     });

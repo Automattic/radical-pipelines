@@ -101,7 +101,7 @@ Read the **Intent**, the **Spec**, the **Later inputs**, and the **Lane candidat
 - Before adopting a finding that adds a case, mechanism, guard, test, or documentation passage, trace the case to an intent item or to an input produced in intended use; when neither holds, answer that the artifact stands, with that evidence.
 - As opener, read each reply, then close the thread with `rp thread close`, `resolved` when its replies resolve every finding and `withdrawn` when you drop them, or reply with new findings or new evidence.
 - A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
-- A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: escalate it with `rp thread escalate`, stating the question and citing the thread the disagreement comes from or the path of that evidence. The owner's answer is in that thread, which your assignment then lists under **Owner's answers**.
+- A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: escalate it with `rp thread escalate`, stating the question and citing the thread the disagreement comes from or the path of that evidence.
 - Write only in a thread you open or one that awaits you. A closed thread is history.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 

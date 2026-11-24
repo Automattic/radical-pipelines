@@ -76,6 +76,7 @@ export function certification(rel) {
 export const UPSTREAM = { [SPEC]: [INTENT], [DESIGN]: [SPEC], [NOTES]: [SPEC, DESIGN] };
 // The name later inputs and threads give each artifact.
 export const NAMES = { [SPEC]: "spec", [DESIGN]: "design-doc", [NOTES]: "implementation" };
+const OWNER_OF = { [SPEC]: "spec-producer", [DESIGN]: "design-doc-producer", [NOTES]: "implementer" };
 const LATER = /^0-intent\/(?:constraint|proposal|failure)-[1-9]\d*\.md$/;
 // Certifies the file at `rel`, built directly as landing certifies it, in the working tree of `worktree`: each required
 // input of its kind pinned at its identity in the tree of the commit `at`, and on an approval, a thread, the commit
@@ -89,7 +90,9 @@ export function certifyAt(at, rel, { folder = PIPELINE, worktree = root, previou
     .map((target) => target.trim().replace(/^["']|["']$/g, "").replace(/#.*$/, ""));
   const approval = rel.startsWith("threads/");
   const root_ = Object.keys(UPSTREAM).find((artifact) => rel === artifact || rel.startsWith(`${artifact.split("/")[0]}/lanes/`));
-  const required = approval ? [INTENT, ...laterInputs] : [...UPSTREAM[root_], ...previous, ...(rel === root_ ? laterInputs.filter((path) => targets(path).includes(NAMES[rel])) : [])];
+  const threads = git(worktree, "ls-tree", "-r", "--name-only", at, "--", `${folder}/threads/`).split("\n").filter(Boolean).map((path) => path.slice(folder.length + 1));
+  const answered = threads.filter((path) => { const text = git(worktree, "show", `${at}:${folder}/${path}`); return /^status: answered$/m.test(text) && text.match(/^opener: (.*)$/m)?.[1] === OWNER_OF[rel]; });
+  const required = approval ? [INTENT, ...laterInputs] : [...UPSTREAM[root_], ...previous, ...(rel === root_ ? [...laterInputs.filter((path) => targets(path).includes(NAMES[rel])), ...answered] : [])];
   const certified = { inputs: required.map((path) => `${path}@${id(path)}`).sort(), ...(approval ? { "approved-commit": git(worktree, "rev-parse", "HEAD").trim() } : {}) };
   const path = join(worktree, folder, `certification/${rel}.json`);
   mkdirSync(dirname(path), { recursive: true });

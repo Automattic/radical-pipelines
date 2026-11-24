@@ -102,16 +102,16 @@ No other key exists at any level. `check`, `next`, and `land` read the file wher
 
 `land` alone writes `certification/<path>.json`, the certification of the artifact, candidate, or approval at `<path>`, relative to the pipeline folder. It is a JSON object holding only:
 
-- `inputs`: a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, or a candidate.
+- `inputs`: a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, a candidate, or a thread.
 - `approved-commit`, on an approval only (§ Threads): the full hash of its approved commit (§ Net change and approval).
 
 | What is certified | Required inputs |
 | --- | --- |
-| `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
+| `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it; every `answered` thread its owner opened |
 | A spec candidate | `0-intent/intent.md` |
-| `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
+| `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it; every `answered` thread its owner opened |
 | A design doc candidate | `1-spec/spec.md`; its lane's previous candidates |
-| `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
+| `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it; every `answered` thread its owner opened |
 | An approval | `0-intent/intent.md`; every later input |
 
 - **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. A file without a certification is stale on each required input. Pins of other files are checked for grammar only. At target phase 3 or 4, `notes.md` is also stale while `git merge-tree --write-tree --name-only <tip> <base branch>` conflicts on a path outside the pipelines folder root; conflicts inside it are ignored. A merge's conflicts are the files it leaves unmerged and the paths its `CONFLICT` messages name.

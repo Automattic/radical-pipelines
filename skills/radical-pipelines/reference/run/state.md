@@ -40,11 +40,11 @@ The **artifacts** are `spec.md`, `design-doc.md`, and `notes.md`. Later inputs, 
 
   | File | Required inputs |
   | --- | --- |
-  | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
+  | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it; every `answered` thread its owner opened |
   | A spec candidate | `0-intent/intent.md` |
-  | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
+  | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it; every `answered` thread its owner opened |
   | A design doc candidate | `1-spec/spec.md`; its lane's previous candidates |
-  | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
+  | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it; every `answered` thread its owner opened |
   | A review thread closed `approved` | `0-intent/intent.md`; every later input |
 
   Candidates are required only while their artifact is missing.
@@ -54,7 +54,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, and `notes.md`. Later inputs, 
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its `status` is `done`.
 - **Base branch** — `config.json`'s `base-branch`: the branch the pipeline started from, which it takes updates from. **Merge-base** — the merge-base of the inspected tip with the base branch.
 - **Net change** — `git diff <merge-base> <tip>` outside the pipelines folder: what the reviewer reads.
-- **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer that rules on what the intent means or demands is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause. An answer that states a fact and decides nothing about the intent, such as that the obstacle the thread reports is gone, is written in the thread alone.
+- **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer that rules on what the intent means or demands is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause. An answer that states a fact and decides nothing about the intent, such as that the obstacle the thread reports is gone, is written in the thread alone. Either way the answered thread is a required input of its opener's artifact, so the opener reads the answer on its next turn.
 
 ## Frontmatter
 
