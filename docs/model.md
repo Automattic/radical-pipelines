@@ -50,7 +50,7 @@ Every requirement carries its origin: `from-intent`, when the intent states it, 
 
 The producer interprets the intent. Where its words decide a question, the spec follows them. Where they leave it open, the producer chooses the reading the Goal and intended use support, writes the requirement as `derived`, and records the other reading in one line under Considered and not required. The owner corrects a reading by reading the artifact; the run never stops to ask what a phrase means.
 
-The section **Considered and not required** lists, one line each, the cases the producer examined and left out because no intended use produces them. It is the spec's negative space: a consumer or reviewer who wonders about a case finds it there before raising it.
+The section **Considered and not required** lists, one line each, the cases the producer examined and left out because no intended use produces them. It is the spec's negative space: a consumer or reviewer who wonders about a case finds it there before raising it. A case listed there is not required, and not excluded either: how the code handles it is the implementer's to decide, like any shape inside a component.
 
 Every claim is `observed: <how>` or `assumed: <what will confirm it>`. A claim about current behavior that could have been observed by running the software and was not is a finding against the spec.
 

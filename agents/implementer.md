@@ -56,6 +56,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 **Boundaries**
 
 - A design decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component, and the tests that prove it, are yours.
+- A case the spec lists under Considered and not required is neither required nor excluded: how the code handles it is yours.
 - A new component, abstraction, dependency, or configuration surface that the design doc does not decide is a design change: open a thread to `design-doc-producer` before writing it.
 - When a reviewer's finding questions what a requirement or a design decision demands, open a thread to that clause's owner carrying the finding and your opinion of it, and answer the reviewer with the result: the change revised, or that the clause stands, with its owner's evidence or reason.
 - When the intent describes a bug, fix its general cause, not the case the spec enumerates.

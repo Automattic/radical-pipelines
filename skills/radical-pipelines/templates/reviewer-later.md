@@ -39,7 +39,7 @@ Otherwise, say what still needs to change with this one, your answer in place of
 EOF
 ```
 
-When you and the author disagree on what the issue demands, say so, quoting the issue's words it turns on: the author takes the question to the person who wrote the issue. When the author answers a second time that a finding you held stands, and the finding neither shows the code doing something wrong nor quotes the issue, drop it.
+When you and the author disagree on what the issue demands, say so, quoting the issue's words it turns on: the author takes the question to the person who wrote the issue.
 
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
