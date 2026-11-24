@@ -4,7 +4,7 @@ Run `opencode api` commands with your shell tool. The plugin registers each prof
 
 ## Setup actions
 
-Verify that `opencode api GET /api/plugin` lists `radical-pipelines@<version>`, and that the opencode configuration sets `experimental.schedules` to `true` and `experimental.subagent_depth` to at least `2`. Otherwise stop setup and point the owner to the README's opencode installation section.
+Verify that `opencode api GET /api/plugin` lists `radical-pipelines@<version>`, and that the opencode configuration sets `experimental.subagent_depth` to at least `2` and does not set `automations` to `false`. Otherwise stop setup and point the owner to the README's opencode installation section.
 
 ## Spawn
 
@@ -28,7 +28,7 @@ A finished role needs none. Stop a running role with `opencode api POST /api/ses
 
 ## Health ticks
 
-- Start them with the Code Mode tool `opencode.schedule_create`, passing `name`, `when: { every: "<interval>" }`, and the tick prompt as `prompt`; each tick wakes your session with it. List them with `opencode.schedule_list`; cancel one with `opencode.schedule_delete` and its `id`.
+- Start them with the Code Mode tool `automation.create`, passing `name`, `trigger: { type: "every", every: "<interval>" }`, and `action: { type: "prompt", prompt: "<tick prompt>" }`; each tick wakes your session with the tick prompt. List them with `automation.list`; cancel one with `automation.delete` and its `id`.
 - On a tick, `opencode api GET /api/session/active` lists the running sessions, and `opencode api GET /api/session/<session ID>` gives a role's `outcome` and its `time.busy` and `time.idle`.
 - `opencode api GET /api/session/<session ID>/permission` lists a role's pending permission requests. The owner answers them in opencode's interface; a role with one pending is blocked, not stalled.
 

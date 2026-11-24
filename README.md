@@ -146,20 +146,21 @@ The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are
 
 ## opencode plugin install
 
-Radical Pipelines supports stable opencode v2 (the `opencode` binary). Install it through opencode's global plugin configuration using its Git source.
+Radical Pipelines supports stable opencode v2.4 or newer (the `opencode` binary). Install it through opencode's global plugin configuration using its Git source.
 
-Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, and enable the two experimental settings the orchestrator relies on: `schedules`, for its health ticks, and a `subagent_depth` of at least 2, so the roles it spawns can delegate to their own subagents:
+Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, and set the experimental `subagent_depth` to at least 2, so the roles the orchestrator spawns can delegate to their own subagents:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": ["github:Automattic/radical-pipelines"],
   "experimental": {
-    "schedules": true,
     "subagent_depth": 2
   }
 }
 ```
+
+The orchestrator runs its health ticks as opencode automations, which are on unless your configuration sets `automations` to `false`.
 
 Then restart the opencode service:
 
@@ -167,9 +168,9 @@ Then restart the opencode service:
 opencode service restart
 ```
 
-A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. Before its first run, the orchestrator checks that the plugin is loaded and both settings are on, and stops with a pointer to this section when one is missing.
+A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. Before its first run, the orchestrator checks that the plugin is loaded, `subagent_depth` is at least 2, and automations are on, and stops with a pointer to this section when one is not.
 
-The orchestrator drives roles with opencode's own primitives: it creates each role as a child session, moves it to its worktree, starts and wakes it with the `subagent` tool, learns that it finished or failed from opencode's completion notice, and runs health ticks as schedules. The plugin ships only what opencode lacks:
+The orchestrator drives roles with opencode's own primitives: it creates each role as a child session, moves it to its worktree, starts and wakes it with the `subagent` tool, learns that it finished or failed from opencode's completion notice, and runs health ticks as automations. The plugin ships only what opencode lacks:
 
 - **Skill registration and re-supply.** The `radical-pipelines` skill is invokable, and a session that activated it gets it back after opencode's context compaction.
 - **Profile registration.** RP's four agent profiles register as the subagents `radical-pipelines/<profile>`.
