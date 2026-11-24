@@ -6,15 +6,15 @@ This chart mirrors [`reference/entries/triage.md`](../../skills/radical-pipeline
 flowchart TD
     A{"The request has an issue?"} -->|No| MI["Manage issues: create it"]
     A -->|Yes| SCAN
-    MI --> SCAN["git fetch; rp pipelines --issue; rp check on each pipeline found"]
+    MI --> SCAN["git fetch; fast-forward the artifact base branch; rp pipelines --issue; fast-forward each pipeline's base branch (state.md); rp check on each pipeline found"]
     SCAN --> B{"The issue declares dependencies the tracker reports open?"}
     B -->|Yes| E{"Owner chooses"}
     E -->|Wait| WAIT["Wait"]
     E -->|Proceed| ROUTE
     B -->|No| ROUTE{"Route each statement by the first predicate that holds"}
     ROUTE --> R1["Answers a pending escalation: record the answer and continue that pipeline"]
-    ROUTE --> R2["A live pipeline already calls for it: continue it"]
-    ROUTE --> R3["Concerns an existing pipeline's artifacts or code: later input on it"]
+    ROUTE --> R2["Adds nothing to a live pipeline, whose frontier names the work or whose intent already calls for it: continue it"]
+    ROUTE --> R3["Concerns an existing pipeline's artifacts or code, or brings the owner's commits on its branch: later input on it"]
     ROUTE --> R4["Changes a live pipeline's scope: the owner chooses to rescope it or start a new pipeline from its tip"]
     ROUTE --> R5["New intent from another pipeline's unmerged tip: new pipeline, origin starts-from"]
     ROUTE --> R6["New intent re-attempting a pipeline: new pipeline, origin re-attempts"]

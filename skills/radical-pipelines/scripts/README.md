@@ -102,19 +102,19 @@ No other key exists at any level. `check`, `next`, and `land` read the file wher
 
 `land` alone writes `certification/<path>.json`, the certification of the artifact, candidate, or approval at `<path>`, relative to the pipeline folder. It is a JSON object holding only:
 
-- `inputs`: a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, or a candidate.
+- `inputs`: a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, a candidate, or a thread.
 - `approved-commit`, on an approval only (§ Threads): the full hash of its approved commit (§ Net change and approval).
 
 | What is certified | Required inputs |
 | --- | --- |
-| `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
+| `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it; every `answered` thread its owner opened |
 | A spec candidate | `0-intent/intent.md` |
-| `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
+| `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it; every `answered` thread its owner opened |
 | A design doc candidate | `1-spec/spec.md`; its lane's previous candidates |
-| `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
+| `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it; every `answered` thread its owner opened |
 | An approval | `0-intent/intent.md`; every later input |
 
-- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. A file without a certification is stale on each required input. Pins of other files are checked for grammar only.
+- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. A file without a certification is stale on each required input. Pins of other files are checked for grammar only. At target phase 3 or 4, `notes.md` is also stale while `git merge-tree --write-tree --name-only <tip> <base branch>` conflicts on a path outside the pipelines folder root; conflicts inside it are ignored. A merge's conflicts are the files it leaves unmerged and the paths its `CONFLICT` messages name.
 - **Missing**: the file is absent. `notes.md` is also missing until its `status` is `done`.
 - **Fresh**: neither.
 
@@ -209,12 +209,12 @@ review <lane> <approval>                       at target phase 4, for each revie
 thread <thread> <status>[ awaits <role>]
 ```
 
-`<state>` is `missing`, `fresh`, or `stale <changed input>[ <changed input>]...`. `<approval>` is `approved`, `unapproved` when the latest review thread is no approval, or `stale` followed by the changed inputs and, when the code changed, `code`. On a `malformed` frontier, only the frontier lines are printed. Paths are relative to the pipeline folder.
+`<state>` is `missing`, `fresh`, or `stale` followed by the changed inputs and, when the base branch conflicts, `base`. `<approval>` is `approved`, `unapproved` when the latest review thread is no approval, or `stale` followed by the changed inputs and, when the code changed, `code`. On a `malformed` frontier, only the frontier lines are printed. Paths are relative to the pipeline folder; `base-conflicts` holds paths from the repository root.
 
 `--json` prints one object:
 
-- `pipeline`, `tip`, `target-phase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role; not on a lane's entry), and `changed` (the changed inputs of a stale artifact, candidate, or approval).
-- `phases`, `complete`, `threads`: unless the frontier is `malformed`. Each phase has `phase`, its number, `artifact`, its artifact's name, `path`, `state`, `stale` when stale, and `lanes` (`lane`, `path`, `state`, `stale`) while its artifact is missing. `complete` lists the numbers of the complete phases (§ Complete phases), ascending. Each thread has `path`, `status`, `opener`, `recipient`, `about`, `awaits`, and `approved-commit`, from an approval's certification, else `null`.
+- `pipeline`, `tip`, `target-phase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role; not on a lane's entry), `changed` (the changed inputs of a stale artifact, candidate, or approval), and `base-conflicts` (the paths that conflict when the base branch is merged into the tip, from the repository root).
+- `phases`, `complete`, `threads`: unless the frontier is `malformed`. Each phase has `phase`, its number, `artifact`, its artifact's name, `path`, `state`, `stale` when stale, `base-conflicts` when the base branch conflicts, and `lanes` (`lane`, `path`, `state`, `stale`) while its artifact is missing. `complete` lists the numbers of the complete phases (§ Complete phases), ascending. Each thread has `path`, `status`, `opener`, `recipient`, `about`, `awaits`, and `approved-commit`, from an approval's certification, else `null`.
 - `net-change` (`<merge-base>..<tip>`), `reviews` (`lane`, `approved`, `stale` with the changed inputs, `code-changed` when the code changed): at target phase 4, unless the frontier is `malformed`. A `review` frontier entry carries `changed` and `code-changed` the same way.
 
 ## `pipelines`
@@ -340,7 +340,7 @@ node rp.mjs land <pipeline folder> --role <role>
 1. **Verify.** The role's branch exists and holds its turn commit; otherwise `land` stops, naming the role's worktree.
 2. **Bring.** From commits alone. A production lane's branch, when it holds unlanded commits (§ `next`), is merged into the tip. A review lane's unlanded commits after its review head are picked onto the tip one by one, keeping their authors and messages, and none of the commits that built the review head. A role in the pipeline worktree has its commits on the tip already. A conflict stops `land`.
 3. **Validate.** The pipeline files the turn's unlanded commits change, or for a role in the pipeline worktree its commits after its turn commit, are validated as `check` validates them, as the pipeline branch would hold them after the landing. A malformed one stops `land` with `rp: land: <worktree>: the turn brings malformed files:`, then each `malformed <path>: <reason>` line as `check` prints it. Whatever stops `check` on the pipeline after the landing, such as a `base-branch` that does not resolve, stops `land` too.
-4. **Certify.** It writes `certification/<path>.json` (§ Certification) for the role's artifact or candidate when it exists, at the turn commit, and for each approval among the files the turn brings, at the commit its reviewer's last message names, with `approved-commit` the last commit brought, the pipeline commit holding it. An approval whose named commit does not resolve, or whose code outside the pipelines folder root differs from that pipeline commit's, lands uncertified, any certification its path held removed, so its lane is not approved. A review thread the turn brings `open` or `withdrawn` loses its certification the same way. `inputs` are the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit is not certified. Only what certifying reads at that commit is validated there: the intent, every later input (its `target` says whether it applies), the file's upstream artifacts, and a candidate's previous candidates; one of them malformed, or a required input missing, stops `land`.
+4. **Certify.** It writes `certification/<path>.json` (§ Certification) for the role's artifact or candidate when it exists, at the turn commit, and for each approval among the files the turn brings, at the commit its reviewer's last message names, with `approved-commit` the last commit brought, the pipeline commit holding it. An approval whose named commit does not resolve, or whose code outside the pipelines folder root differs from that pipeline commit's, lands uncertified, any certification its path held removed, so its lane is not approved. A review thread the turn brings `open` or `withdrawn` loses its certification the same way. `inputs` are the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit is not certified. Only what certifying reads at that commit is validated there: the intent, every later input (its `target` says whether it applies), the file's upstream artifacts, and a candidate's previous candidates; one of them malformed, or a required input missing, stops `land`. The threads an artifact's owner opened to `owner` are read there too. While one is malformed there, the artifact's required inputs are not known and its certification is left as it is: the turn that follows the thread's repair certifies it.
 5. **Commit.** It commits the merge and then the certifications that change or are removed, each subject naming what it landed, such as `Merge spec lane a` or `Certify spec`, in the `landing-commit-format` template when one is set. A landing that changes no certification and brings no commit makes no commit.
 6. **Move.** It fast-forwards the pipeline worktree to its last commit with `git merge --ff-only`, which stops on local changes it would overwrite.
 7. **Report.** It prints `hook phase-completed <phase>` for each phase complete after the landing (§ Complete phases) that was not complete when the step was applied and that no earlier landing of the step reported, in phase order, and adds them to the turn record.

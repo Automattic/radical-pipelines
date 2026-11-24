@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, SPEC, TO_SPEC, UPSTREAM,
-  abs, apply, certification, check, commitAll, commitIn, conventions, git, landRole, lane, laneWorktree, later, pipeline, read, root, run, thread, useRepo, withFrontmatter, write,
+  DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, SPEC, TO_OWNER, TO_SPEC, UPSTREAM,
+  abs, apply, certification, check, commitAll, commitIn, conventions, frontier, git, landRole, lane, laneWorktree, later, pipeline, read, root, run, thread, useRepo, withFrontmatter, write,
 } from "./fixture.mjs";
 
 const head = (at = root) => git(at, "rev-parse", "HEAD").trim();
@@ -261,6 +261,24 @@ describe("rp land", () => {
       assert.deepEqual(untouched(), before);
     });
   });
+
+  for (const repaired of [true, false])
+    it(`leaves the certification as it is on a turn that starts with a malformed thread its role opened to the owner, ${repaired ? "repaired" : "left malformed"}`, () => {
+      pipeline(3);
+      const path = thread({ ...TO_OWNER, status: "answered", messages: [["spec-producer", "abc1234"], ["owner", "abc1234"]] });
+      commitAll("an answered thread");
+      apply();
+      landRole("spec-producer");
+      const pinned = certification(SPEC);
+      assert.deepEqual(pinned.inputs.map((pin) => pin.split("@")[0]), [INTENT, path]);
+      write(path, read(path).replace("status: answered", "status: pending"));
+      commitAll("a rejected thread to the owner");
+      apply();
+      if (repaired) { write(path, `${read(path).replace("status: pending", "status: answered")}\nRepaired.\n`); commitAll("Repair the thread"); }
+      landRole("spec-producer");
+      assert.deepEqual(certification(SPEC), pinned);
+      assert.deepEqual(frontier(), repaired ? ["respond spec"] : [`malformed ${path}`]);
+    });
 
   it("certifies at the turn commit whatever it holds that the certification does not read", () => {
     pipeline(3);

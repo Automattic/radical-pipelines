@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_DESIGN, TO_OWNER, TO_SPEC,
-  abs, approve, check, commitAll, configure, frontier, lane, later, pipeline, read, remove, revise, rp, run, thread, useRepo, withFrontmatter, write, writeFile,
+  abs, approve, check, commitAll, configure, frontier, lane, land, later, pipeline, read, remove, revise, rp, run, thread, useRepo, withFrontmatter, write, writeFile,
 } from "./fixture.mjs";
 
 const replied = (parties, n = 1) => thread({ n, ...parties, messages: [[parties.opener, "aaaaaaa"], [parties.recipient, "bbbbbbb"]] });
@@ -192,9 +192,12 @@ describe("frontier", () => {
       assert.deepEqual(frontier(), ["escalate threads/1-spec-producer-owner-intent.md", "escalate threads/2-reviewer-default-owner-intent.md"]);
     });
 
-    it("does not hold once the thread is closed answered", () => {
+    it("does not hold once the thread is closed answered: its opener's artifact is stale on it until it is pinned", () => {
       pipeline(3, { targetPhase: 3 });
-      thread({ ...TO_OWNER, status: "answered", messages: [["spec-producer", "aaaaaaa"], ["owner", "bbbbbbb"]] });
+      const answered = thread({ ...TO_OWNER, status: "answered", messages: [["spec-producer", "aaaaaaa"], ["owner", "bbbbbbb"]] });
+      assert.deepEqual(check().frontier, [{ action: "respond", target: "spec", threads: [], changed: [answered] }]);
+      land(SPEC);
+      commitAll("certify");
       assert.deepEqual(frontier(), ["complete"]);
     });
   });

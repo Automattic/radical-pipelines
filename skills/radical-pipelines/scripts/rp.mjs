@@ -342,8 +342,8 @@ export function kindOf(rel) {
 // The folders that can hold pipeline files.
 const holdsFiles = (rel) => rel === "" || rel === "threads" || rel === "0-intent" || PHASES.some((phase) =>
   rel === phase.folder || (phase.lanes && (rel === `${phase.folder}/lanes` || new RegExp(`^${phase.folder}/lanes/[^/]+$`).test(rel))));
-// What a pin may name: the intent, a later input, an artifact, or a lane candidate.
-const pinnable = (rel) => ["intent", "later", "artifact", "candidate"].includes(kindOf(rel)?.kind);
+// What a pin may name: the intent, a later input, an artifact, a lane candidate, or a thread.
+const pinnable = (rel) => ["intent", "later", "artifact", "candidate", "thread"].includes(kindOf(rel)?.kind);
 // What is certified beside an approval: an artifact or a lane candidate.
 const pins = (kind) => ["artifact", "candidate"].includes(kind?.kind);
 
@@ -767,7 +767,7 @@ function parseFiles(pipeline, where, config, certified) {
     if (kind.kind === "config") continue;
     try {
       const file = parseFile(path, kind, bytes, config);
-      if (file.kind === "thread") state.threads.push(file);
+      if (file.kind === "thread") state.threads.push({ ...file, identity: pipeline.identities.get(path) });
       else state.docs.set(path, { ...file, identity: pipeline.identities.get(path) });
     } catch (error) {
       if (!(error instanceof Invalid)) throw error;
@@ -792,14 +792,18 @@ export function readState(pipeline, where) {
 
 // --- state ------------------------------------------------------------------------
 
-// The required inputs of what is certified. An artifact: its phase's upstream artifacts and every later input that
-// targets it. A candidate: its phase's upstream artifacts and its lane's previous candidates, what its lane reads; the
-// later inputs targeting its artifact are the artifact's. An approval: the intent and every later input.
+// The required inputs of what is certified. An artifact: its phase's upstream artifacts, every later input that
+// targets it, and every `answered` thread its owner opened. A candidate: its phase's upstream artifacts and its lane's
+// previous candidates, what its lane reads; the later inputs targeting its artifact are the artifact's. An approval: the
+// intent and every later input.
 export function requiredInputs(state, subject) {
   const consumes = (doc) => subject.kind === "thread" || (subject.kind === "artifact" && doc.targets.includes(subject.phase.name));
   const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && consumes(doc));
-  return [...upstreamOf(state.config, subject), ...later.map((doc) => doc.path)];
+  const answers = subject.kind === "artifact" ? state.threads.filter((thread) => thread.status === "answered" && thread.opener === subject.phase.owner) : [];
+  return [...upstreamOf(state.config, subject), ...later.map((doc) => doc.path), ...answers.map((thread) => thread.path)];
 }
+// The identity of a required input in `state`, or undefined when the file is absent.
+const identityIn = (state, path) => (state.docs.get(path) ?? state.threads.find((thread) => thread.path === path))?.identity;
 // What a subject pins before later inputs, under `config`: the intent for an approval; its phase's upstream artifacts
 // for an artifact; those and its lane's previous candidates for a candidate.
 function upstreamOf(config, subject) {
@@ -810,17 +814,20 @@ function upstreamOf(config, subject) {
 // The required inputs of a subject that its certification leaves unpinned, or pins at an identity that differs from the
 // current one.
 export function staleInputs(state, subject) {
-  return requiredInputs(state, subject).filter((input) => !subject.inputs.has(input) || subject.inputs.get(input) !== state.docs.get(input)?.identity);
+  return requiredInputs(state, subject).filter((input) => !subject.inputs.has(input) || subject.inputs.get(input) !== identityIn(state, input));
 }
 
 // The implementation is done when `notes.md`'s frontmatter `status` is `done`.
 const implementationDone = (state) => state.docs.get(IMPLEMENTATION.path)?.values.get("status") === "done";
 
-// A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done.
+// A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done, and
+// stale also, once the target reaches the implementation, while merging the base branch into the tip conflicts, with
+// the paths that conflict.
 function statusOf(state, path) {
   if (!state.docs.has(path) || (path === IMPLEMENTATION.path && !implementationDone(state))) return { state: "missing" };
   const stale = staleInputs(state, state.docs.get(path));
-  return stale.length ? { state: "stale", stale } : { state: "fresh" };
+  const conflicts = path === IMPLEMENTATION.path && state.config.targetPhase >= IMPLEMENTATION.n ? state.baseConflicts() : [];
+  return stale.length || conflicts.length ? { state: "stale", stale, ...(conflicts.length ? { "base-conflicts": conflicts } : {}) } : { state: "fresh" };
 }
 
 // The role an `open` thread awaits: its opener when its recipient wrote the last message, its recipient otherwise.
@@ -855,17 +862,23 @@ export function mergeBaseOf(root, baseBranch, tip) {
   return gitText(root, ["merge-base", baseCommit, tip]) || fail(`no merge-base between ${baseBranch} and ${tip}`);
 }
 
-// The tree of merging the commit `theirs` into `ours`, as Git merges them, and the paths that conflict; the tree holds
-// conflict markers where they do. Only objects are written.
+// The tree of merging the commit `theirs` into `ours`, as Git merges them, and the paths that conflict: the files Git
+// leaves unmerged and the paths its `CONFLICT` messages name, which alone report a conflict that leaves no file
+// unmerged. The tree holds conflict markers where files conflict. Only objects are written.
 function mergeTree(root, ours, theirs) {
   let merged;
-  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] }); }
   catch (error) {
     if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${ours} ${theirs}: ${error.stderr?.toString().trim() || error.message}`);
     merged = error.stdout;
   }
-  const [tree, ...conflicts] = merged.split("\0").filter(Boolean);
-  return { tree, conflicts };
+  // `<tree>`, each unmerged file, an empty field, then each message as its path count, its paths, its type, and its text.
+  const fields = merged.split("\0"), tree = fields[0], conflicts = new Set();
+  let at = 1;
+  for (; at < fields.length && fields[at] !== ""; at++) conflicts.add(fields[at]);
+  for (at++; /^\d+$/.test(fields[at] ?? ""); at += Number(fields[at]) + 3)
+    if (fields[at + Number(fields[at]) + 1].startsWith("CONFLICT")) for (const path of fields.slice(at + 1, at + 1 + Number(fields[at]))) conflicts.add(path);
+  return { tree, conflicts: [...conflicts].sort() };
 }
 // Whether two tree-ishes differ outside the pipelines folder root.
 function codeDiffers(root, a, b, pipelinesRoot) {
@@ -877,11 +890,15 @@ function codeDiffers(root, a, b, pipelinesRoot) {
   return false;
 }
 
-// `commit` merged with the merge-base: the merged tree, and the paths that conflict outside the pipelines folder root;
-// conflicts inside it are ignored.
-function mergedWithBase(root, commit, mergeBase, pipelinesRoot) {
-  const { tree, conflicts } = mergeTree(root, commit, mergeBase);
+// `commit` merged with `base`, the merge-base or the base branch's tip: the merged tree, and the paths that conflict
+// outside the pipelines folder root; conflicts inside it are ignored.
+function mergedWithBase(root, commit, base, pipelinesRoot) {
+  const { tree, conflicts } = mergeTree(root, commit, base);
   return { tree, conflicts: conflicts.filter((path) => !path.startsWith(`${pipelinesRoot}/`)) };
+}
+// The paths outside the pipelines folder root that conflict when the base branch is merged into the tip.
+export function baseConflicts(root, baseBranch, tip, pipelinesRoot) {
+  return mergedWithBase(root, tip, requireCommit(root, baseBranch, "base-branch"), pipelinesRoot).conflicts;
 }
 // Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the merge-base:
 // a conflict outside the root, or any difference from the merged tree outside it. Null when the clone lacks the commit.
@@ -915,7 +932,8 @@ function phaseActions(state, phase) {
     if (!lanes.length) actions.push({ action: "produce", target: phase.name, threads });
     else if (!unfinished.length) actions.push({ action: "consolidate", target: phase.name, threads });
   } else if ((inTarget && status.state === "stale") || threads.length)
-    actions.push({ action: "respond", target: phase.name, threads, ...(inTarget && status.stale ? { changed: status.stale } : {}) });
+    actions.push({ action: "respond", target: phase.name, threads, ...(inTarget && status.stale ? { changed: status.stale } : {}),
+      ...(inTarget && status["base-conflicts"] ? { "base-conflicts": status["base-conflicts"] } : {}) });
   return actions.length ? actions : null;
 }
 
@@ -975,6 +993,8 @@ async function inspect(root, folder, pipelinesRoot, ref) {
     if (!judged.has(approved)) judged.set(approved, codeChanged(root, approved, mergeBase, tip, pipelinesRoot));
     return judged.get(approved);
   };
+  let conflicts;
+  state.baseConflicts = () => conflicts ??= baseConflicts(root, state.config.baseBranch, tip, pipelinesRoot);
   return { pipeline, state, tip, mergeBase, frontier: frontier(state) };
 }
 
@@ -1005,7 +1025,7 @@ async function cmdCheck(args) {
   }
   if (args.json) return process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   const lines = report.frontier.map((entry) => `frontier ${frontierText(entry)}`);
-  const status = (entry) => entry.state === "stale" ? `stale ${entry.stale.join(" ")}` : entry.state;
+  const status = (entry) => entry.state === "stale" ? ["stale", ...entry.stale, ...(entry["base-conflicts"] ? ["base"] : [])].join(" ") : entry.state;
   for (const phase of report.phases ?? []) {
     for (const lane of phase.lanes) lines.push(`candidate ${phase.artifact} ${lane.lane} ${status(lane)}`);
     lines.push(`artifact ${phase.artifact} ${status(phase)}`);
@@ -1021,14 +1041,20 @@ async function cmdCheck(args) {
 
 // The certification of `subject`, a landed artifact, candidate, or approval parsed under `config`: its required inputs
 // at their identities in the tree of the turn's commit `at`, and on an approval its approved commit. Only
-// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), and what
-// the subject pins before later inputs. One of those malformed, or a required input missing, stops it.
+// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), the threads
+// an artifact's owner opened to the person (their `status` says whether they apply), and what the subject pins before
+// later inputs. One of those malformed, or a required input missing, stops it; a malformed thread yields null.
 async function certificationOf(root, folder, config, subject, at, approvedCommit = null) {
   const upstream = upstreamOf(config, subject);
-  const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path);
+  const answers = subject.kind === "artifact" ? new RegExp(`^threads/\\d+-${subject.phase.owner}-${OWNERS.intent}-intent\\.md$`) : null;
+  const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || Boolean(answers?.test(path));
   const state = parseFiles(await readCommit(root, at, folder, reads), `${at}:${folder}`, config, false);
-  if (state.invalid.length) fail(`${at}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
-  const inputs = requiredInputs(state, subject).map((path) => `${path}@${(state.docs.get(path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)).identity}`).sort();
+  // With a thread malformed at `at`, the subject's required inputs are not known: it is not certified, and the turn
+  // that follows the thread's repair certifies it.
+  const invalid = state.invalid.filter((entry) => kindOf(entry.path).kind !== "thread");
+  if (invalid.length) fail(`${at}:${folder}/${invalid[0].path}: ${invalid[0].reason}`);
+  if (state.invalid.length) return null;
+  const inputs = requiredInputs(state, subject).map((path) => `${path}@${identityIn(state, path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)}`).sort();
   return Buffer.from(`${JSON.stringify({ inputs, ...(approvedCommit ? { "approved-commit": approvedCommit } : {}) }, null, 2)}\n`);
 }
 
@@ -1366,6 +1392,7 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
     "subagent-model": models["subagent-model"] ?? "",
     "pipeline-folder": at(""), "pipeline-folder-arg": shellWord(at("")), intent: at(INTENT), spec: at(PHASES[0].path), "design-doc": at(PHASES[1].path),
     "later-inputs": laterInputs,
+    "owner-answers": artifact && !role.lane ? requiredInputs(state, { kind: "artifact", phase: artifact.phase }).filter((path) => kindOf(path).kind === "thread").map(at) : [],
     "malformed-files": turn.malformed.map(frontierText),
   };
   const files = [];
@@ -1381,6 +1408,7 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}${lane.after ? `, written after ${lane.after.join(", ")}` : ""}`),
       "previous-candidates": role.lane ? previousCandidates(config, artifact.phase, role.lane).map(at) : [],
       threads: turn.threads.map(at),
+      "base-conflicts": artifact.phase === IMPLEMENTATION && !role.lane ? state.baseConflicts() : [],
       "write-to": at(artifact.path),
     });
   } else {
@@ -1714,7 +1742,8 @@ async function cmdLand(args) {
   // review thread the turn brings open or withdrawn.
   const subjects = [], uncertified = [];
   const artifact = artifactOf(role), doc = artifact && state.docs.get(artifact.path);
-  if (doc) subjects.push([doc, await certificationOf(root, folder, state.config, doc, turn.commit)]);
+  const certificate = doc && await certificationOf(root, folder, state.config, doc, turn.commit);
+  if (certificate) subjects.push([doc, certificate]);
   for (const thread of state.threads.filter((each) => isReview(each) && bring.changed.has(each.path))) {
     const read = isApproval(thread) && commitOf(root, thread.messages.findLast((message) => message.author === thread.opener).commit);
     if (read && !codeDiffers(root, read, bring.landed, pipelinesRoot)) subjects.push([thread, await certificationOf(root, folder, state.config, thread, read, bring.landed)]);
