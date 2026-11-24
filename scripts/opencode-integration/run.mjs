@@ -31,7 +31,7 @@ import * as networkSmoke from "./checks/network-smoke.mjs";
 /** Check groups run in every invocation: the hermetic, offline core path. */
 const CORE_CHECK_GROUPS = [
   ["Plugin load, skill registration, agent materialization", pluginAndMaterialization],
-  ["Native roles: seat, wake, notification, termination, health ticks", nativeRoles],
+  ["Native roles: seat, wake, notification, stopping, health ticks", nativeRoles],
   ["Skill re-supply across a checkpoint", skillResupply],
 ];
 

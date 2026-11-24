@@ -8,7 +8,7 @@ Enter from `load.md`:
 
 Tell the owner what exists and what is missing. Offer setup. If declined, stop and list the missing facts.
 
-Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, addressing, termination, health-loop, and model mechanics it already defines, so they will not be asked for.
+Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, addressing, stopping, health-loop, and model mechanics it already defines, so they will not be asked for.
 
 ## Fresh setup
 

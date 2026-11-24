@@ -80,7 +80,7 @@ describe("rp next", () => {
       assert.ok(lines.includes("hook phase-started 1"));
     });
 
-    it("consolidate: the lanes to terminate first, their worktrees and branches to remove, and the artifact's producer to wake on a new instance in the pipeline worktree", () => {
+    it("consolidate: the lanes' worktrees and branches to remove, and the artifact's producer to wake on a new instance in the pipeline worktree", () => {
       pipeline(0, { lanes: SPEC_LANES });
       apply();
       produceCandidates();
@@ -88,8 +88,7 @@ describe("rp next", () => {
       assert.equal(lines[0], `frontier consolidate spec`);
       for (const id of ["a", "b"]) {
         const role = `spec-producer-${id}`, path = laneWorktree(`demo-spec-${id}`);
-        inOrder(lines, `hook before-terminating-agent ${role}`, `terminate ${role} profile spec-producer`, `terminate ${role} lane ${id}`, `hook after-terminating-agent ${role}`,
-          `hook before-removing-worktree ${role} ${path}`, `remove-worktree ${role} ${path}`, `delete-branch demo-spec-${id}`, `hook after-removing-worktree ${role} ${path}`);
+        inOrder(lines, `hook before-removing-worktree ${role} ${path}`, `remove-worktree ${role} ${path}`, `delete-branch demo-spec-${id}`, `hook after-removing-worktree ${role} ${path}`);
       }
       assert.deepEqual(wakeOf(lines, "spec-producer"), { profile: "spec-producer", phase: "1", worktree: at(), assignment: join(gitDir(root), "rp/spec-producer.md"), resources: [], new: true });
       assert.deepEqual(lines.filter((line) => line.startsWith("hook ") && / spec-producer$/.test(line)), ["hook before-spawning-agent spec-producer", "hook after-spawning-agent spec-producer"]);

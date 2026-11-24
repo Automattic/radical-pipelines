@@ -18,9 +18,9 @@ Call `SendMessage` with the role's agent ID and the message. A finished role res
 
 When a role finishes, you receive its completion notification carrying its final reply, which is its report. A notification that names an error is a failure.
 
-## Termination
+## Stop
 
-A finished role needs none. Stop a running role with `TaskStop` and its agent ID; its transcript stays.
+Stop a running role with `TaskStop` and its agent ID; its transcript stays.
 
 ## Health ticks
 
