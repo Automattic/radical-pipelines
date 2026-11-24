@@ -40,21 +40,21 @@ The **artifacts** are `spec.md`, `design-doc.md`, and `notes.md`. Later inputs, 
 
   | File | Required inputs |
   | --- | --- |
-  | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
+  | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it; every `answered` thread its owner opened |
   | A spec candidate | `0-intent/intent.md` |
-  | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
+  | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it; every `answered` thread its owner opened |
   | A design doc candidate | `1-spec/spec.md`; its lane's previous candidates |
-  | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
+  | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it; every `answered` thread its owner opened |
   | A review thread closed `approved` | `0-intent/intent.md`; every later input |
 
   Candidates are required only while their artifact is missing.
 
 - **Turn commit** — the tip of a role's worktree when `rp next --apply` writes its assignment, before you wake it. The assignment names it, and the role reads its materials at it.
-- **Stale** — an artifact or an approved review thread with a required input that its certification leaves unpinned, or pins at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its approved commit's by anything other than clean merges of the base branch: `rp check` merges the merge-base into the approved commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict outside the pipelines folder or a difference makes it stale. An approval whose approved commit the clone lacks, as after a squash merge, is no approval.
+- **Stale** — an artifact or an approved review thread with a required input that its certification leaves unpinned, or pins at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its approved commit's by anything other than clean merges of the base branch: `rp check` merges the merge-base into the approved commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict outside the pipelines folder or a difference makes it stale. An approval whose approved commit the clone lacks, as after a squash merge, is no approval. `notes.md` is also stale while merging the base branch into the tip conflicts outside the pipelines folder.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its `status` is `done`.
 - **Base branch** — `config.json`'s `base-branch`: the branch the pipeline started from, which it takes updates from. **Merge-base** — the merge-base of the inspected tip with the base branch.
 - **Net change** — `git diff <merge-base> <tip>` outside the pipelines folder: what the reviewer reads.
-- **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause.
+- **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer that rules on what the intent means or demands is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause. An answer that states a fact and decides nothing about the intent, such as that the obstacle the thread reports is gone, is written in the thread alone. Either way the answered thread is a required input of its opener's artifact, so the opener reads the answer on its next turn.
 
 ## Frontmatter
 
@@ -102,7 +102,7 @@ Record it at every run start, and at no other moment from the conventions:
 - `worktree-folder-root`, `commit-format`, `guardrails`, `resources`, and `variables`: what the conventions state as they stand then, `.rp.local.md`'s overrides applied, replacing what an earlier run start recorded. A convention they do not set is absent.
 - `landing-commit-format`: the template of the commits `rp land` makes, holding `{subject}` where each commit's subject goes, as the Commit format convention has your commits read; absent when it says nothing of them.
 - `target-phase`: the phase the run continues through, 1 to 4.
-- `base-branch`: the branch of the unmerged pipeline it started from, else the artifact base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
+- `base-branch`: the branch of the unmerged pipeline it started from, else the artifact base branch. Fetch and fast-forward it to its upstream before triage runs `rp check`, before branching from it, and before merging it into the pipeline branch.
 - `lanes`, `consolidation-briefs`, and `models`: the lanes, briefs, consolidation briefs, models, and subagent models the owner confirmed, from the Lanes and Models conventions.
 - Keep `target-phase`, `base-branch`, `lanes`, `consolidation-briefs`, and `models` as they are unless the owner asks to change them, while confirming the run or during it.
 - `orchestrator-directions`: what the owner tells you about how to do your own part of the pipeline's runs that no other key and no convention records, such as to keep the pipeline branch local. One entry per direction, in the owner's words; keep every entry the owner has not withdrawn. No role reads it: route whatever a role must act on through triage (`../entries/triage.md`).

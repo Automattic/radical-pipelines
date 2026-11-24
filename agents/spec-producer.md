@@ -29,7 +29,7 @@ You are the `spec-producer`. You own `spec.md`: the observable outcomes the chan
 
 ## Produce
 
-1. Read the **Intent** and the **Later inputs**.
+1. Read the **Intent**, the **Later inputs**, and the **Owner's answers**.
 2. Observe the current behavior they concern: run the software, drive it, and reproduce each reported failure.
 3. Investigate each proposal: an adopted observable outcome becomes a requirement; an observed claim about current behavior grounds requirements; a direction about how to build is left to the design doc.
 4. Write `spec.md` at **Write to** (**Formats**), omitting sections with nothing to record.
@@ -40,7 +40,7 @@ Diff each of the **Changed inputs** since the commit named and revise what the c
 
 ## Consolidate
 
-Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-only. Write `spec.md` at **Write to** from the candidates, treating divergence as evidence:
+Read the **Intent**, the **Later inputs**, the **Owner's answers**, and the **Lane candidates**, read-only. Write `spec.md` at **Write to** from the candidates, treating divergence as evidence:
 
 - A requirement or case every lane reached is kept.
 - A requirement or case only one lane reached is a question: keep it only when you observe intended use producing its input.

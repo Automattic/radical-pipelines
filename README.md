@@ -55,7 +55,7 @@ A finding its opener holds without new evidence is a disagreement, settled by wh
 
 ### Pins and state
 
-When a role's turn lands, `rp` pins the exact version of every input the artifact consumed, by content, in a certification file only `rp` writes; the artifact itself is never touched. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the intent and the later inputs its reviewer read, and records the commit whose code it approved; it stays valid while the code differs from that commit's only by clean merges of the base branch.
+When a role's turn lands, `rp` pins the exact version of every input the artifact consumed, by content, in a certification file only `rp` writes; the artifact itself is never touched. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the intent and the later inputs its reviewer read, and records the commit whose code it approved; it stays valid while the code differs from that commit's only by clean merges of the base branch. A base branch that conflicts with the pipeline branch makes the implementation stale, so the implementer merges it and the reviewers review the resolution.
 
 State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts/README.md#check) names the frontier, the next roles to wake. Each step of the loop is [`rp next`](./skills/radical-pipelines/scripts/README.md#next), which plans the step and with `--apply` creates the lane branches and worktrees and writes each assignment, and [`rp land`](./skills/radical-pipelines/scripts/README.md#land), which lands each turn; the orchestrator adds only its tool's spawning and waking and the project's hooks. Roles write their threads with [`rp thread`](./skills/radical-pipelines/scripts/README.md#thread) and check their own files with [`rp validate`](./skills/radical-pipelines/scripts/README.md#validate) before they end a turn, so a role fixes a malformed file in the turn that wrote it. Any orchestrator, on any machine, continues a pipeline from its files, even in a clone that lacks the pipeline's history after a squash merge.
 
@@ -73,7 +73,7 @@ The owner talks only to the orchestrator, which asks three kinds of question:
 - to decide a disagreement about what the intent means or demands;
 - to confirm a run when its configuration or routing is not settled.
 
-A reported failure — a result observed outside the run, such as a command the owner ran or CI — is recorded as given, with its evidence, and the roles investigate it. Corrections arrive as later input in phase 0, each targeting the artifact where the work diverged, and the pins carry them downstream. The owner may also read and edit any artifact at any time.
+A reported failure — a result observed outside the run, such as a command the owner ran or CI — is recorded as given, with its evidence, and the roles investigate it. Commits the owner made on the pipeline branch are recorded as a proposal that names them: the implementer keeps or revises them, and the reviewers review them. Corrections arrive as later input in phase 0, each targeting the artifact where the work diverged, and the pins carry them downstream. The owner may also read and edit any artifact at any time.
 
 A pipeline may stop at an earlier phase so the owner can read the spec or the design doc before implementation. While roles work, the orchestrator ends its turn and resumes on their reports or on scheduled health ticks.
 
@@ -146,20 +146,21 @@ The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are
 
 ## opencode plugin install
 
-Radical Pipelines supports stable opencode v2 (the `opencode` binary). Install it through opencode's global plugin configuration using its Git source.
+Radical Pipelines supports stable opencode v2.4 or newer (the `opencode` binary). Install it through opencode's global plugin configuration using its Git source.
 
-Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, and enable the two experimental settings the orchestrator relies on: `schedules`, for its health ticks, and a `subagent_depth` of at least 2, so the roles it spawns can delegate to their own subagents:
+Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, and set the experimental `subagent_depth` to at least 2, so the roles the orchestrator spawns can delegate to their own subagents:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugins": ["github:Automattic/radical-pipelines"],
   "experimental": {
-    "schedules": true,
     "subagent_depth": 2
   }
 }
 ```
+
+The orchestrator runs its health ticks as opencode automations, which are on unless your configuration sets `automations` to `false`.
 
 Then restart the opencode service:
 
@@ -167,9 +168,9 @@ Then restart the opencode service:
 opencode service restart
 ```
 
-A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. Before its first run, the orchestrator checks that the plugin is loaded and both settings are on, and stops with a pointer to this section when one is missing.
+A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. Before its first run, the orchestrator checks that the plugin is loaded, `subagent_depth` is at least 2, and automations are available, and stops with a pointer to this section when one is not.
 
-The orchestrator drives roles with opencode's own primitives: it creates each role as a child session, moves it to its worktree, starts and wakes it with the `subagent` tool, learns that it finished or failed from opencode's completion notice, and runs health ticks as schedules. The plugin ships only what opencode lacks:
+The orchestrator drives roles with opencode's own primitives: it creates each role as a child session, moves it to its worktree, starts and wakes it with the `subagent` tool, learns that it finished or failed from opencode's completion notice, and runs health ticks as automations. The plugin ships only what opencode lacks:
 
 - **Skill registration and re-supply.** The `radical-pipelines` skill is invokable, and a session that activated it gets it back after opencode's context compaction.
 - **Profile registration.** RP's four agent profiles register as the subagents `radical-pipelines/<profile>`.

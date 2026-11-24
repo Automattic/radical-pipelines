@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the artifact base branch's tree.
+`git fetch`, fast-forward the artifact base branch to its upstream, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the artifact base branch's tree.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies' state the tracker cannot report, proceeds without comment.
 
@@ -23,8 +23,8 @@ A request carries one or more statements; route each by the first predicate that
 | Predicate                                                                           | Route                                                                     |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | A pending escalation exists and the request answers it                              | Record the answer (`../run/loop.md` § Owner escalation) and continue that pipeline |
-| A live pipeline's intent, constraints, and proposals already call for this work      | Continue it                                                               |
-| The request concerns what an existing pipeline's artifacts state or its code does   | Later input on that pipeline                                              |
+| The request adds nothing to a live pipeline: its frontier names this work, or its intent, constraints, and proposals already call for it | Continue it |
+| The request concerns what an existing pipeline's artifacts state or its code does, or brings commits the owner made on its branch | Later input on that pipeline |
 | A change of scope for a live pipeline                                               | The owner's choice: rescope it, or a new pipeline from its tip (next row)  |
 | New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; the intent's `starts-from` names that branch |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; the intent's `re-attempts` names it                       |

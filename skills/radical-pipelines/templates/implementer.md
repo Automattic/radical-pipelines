@@ -4,6 +4,9 @@
 - Branch: {{branch}}
 - Turn commit: {{turn-commit}}
 - Base branch: {{base-branch}}
+{{#base-conflicts}}
+- Base conflicts: {{base-conflicts}}
+{{/base-conflicts}}
 - Supporting folder: {{supporting-folder}}
 {{#subagent-model}}
 - Subagent model: {{subagent-model}}
@@ -23,6 +26,7 @@
 - Spec: {{spec}}
 - Design doc: {{design-doc}}
 - Later inputs: {{later-inputs}}
+- Owner's answers: {{owner-answers}}
 {{#respond}}
 - Changed inputs: {{changed-inputs}}
 {{/respond}}
