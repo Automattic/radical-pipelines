@@ -11,7 +11,7 @@ The run stops: the frontier is `complete`, an owner escalation is pending, the o
 
 ## Closure actions
 
-Closure actions are moments the owner invokes on a pipeline: opening its pull request, merging it, closing without merging. Each fires its `before-`/`after-` hooks where the project defines them; beyond the steps below, the work lives in the hooks or with the owner. To **close the pipeline**, apply the plan of `rp close <pipeline folder>` (`../conventions/lifecycle-hooks.md` § Applying a plan) when this machine holds the pipeline worktree: it removes every worktree of the pipeline and keeps the pipeline branch. A pipeline may have several pull requests over its life.
+Closure actions are moments the owner invokes on a pipeline: opening its pull request, merging it, closing without merging. Each fires its `before-`/`after-` hooks where the project defines them; beyond the steps below, the work lives in the hooks or with the owner. To **close the pipeline**, apply the plan of `rp close <pipeline folder>` (`../conventions/lifecycle-hooks.md` § Applying a plan) when this machine holds the pipeline worktree: it removes the pipeline's worktrees and keeps the pipeline branch. A pipeline may have several pull requests over its life.
 
 ### Open the pull request
 

@@ -198,9 +198,9 @@ function worktreesOf(root) {
 // there stops `command`.
 function pipelineBranchOf(root, command) {
   let branch = "";
-  try { branch = execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+  try { branch = execFileSync("git", ["symbolic-ref", "-q", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
   catch { /* detached */ }
-  return branch || fail(`${command}: ${root} has no branch checked out: the pipeline folder is read from the pipeline branch's worktree`);
+  return branch.startsWith("refs/heads/") ? branch.slice("refs/heads/".length) : fail(`${command}: ${root} has no branch checked out: the pipeline folder is read from the pipeline branch's worktree`);
 }
 
 // A pipeline folder is `<pipelines folder root>/<pipeline slug>`: its parent is the pipelines folder root.
@@ -1566,7 +1566,11 @@ async function contextOf(args, command) {
 // The main checkout's root: the first worktree `git worktree list` records.
 const mainOf = (root, command) => realpathSync(worktreesOf(root)[0].path ?? fail(`${command}: the repository has no main checkout`));
 // The worktree that has `branch` checked out, or null.
-const worktreeOf = (root, branch) => { const path = worktreesOf(root).find((each) => each.branch === branch)?.path; return path ? realpathSync(path) : null; };
+function worktreeOf(root, branch) {
+  const path = worktreesOf(root).find((each) => each.branch === branch)?.path;
+  if (path && !existsSync(path)) fail(`the worktree of ${branch} is missing: ${path}: restore it, or run git worktree prune`);
+  return path ? realpathSync(path) : null;
+}
 // The path of the worktree `rp` creates for `branch`: `<worktree folder root>/<branch>`, a relative root against the
 // main checkout's.
 const worktreePathOf = (main, config, branch) => join(resolve(main, config.worktreeFolderRoot), branch);
@@ -1588,7 +1592,7 @@ function newGitDirOf(root, path, reserved) {
 // branches, assignments, and woken roles the frontier dispatches, a lane under repair's beside them.
 async function planOf(ctx) {
   const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, main } = ctx, { config } = state;
-  const plan = { land: [], fix: [], removals: [], branches: [], creations: [], wakes: [], started: [] };
+  const plan = { land: [], fix: [], removals: [], branches: [], creations: [], closing: [], wakes: [], started: [] };
   const roles = rolesOf(config);
 
   // A lane holding unlanded commits is never moved back, rebuilt, or removed: its turn lands, or its author repairs
@@ -1655,13 +1659,16 @@ const phasesOf = (wakes) => [...new Set(wakes.map((wake) => wake.role.phase))].s
 
 // The lines of what a plan does to worktrees and branches: the hooks to fire before applying it, its actions in the
 // order applying carries them out, and the hooks to fire after. A branch names its hooks only with the role it is for.
+// The `closing` removals come after every other action.
 function actionLines(plan) {
-  const hooks = (moment) => [...plan.removals.map(({ role, path }) => `hook ${moment}-removing-worktree ${role.name} ${path}`),
+  const removals = [...plan.removals, ...plan.closing];
+  const hooks = (moment) => [...removals.map(({ role, path }) => `hook ${moment}-removing-worktree ${role.name} ${path}`),
     ...plan.branches.filter((branch) => branch.role).map(({ role }) => `hook ${moment}-creating-branch ${role.name}`),
     ...plan.creations.map(({ role, path }) => `hook ${moment}-creating-worktree ${role.name} ${path}`)];
-  return { before: hooks("before"), after: hooks("after"), actions: [...plan.removals.map(({ role, path }) => `remove-worktree ${role.name} ${path}`),
+  const remove = ({ role, path }) => `remove-worktree ${role.name} ${path}`;
+  return { before: hooks("before"), after: hooks("after"), actions: [...plan.removals.map(remove),
     ...plan.branches.map((branch) => branch.action === "delete" ? `delete-branch ${branch.branch}` : `${branch.action}-branch ${branch.branch} ${branch.build ? "review-head" : branch.target}`),
-    ...plan.creations.map(({ role, branch, path }) => `create-worktree ${role.name} ${branch} ${path}`)] };
+    ...plan.creations.map(({ role, branch, path }) => `create-worktree ${role.name} ${branch} ${path}`), ...plan.closing.map(remove)] };
 }
 
 // A plan's lines, in the order the orchestrator acts on them (README.md § `next`).
@@ -1688,10 +1695,17 @@ const actOf = (command) => async (what, action) => {
   try { return await action(); }
   catch (error) { if (error instanceof RpError) fail(`${command} --apply: ${what}: ${error.message}`); throw error; }
 };
+// Removes a worktree, unless it holds a file Git does not ignore that its branch lacks, modified or untracked, whatever
+// the repository's status configuration shows.
+function removeWorktree(root, path) {
+  const changed = gitBytes(path, ["status", "--porcelain", "--untracked-files=all", "-z"]).toString("utf8").split("\0").filter(Boolean);
+  if (changed.length) fail(`it holds files its branch does not: ${changed.map((entry) => entry.slice(3)).join(", ")}`);
+  gitText(root, ["worktree", "remove", path]);
+}
 // Carries out what a plan does to worktrees and branches, from the worktree `root`, in order: worktree removals, branch
-// deletions, creations, and moves, and worktree creations.
+// deletions, creations, and moves, worktree creations, and the closing removals.
 async function applyActions(root, plan, act) {
-  for (const { path } of plan.removals) await act(`remove-worktree ${path}`, () => gitText(root, ["worktree", "remove", path]));
+  for (const { path } of plan.removals) await act(`remove-worktree ${path}`, () => removeWorktree(root, path));
   for (const { branch } of plan.branches.filter((each) => each.action === "delete")) await act(`delete-branch ${branch}`, () => gitText(root, ["branch", "--quiet", "-D", branch]));
   for (const branch of plan.branches.filter((each) => each.action !== "delete"))
     await act(`${branch.action}-branch ${branch.branch}`, () => {
@@ -1705,6 +1719,7 @@ async function applyActions(root, plan, act) {
       gitText(root, ["worktree", "add", "--quiet", path, branch]);
       if (gitDirOf(path) !== gitDir) fail(`its private git directory is ${gitDirOf(path)}, not ${gitDir}`);
     });
+  for (const { path } of plan.closing) await act(`remove-worktree ${path}`, () => removeWorktree(root, path));
 }
 // Carries out a step's plan: what it does to worktrees and branches, each woken role's assignment, and the turn record.
 async function applyPlan(ctx, plan) {
@@ -1743,6 +1758,32 @@ function configBytesOf(args) {
   catch (error) { fail(`start: cannot read ${given === "-" ? "standard input" : given}: ${error.message}`); }
 }
 
+// The remote-tracking refs that hold `branch`: where each remote's fetch refspecs map `refs/heads/<branch>`.
+function remoteRefsOf(root, branch) {
+  const source = `refs/heads/${branch}`, refs = new Set();
+  let specs = "";
+  try { specs = gitText(root, ["config", "--get-regexp", "^remote\\..*\\.fetch$"]); } catch (error) { if (!(error instanceof RpError)) throw error; }
+  for (const line of specs.split("\n").filter(Boolean)) {
+    const [from, to] = line.slice(line.indexOf(" ") + 1).replace(/^\+/, "").split(":");
+    if (!to || from.startsWith("^")) continue;
+    const [before, after] = from.split("*");
+    if (after === undefined) { if (from === source) refs.add(to); }
+    else if (source.length >= from.length - 1 && source.startsWith(before) && source.endsWith(after)) refs.add(to.replace("*", source.slice(before.length, source.length - after.length)));
+  }
+  return [...refs].filter((ref) => commitOf(root, ref));
+}
+// `config.json` in the pipeline folder of the pipeline worktree: a regular file, or absent, under folders, or absent
+// ones, of the worktree itself, so writing it writes nothing outside the worktree.
+function configPathOf(worktree, folder) {
+  let at = worktree;
+  for (const part of folder.split("/")) {
+    at = join(at, part);
+    if (lstatOf(at) && !lstatOf(at).isDirectory()) fail(`cannot write ${join(worktree, folder, CONFIG)}: ${at} is not a folder`);
+  }
+  const path = join(at, CONFIG);
+  return !lstatOf(path) || lstatOf(path).isFile() ? path : fail(`cannot write ${path}: not a regular file`);
+}
+
 // Starts a run (README.md § `start`): prints the plan that gives the pipeline its branch, its worktree, and the pipeline
 // configuration `--config` holds, then the pipeline folder in that worktree; with `--apply`, also carries it out.
 async function cmdStart(args) {
@@ -1752,10 +1793,11 @@ async function cmdStart(args) {
   try { gitText(root, ["check-ref-format", "--branch", branch]); } catch (error) { if (error instanceof RpError) fail(`start: --branch names no branch: ${branch}`); throw error; }
   const bytes = configBytesOf(args);
   const config = parseConfig(bytes, (reason) => fail(`start: --config: ${reason}`));
-  const plan = { removals: [], branches: [], creations: [] };
+  const plan = { removals: [], branches: [], creations: [], closing: [] };
   // The branch starts where a remote holds it, else at the base branch.
   if (!commitOf(root, `refs/heads/${branch}`)) {
-    const held = gitText(root, ["remote"]).split("\n").filter(Boolean).map((remote) => `refs/remotes/${remote}/${branch}`).filter((ref) => commitOf(root, ref));
+    if (commitOf(root, `refs/remotes/${branch}`)) fail(`start: --branch names a remote-tracking branch: ${branch}: pass the branch's own name, without its remote's`);
+    const held = remoteRefsOf(root, branch);
     if (held.length > 1) fail(`start: several remotes hold ${branch}: ${held.join(", ")}: create the branch from the one the pipeline lives in`);
     plan.branches.push({ branch, action: "create", role: PIPELINE_SEAT, upstream: held[0] ?? null, target: held.length ? commitOf(root, held[0]) : requireCommit(root, config.baseBranch, "base-branch") });
   }
@@ -1764,42 +1806,41 @@ async function cmdStart(args) {
     worktree = worktreePathOf(mainOf(root, "start"), config, branch);
     plan.creations.push({ role: PIPELINE_SEAT, branch, path: worktree, gitDir: newGitDirOf(root, worktree, new Set()) });
   }
-  const path = join(worktree, folder, CONFIG);
-  const written = lstatOf(path)?.isFile() && readFileSync(path).equals(bytes);
+  let path;
+  try { path = configPathOf(worktree, folder); } catch (error) { if (error instanceof RpError) fail(`start: ${error.message}`); throw error; }
+  const written = lstatOf(path) && readFileSync(path).equals(bytes);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write(`${[...before, ...actions, ...(written ? [] : [`write-config ${path}`]), ...after, `pipeline-folder ${join(worktree, folder)}`].join("\n")}\n`);
   if (!args.apply) return;
   const act = actOf("start");
   await applyActions(root, plan, act);
   if (!written) await act(`write-config ${path}`, () => {
+    configPathOf(worktree, folder);
     try { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, bytes); }
     catch (error) { fail(error.message); }
   });
 }
 
-// What `stop` and `close` remove (README.md § `stop`, § `close`). The pipeline's lanes are those `config.json` declares
-// and those the turn record holds a turn of. A lane's branch is deleted once it holds no unlanded commits; its worktree
-// is removed then, and whenever the pipeline closes, which also removes the pipeline worktree unless that is the main
-// checkout.
+// What `stop` and `close` remove (README.md § `stop` and `close`). The pipeline's lanes are those the turn record holds
+// a turn of on the lane branch the pipeline branch gives them. A lane's branch is deleted once it holds no unlanded
+// commits; its worktree is removed then, and whenever the pipeline closes, which last removes the pipeline worktree
+// unless that is the main checkout.
 function removalsOf(args, command, closing) {
   const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
-  const { folder } = pipelineFolder(rel, command);
+  pipelineFolder(rel, command);
   const main = mainOf(root, command), pipelineBranch = pipelineBranchOf(root, command), tip = requireCommit(root, "HEAD", "HEAD");
-  const files = readWorktree(root, folder, (path) => path === CONFIG).files;
-  const config = parseConfig(files.get(CONFIG) ?? fail(`cannot read ${folder}/${CONFIG}: missing`), (reason) => fail(`${folder}/${CONFIG}: ${reason}`));
-  const lanes = new Map(rolesOf(config).filter((role) => role.lane).map((role) => [role.name, { role, branch: branchOfRole(pipelineBranch, role) }]));
+  const registered = worktreesOf(root).map((each) => each.path).filter((path) => path && existsSync(path)).map((path) => realpathSync(path));
+  const plan = { removals: [], branches: [], creations: [], closing: [] };
   for (const [name, turn] of Object.entries(readRecord(root).turns)) {
-    const { profile, lane } = parseRole(name);
-    if (lane && !lanes.has(name)) lanes.set(name, { role: roleFor(profile, lane), branch: turn.branch });
-  }
-  const plan = { removals: [], branches: [], creations: [] };
-  for (const { role, branch } of lanes.values()) {
+    const { profile, lane } = parseRole(name), role = roleFor(profile, lane), branch = branchOfRole(pipelineBranch, role);
+    if (!lane || turn.branch !== branch) continue;
     const laneTip = commitOf(root, `refs/heads/${branch}`), worktree = worktreeOf(root, branch);
+    if (!worktree && registered.includes(turn.worktree)) fail(`${command}: ${turn.worktree} no longer has ${branch} checked out: check it out there, or remove that worktree`);
     const landed = !laneTip || !unlandedOf(root, tip, laneTip).length;
     if (worktree && (closing || landed)) plan.removals.push({ role, path: worktree });
     if (laneTip && landed) plan.branches.push({ branch, action: "delete" });
   }
-  if (closing && root !== main) plan.removals.push({ role: PIPELINE_SEAT, path: root });
+  if (closing && root !== main) plan.closing.push({ role: PIPELINE_SEAT, path: root });
   return { main, plan };
 }
 // Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout.

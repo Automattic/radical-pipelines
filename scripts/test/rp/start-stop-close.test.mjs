@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 
 import {
@@ -16,6 +16,19 @@ const commit = (ref, where = root) => git(where, "rev-parse", ref).trim();
 const branches = () => git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads").split("\n").filter(Boolean).sort();
 const worktrees = () => git(root, "worktree", "list", "--porcelain").split("\n").filter((line) => line.startsWith("worktree ")).map((line) => realpathSync(line.slice(9))).sort();
 const snapshot = () => ({ refs: git(root, "for-each-ref", "--format=%(refname) %(objectname)"), worktrees: worktrees(), status: git(root, "status", "--porcelain", "--untracked-files=all") });
+// Writes the turn record of the worktree `where`: a turn of each role, by its name, on `branch` in `worktree`.
+function record(turns, where = root) {
+  const path = git(where, "rev-parse", "--path-format=absolute", "--git-path", "rp/turns.json").trim();
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify({ woke: [], complete: [], reported: [],
+    turns: Object.fromEntries(Object.entries(turns).map(([role, { branch, worktree }]) => [role, { branch, worktree, commit: commit("HEAD", where) }])) }));
+}
+// A branch at HEAD with a worktree under `.worktrees`, as a lane's is, built with Git alone.
+function seatAt(branch) {
+  const path = join(at(), ".worktrees", branch);
+  git(root, "worktree", "add", "--quiet", "-b", branch, path);
+  return path;
+}
 // The lines a command prints, failing on a stop.
 function lines(...args) {
   const out = run(...args);
@@ -85,6 +98,61 @@ describe("rp start", () => {
       assert.equal(commit("demo"), held);
       assert.equal(git(root, "rev-parse", "--abbrev-ref", "demo@{upstream}").trim(), "origin/demo");
     } finally { rmSync(remote, { recursive: true, force: true }); }
+  });
+
+  it("finds the branch where a remote's fetch refspec maps it", () => {
+    const remote = newRepo();
+    try {
+      git(remote, "commit", "--quiet", "--allow-empty", "-m", "remote work");
+      git(remote, "branch", "--quiet", "demo");
+      git(root, "remote", "add", "other", remote);
+      git(root, "config", "remote.other.fetch", "+refs/heads/*:refs/remotes/team/*");
+      git(root, "fetch", "--quiet", "other");
+      start("demo", "--apply");
+      assert.equal(commit("demo"), commit("refs/remotes/team/demo"));
+    } finally { rmSync(remote, { recursive: true, force: true }); }
+  });
+
+  it("stops on a remote-tracking branch's name, creating nothing", () => {
+    const remote = newRepo();
+    try {
+      git(remote, "commit", "--quiet", "--allow-empty", "-m", "remote work");
+      git(remote, "branch", "--quiet", "demo");
+      git(root, "remote", "add", "origin", remote);
+      git(root, "fetch", "--quiet", "origin");
+      const out = run("start", abs(PIPELINE), "--branch", "origin/demo", "--config", configFile, "--apply");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /names a remote-tracking branch/);
+      assert.deepEqual(branches(), ["main"]);
+    } finally { rmSync(remote, { recursive: true, force: true }); }
+  });
+
+  // [what the pipeline branch holds where config.json is written, how it is committed]
+  const outside = [
+    ["a symbolic link as config.json", (target) => { mkdirSync(abs(PIPELINE), { recursive: true }); symlinkSync(target, abs(`${PIPELINE}/config.json`)); }],
+    ["a symbolic link as the pipeline folder", (target) => { mkdirSync(abs(dirname(PIPELINE)), { recursive: true }); symlinkSync(dirname(target), abs(PIPELINE)); }],
+  ];
+  for (const [what, build] of outside)
+    it(`stops on ${what}, writing nothing through it`, () => {
+      const target = join(scratch, "elsewhere", "config.json");
+      mkdirSync(dirname(target));
+      writeFileSync(target, "kept\n");
+      git(root, "checkout", "--quiet", "-b", "demo");
+      build(target);
+      commitAll("a link");
+      git(root, "checkout", "--quiet", "main");
+      const out = run("start", abs(PIPELINE), "--branch", "demo", "--config", configFile, "--apply");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /^rp: start --apply: write-config .*cannot write/m);
+      assert.equal(readFileSync(target, "utf8"), "kept\n");
+    });
+
+  it("stops on a pipeline worktree whose folder is missing", () => {
+    start("demo", "--apply");
+    rmSync(seat("demo"), { recursive: true, force: true });
+    const out = run("start", abs(PIPELINE), "--branch", "demo", "--config", configFile);
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /^rp: the worktree of demo is missing: .*git worktree prune/);
   });
 
   it("stops on a branch several remotes hold", () => {
@@ -216,12 +284,67 @@ describe("rp stop", () => {
     assert.ok(branches().includes("demo-spec-a"));
   });
 
-  it("stops on a configuration it cannot read", () => {
-    pipeline(0);
+  it("reads no pipeline file but the turn record", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
     rmSync(abs(`${PIPELINE}/config.json`));
-    const out = run("stop", abs(PIPELINE));
+    assert.deepEqual(stop(), removes("spec-producer-a", "demo-spec-a"));
+  });
+
+  // A lane is the pipeline's by its recorded turn on the branch the pipeline branch gives it, never by a name alone.
+  // [what holds the lane's name, the turn record, whether stop removes it]
+  const owned = [
+    ["a branch and worktree no turn is recorded on", () => seatAt("demo-spec-a"), false],
+    ["a branch and worktree another role's turn is recorded on", () => { seatAt("demo-spec-a"); record({ "spec-producer-b": { branch: "demo-spec-b", worktree: join(at(), ".worktrees", "demo-spec-b") } }); }, false],
+    ["a turn recorded for another pipeline branch", () => record({ "spec-producer-a": { branch: "other-spec-a", worktree: seatAt("other-spec-a") } }), false],
+    ["a turn recorded on its branch", () => record({ "spec-producer-a": { branch: "demo-spec-a", worktree: seatAt("demo-spec-a") } }), true],
+  ];
+  for (const [what, build, removed] of owned)
+    it(`${removed ? "removes" : "keeps"} ${what}`, () => {
+      pipeline(0, { lanes: SPEC_LANES });
+      build();
+      const before = snapshot();
+      stop("--apply");
+      assert.equal(snapshot().refs !== before.refs, removed);
+      assert.equal(worktrees().length, removed ? 1 : 2);
+    });
+
+  it("stops on a recorded worktree that no longer has the lane's branch checked out", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    git(laneWorktree("demo-spec-a"), "checkout", "--quiet", "--detach");
+    const out = run("stop", abs(PIPELINE), "--apply");
     assert.equal(out.status, 1);
-    assert.match(out.stderr, /config\.json: missing/);
+    assert.match(out.stderr, /no longer has demo-spec-a checked out/);
+    assert.ok(branches().includes("demo-spec-a"));
+  });
+
+  it("stops on a lane's worktree whose folder is missing", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    rmSync(laneWorktree("demo-spec-a"), { recursive: true, force: true });
+    const out = run("stop", abs(PIPELINE), "--apply");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /the worktree of demo-spec-a is missing/);
+    assert.ok(branches().includes("demo-spec-a"));
+  });
+
+  it("stops on an untracked file the repository's status configuration hides", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    git(root, "config", "status.showUntrackedFiles", "no");
+    writeFileSync(join(laneWorktree("demo-spec-a"), "scratch.txt"), "kept\n");
+    const out = run("stop", abs(PIPELINE), "--apply");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /^rp: stop --apply: remove-worktree .*scratch\.txt/);
+    assert.ok(existsSync(join(laneWorktree("demo-spec-a"), "scratch.txt")));
+  });
+
+  it("names the lanes of a pipeline branch that shares its name with a tag", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    git(root, "tag", "demo");
+    assert.deepEqual(stop(), removes("spec-producer-a", "demo-spec-a"));
   });
 });
 
@@ -244,7 +367,7 @@ describe("rp close", () => {
     const lane = laneWorktree("demo-spec-a");
     assert.deepEqual(close(), [
       `hook before-removing-worktree spec-producer-a ${lane}`, `hook before-removing-worktree pipeline ${seat}`,
-      `remove-worktree spec-producer-a ${lane}`, `remove-worktree pipeline ${seat}`, "delete-branch demo-spec-a",
+      `remove-worktree spec-producer-a ${lane}`, "delete-branch demo-spec-a", `remove-worktree pipeline ${seat}`,
       `hook after-removing-worktree spec-producer-a ${lane}`, `hook after-removing-worktree pipeline ${seat}`,
     ]);
     assert.deepEqual(snapshot(), before);
@@ -272,6 +395,16 @@ describe("rp close", () => {
     assert.equal(out.status, 1);
     assert.match(out.stderr, /^rp: close --apply: remove-worktree /);
     assert.ok(existsSync(join(seat, "scratch.txt")));
+  });
+
+  it("applies again what a stopped removal left, the pipeline worktree being removed last", () => {
+    writeFileSync(join(laneWorktree("demo-spec-a"), "scratch.txt"), "kept\n");
+    assert.equal(run("close", folder(), "--apply").status, 1);
+    assert.ok(existsSync(seat));
+    rmSync(join(laneWorktree("demo-spec-a"), "scratch.txt"));
+    close("--apply");
+    assert.deepEqual(worktrees(), [at()]);
+    assert.deepEqual(branches(), ["demo", "main"]);
   });
 
   it("keeps a pipeline worktree that is the main checkout", () => {

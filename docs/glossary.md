@@ -77,5 +77,5 @@ The canonical terms of Radical Pipelines. Terms are used exactly as defined here
 - **Triage** — The orchestrator's entry for incoming work: it normalizes the request into an issue, scans the issue's pipelines, routes each statement, and confirms the runs that need it.
 - **Variable** — A placeholder a project declares in its Variables convention, with a template over the pipeline facts, such as `agent` as `{pipeline-slug}-{role}`.
 - **Wake** — Starting a role's turn: resuming its instance with a message, or spawning a new one.
-- **Worktree** — A checkout of one branch. `rp start --apply` creates the pipeline's and `rp next --apply` each lane's; `rp stop --apply` removes the lane worktrees a stopped run leaves, and `rp close --apply` every worktree of a pipeline that is merged or closed without merging. The orchestrator seats roles in it.
+- **Worktree** — A checkout of one branch. `rp start --apply` creates the pipeline's and `rp next --apply` each lane's; `rp stop --apply` removes the lane worktrees a stopped run leaves, and `rp close --apply` the worktrees of a pipeline that is merged or closed without merging, except the main checkout. The orchestrator seats roles in it.
 - **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.

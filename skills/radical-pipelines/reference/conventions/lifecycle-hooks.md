@@ -36,6 +36,6 @@ A `before-`/`after-` pair brackets its action. A blocking failure in a `before-`
 
 ## Applying a plan
 
-`rp start`, `rp next`, `rp stop`, and `rp close` each print a plan: the branches and worktrees it creates and removes, and a `hook` line for each hook around them (`../../scripts/README.md`). To apply a plan, run the command, fire the `before-` hooks it prints, run it again with `--apply`, then fire the `after-` hooks it prints.
+`rp start`, `rp next`, `rp stop`, and `rp close` each print a plan: the branches and worktrees it creates and removes, and a `hook` line for each branch and worktree hook around them (`../../scripts/README.md`). To apply a plan, run the command, fire those `before-` hooks, run it again with `--apply`, then fire those `after-` hooks.
 
-When `--apply` stops, tell the owner its message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove; you delete no file in a lane's worktree yourself. Once the owner has repaired it, run it again without firing its `before-` hooks again; once it completes, fire the `after-` hooks of the plan it first printed.
+When `--apply` stops, tell the owner its message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove; you delete no file in a lane's worktree yourself. Once the owner has repaired it, run it again without firing those `before-` hooks again; once it completes, fire those `after-` hooks of the plan it first printed.

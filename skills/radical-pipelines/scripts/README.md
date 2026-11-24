@@ -256,12 +256,12 @@ hook after-creating-worktree pipeline <path>
 pipeline-folder <path>
 ```
 
-1. **Branch.** A pipeline branch that does not exist is created: at the remote-tracking branch of the one remote that holds it, which it then tracks; else at the configuration's `base-branch`, tracking nothing. Several remotes holding it stop the command.
+1. **Branch.** A pipeline branch that does not exist is created: at the remote-tracking branch of the one remote that holds it, where that remote's fetch refspecs map it, which it then tracks; else at the configuration's `base-branch`, tracking nothing. Several remotes holding it, or a `--branch` that names a remote-tracking branch, stop the command.
 2. **Worktree.** The pipeline worktree is the worktree that has the pipeline branch checked out; when none has, the plan creates one at `<worktree folder root>/<pipeline branch>`, the root being the configuration's.
-3. **`write-config`** names `config.json` in the pipeline folder of the pipeline worktree, when it does not hold the bytes given.
+3. **`write-config`** names `config.json` in the pipeline folder of the pipeline worktree, when it does not hold the bytes given. A path there that is no folder where a folder belongs, or no regular file where `config.json` belongs, such as a symbolic link, stops the command.
 4. **`pipeline-folder`** names the pipeline folder in the pipeline worktree, which `next`, `land`, `stop`, and `close` take.
 
-With `--apply`, `start` prints the plan and carries it out: it creates the branch and the worktree, then writes `config.json` byte for byte, committing nothing. A failed action stops it with `rp: start --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A branch name Git rejects, a configuration that cannot be read or is malformed, and a `base-branch` the branch would start at that does not resolve stop `start` before it creates anything.
+With `--apply`, `start` prints the plan and carries it out: it creates the branch and the worktree, then writes `config.json` byte for byte, committing nothing. A failed action stops it with `rp: start --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A branch name Git rejects, a configuration that cannot be read or is malformed, a `base-branch` the branch would start at that does not resolve, and a worktree Git records whose folder is missing stop `start` before it creates anything.
 
 ## `next`
 
@@ -333,7 +333,7 @@ The lines come in the order the orchestrator acts on them. A plan that names a t
 
 With `--apply`, `next` prints the plan and, unless it names a turn to land, carries it out in this order:
 
-1. It removes each worktree with `git worktree remove`, which stops on an untracked file.
+1. It removes each worktree with `git worktree remove`, after stopping on one that holds a file Git does not ignore that its branch lacks, modified or untracked.
 2. It deletes, creates, and moves each branch, building a review lane's review head first. A branch a worktree has checked out moves with `git reset --keep` there, which stops on local changes it would overwrite.
 3. It creates each worktree.
 4. It writes each woken role's assignment (§ Assignments), its turn commit the tip of its worktree, and then the turn record.
@@ -380,9 +380,9 @@ node rp.mjs stop <pipeline folder> [--apply]
 node rp.mjs close <pipeline folder> [--apply]
 ```
 
-`<pipeline folder>` is in the pipeline worktree, as for `next`. `stop` prints what a stopped run leaves to remove, and `close` what a pipeline that is merged or closed without merging does, in the lines of § Plan: the `before-removing-worktree` hooks, each `remove-worktree`, each `delete-branch`, and the `after-removing-worktree` hooks. Neither changes anything without `--apply`, and a pipeline with nothing to remove prints nothing.
+`<pipeline folder>` is in the pipeline worktree, as for `next`. `stop` prints what a stopped run leaves to remove, and `close` what a pipeline that is merged or closed without merging does, in the lines of § Plan: the `before-removing-worktree` hooks, each lane's `remove-worktree`, each `delete-branch`, the pipeline worktree's `remove-worktree`, and the `after-removing-worktree` hooks. Neither changes anything without `--apply`, and a pipeline with nothing to remove prints nothing.
 
-The pipeline's lanes are here those `config.json` declares and those the turn record (§ Turn record) holds a turn of, so a lane the configuration dropped is removed too. Each command reads `config.json` in the working tree and the turn record, and no other pipeline file.
+The pipeline's lanes are here those the turn record (§ Turn record) holds a turn of on the lane branch the pipeline branch gives them (§ `next`), whether or not `config.json` still declares them; a branch or worktree that only bears a lane's name is left alone. Each command reads the turn record and no pipeline file.
 
 | | `stop` | `close` |
 | --- | --- | --- |
@@ -391,7 +391,7 @@ The pipeline's lanes are here those `config.json` declares and those the turn re
 | The pipeline worktree | Kept | Removed, named with `pipeline` where a lane's line names its role, unless it is the main checkout |
 | The pipeline branch | Kept | Kept |
 
-With `--apply`, each removes the worktrees with `git worktree remove`, which stops on an untracked or modified file, then deletes the branches. It changes no other ref, worktree, or remote. A failed action stops it with `rp: <command> --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A detached pipeline worktree, a configuration or turn record that cannot be read or is malformed, and a git failure stop both.
+With `--apply`, each removes the lanes' worktrees as `next --apply` does (§ Applying), deletes the branches, and then removes the pipeline worktree, so applying again after a failed action still finds the turn record. It changes no other ref, worktree, or remote. A failed action stops it with `rp: <command> --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A detached pipeline worktree, a turn record that cannot be read or is malformed, a worktree Git records whose folder is missing, a lane's recorded worktree that no longer has its branch checked out, and a git failure stop both.
 
 ## `thread`
 
