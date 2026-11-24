@@ -260,7 +260,7 @@ Because this is a **private** repository, the token needs read access to private
 
 ## Integrating an agentic coding tool
 
-Radical Pipelines is generic; each supported tool gets a mechanics file in `skills/radical-pipelines/tools/` (e.g. `claude-code.md`, `opencode.md`) stating, in the tool's own primitives, how the orchestrator spawns a role on a model and profile, seats it in a worktree, wakes it with a message, learns that its turn ended or failed, stops it while it runs, and runs health ticks, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
+Radical Pipelines is generic; each supported tool gets a mechanics file in `skills/radical-pipelines/tools/` (e.g. `claude-code.md`, `opencode.md`) stating, in the tool's own primitives, how the orchestrator spawns a role on a model and profile, seats it in a worktree, wakes it with a message, learns that its turn ended or failed, stops it, and runs health ticks, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
 
 A tool must provide:
 

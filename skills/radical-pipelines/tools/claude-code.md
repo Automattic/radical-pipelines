@@ -20,7 +20,7 @@ When a role finishes, you receive its completion notification carrying its final
 
 ## Stop
 
-A finished role needs none. Stop a running role with `TaskStop` and its agent ID; its transcript stays.
+Stop a running role with `TaskStop` and its agent ID; its transcript stays. A finished role has nothing to stop.
 
 ## Health ticks
 
