@@ -16,15 +16,15 @@ flowchart TD
     READ -->|Every finding resolved or dropped| CLOSED["The opener closes it with rp thread close: approved for a review thread, resolved for any other, or withdrawn"]
     READ -->|Findings held for the first time, or new ones| AGAIN["It replies"]
     AGAIN --> AW1
-    READ -->|A finding held without new evidence and answered a second time that it stands| DIS{"What does it dispute?"}
-    DIS -->|What the software does, or whether intended use produces a case| OBS{"Does an observed behavior or input go against the artifact?"}
-    OBS -->|Yes| REVISE["The recipient changes the artifact"]
+    READ -->|A finding held without new evidence| DIS{"What does it dispute? The recipient asks before answering it again; the opener, when that answer is that it stands"}
+    DIS -->|What the software does, or whether intended use produces a case| OBS{"Which side rests only on what could happen?"}
+    OBS -->|The recipient's| REVISE["The recipient changes the artifact"]
     REVISE --> AW2
-    OBS -->|No| DROP["The opener drops the finding"]
-    DIS -->|Anything else, such as how a case is handled| LAST["The recipient's second answer is final"]
+    OBS -->|The opener's| DROP["The opener drops the finding"]
+    DIS -->|Anything else, such as how a case is handled| LAST["The recipient's second answer that it stands is final"]
     LAST --> DROP
     DROP --> READ
-    DIS -->|Whether the intent demands an outcome| ESC["Either party (the implementer, on a review thread) escalates with rp thread escalate, quoting the intent's words and citing this thread: a thread to owner about intent, status escalated"]
+    DIS -->|What the intent means or demands, turning on its words| ESC["Either party (the implementer, on a review thread) escalates with rp thread escalate, quoting the intent's words and citing this thread: a thread to owner about intent, status escalated"]
     ESC --> OE["Owner escalation"]
     CLOSED --> HIST["The closed thread stays as history; a refuted case gains a line under Considered and not required"]
     CLOSED -->|"A review thread's approval goes stale"| STALE["Once no review thread is open, the orchestrator wakes its reviewer on the same thread"]
