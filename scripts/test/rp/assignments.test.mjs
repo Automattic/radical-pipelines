@@ -160,6 +160,11 @@ describe("assignments", () => {
       commitAll("in progress");
       const unfinished = assign("implementer").values;
       assert.deepEqual([unfinished.mode, unfinished["base-conflicts"]], [["Implement"], ["src/app.js"]]);
+      write(NOTES, withFrontmatter({ status: "done" }, "\n# Notes\n"));
+      configure({ targetPhase: 2 });
+      thread({ n: 1, ...REVIEW("default"), messages: [["reviewer-default", "abc1234"]] });
+      commitAll("beyond the target, a thread");
+      assert.deepEqual(assign("implementer").values["base-conflicts"], ["src/app.js"]);
     });
 
     it("the threads the role opened to the owner that are answered, and no other role's", () => {

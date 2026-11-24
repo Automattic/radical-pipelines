@@ -817,11 +817,12 @@ export function staleInputs(state, subject) {
 const implementationDone = (state) => state.docs.get(IMPLEMENTATION.path)?.values.get("status") === "done";
 
 // A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done, and
-// stale also while merging the base branch into the tip conflicts, with the paths that conflict.
+// stale also, once the target reaches the implementation, while merging the base branch into the tip conflicts, with
+// the paths that conflict.
 function statusOf(state, path) {
   if (!state.docs.has(path) || (path === IMPLEMENTATION.path && !implementationDone(state))) return { state: "missing" };
   const stale = staleInputs(state, state.docs.get(path));
-  const conflicts = path === IMPLEMENTATION.path ? state.baseConflicts() : [];
+  const conflicts = path === IMPLEMENTATION.path && state.config.targetPhase >= IMPLEMENTATION.n ? state.baseConflicts() : [];
   return stale.length || conflicts.length ? { state: "stale", stale, ...(conflicts.length ? { "base-conflicts": conflicts } : {}) } : { state: "fresh" };
 }
 
@@ -862,7 +863,7 @@ export function mergeBaseOf(root, baseBranch, tip) {
 // unmerged. The tree holds conflict markers where files conflict. Only objects are written.
 function mergeTree(root, ours, theirs) {
   let merged;
-  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", maxBuffer: Infinity, stdio: ["ignore", "pipe", "pipe"] }); }
   catch (error) {
     if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${ours} ${theirs}: ${error.stderr?.toString().trim() || error.message}`);
     merged = error.stdout;
@@ -988,9 +989,8 @@ async function inspect(root, folder, pipelinesRoot, ref) {
     if (!judged.has(approved)) judged.set(approved, codeChanged(root, approved, mergeBase, tip, pipelinesRoot));
     return judged.get(approved);
   };
-  // The base branch is merged into the tip once the target reaches the implementation.
   let conflicts;
-  state.baseConflicts = () => conflicts ??= state.config.targetPhase >= IMPLEMENTATION.n ? baseConflicts(root, state.config.baseBranch, tip, pipelinesRoot) : [];
+  state.baseConflicts = () => conflicts ??= baseConflicts(root, state.config.baseBranch, tip, pipelinesRoot);
   return { pipeline, state, tip, mergeBase, frontier: frontier(state) };
 }
 
