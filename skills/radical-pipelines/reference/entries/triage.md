@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline, its base branch fast-forwarded to its upstream first: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the artifact base branch's tree.
+`git fetch`, fast-forward the artifact base branch to its upstream, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the artifact base branch's tree.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies' state the tracker cannot report, proceeds without comment.
 

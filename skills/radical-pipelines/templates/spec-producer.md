@@ -39,6 +39,12 @@
 
 {{threads}}
 
+{{#owner-answers}}
+## Owner's answers
+
+{{owner-answers}}
+
+{{/owner-answers}}
 {{#malformed-files}}
 ## Malformed files
 

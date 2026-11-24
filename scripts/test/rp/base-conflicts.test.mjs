@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { NOTES, P, PIPELINE, abs, approve, check, commitAll, frontier, git, pipeline, root, rp, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
+import { NOTES, P, PIPELINE, abs, approve, check, commitAll, frontier, git, later, pipeline, root, rp, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 const implementation = () => check().phases.find((phase) => phase.artifact === "implementation");
 function onBase(change) {
@@ -30,6 +30,14 @@ describe("a base branch that conflicts with the tip", () => {
     assert.ok(rp("check", abs(PIPELINE)).split("\n").includes("artifact implementation stale base"));
   });
 
+  it("is stale on a changed input and on the base branch together", () => {
+    conflicting();
+    write("0-intent/proposal-1.md", later(NOTES));
+    commitAll("proposal");
+    assert.deepEqual(check().frontier, [{ action: "respond", target: "implementation", threads: [], changed: ["0-intent/proposal-1.md"], "base-conflicts": ["src/app.js"] }]);
+    assert.ok(rp("check", abs(PIPELINE)).split("\n").includes("artifact implementation stale 0-intent/proposal-1.md base"));
+  });
+
   it("is resolved by merging it: notes.md is fresh and the approval stale on the code", () => {
     conflicting();
     approve();
@@ -38,6 +46,16 @@ describe("a base branch that conflicts with the tip", () => {
     commitAll("resolve");
     assert.equal(implementation().state, "fresh");
     assert.deepEqual(frontier(), ["review default"]);
+  });
+
+  it("names the path of a conflict that leaves no file unmerged", () => {
+    pipeline(3);
+    onBase(() => { writeFile("old/a.js", "a\n"); writeFile("old/b.js", "b\n"); });
+    git(root, "merge", "--quiet", "--no-edit", "main");
+    for (const [file, folder] of [["a.js", "x"], ["b.js", "y"]]) { writeFile(`${folder}/${file}`, `${file[0]}\n`); git(root, "rm", "--quiet", `old/${file}`); }
+    commitAll("split old");
+    onBase(() => writeFile("old/c.js", "c\n"));
+    assert.deepEqual(check().frontier, [{ action: "respond", target: "implementation", threads: [], changed: [], "base-conflicts": ["old"] }]);
   });
 
   it("leaves notes.md fresh while the base branch merges cleanly", () => {

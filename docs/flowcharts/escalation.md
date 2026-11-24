@@ -1,6 +1,6 @@
 # Owner escalation
 
-This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md) § Owner escalation and [`reference/run/state.md`](../../skills/radical-pipelines/reference/run/state.md) § Owner territory: only a disagreement about what the intent means or demands, or evidence that every kind of approach fails an intent goal or constraint, reaches the owner, and the answer returns as later input, unless it rules nothing.
+This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md) § Owner escalation and [`reference/run/state.md`](../../skills/radical-pipelines/reference/run/state.md) § Owner territory: only a disagreement about what the intent means or demands, or evidence that every kind of approach fails an intent goal or constraint, reaches the owner, and the answer returns as later input, unless it decides nothing about the intent.
 
 ```mermaid
 flowchart TD
@@ -12,7 +12,7 @@ flowchart TD
     F --> G{"The owner rules the answer"}
     G -->|Binding| H["Write a constraint"]
     G -->|Open to investigation| I["Write a proposal"]
-    G -->|Rules nothing: the obstacle is gone| M["Append a message headed owner with the tip, holding the answer; set status answered; commit"]
+    G -->|Decides nothing about the intent: the obstacle is gone| M["Append a message headed owner with the tip, holding the answer; set status answered; commit"]
     M --> N["The loop continues"]
     H --> J["origin names the thread; target names the disputed artifact or clause; commit"]
     I --> J

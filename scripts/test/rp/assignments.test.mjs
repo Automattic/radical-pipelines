@@ -27,7 +27,7 @@ function skillWith(templates, name = null) {
 // alone under its own `## <name>` heading.
 const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "merge-base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
   "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "facts"];
-const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "previous-candidates", "threads", "base-conflicts", "write-to"];
+const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "previous-candidates", "threads", "owner-answers", "base-conflicts", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
 const echo = (name, values, flags = []) => `${["## template", name, ...flags.flatMap((flag) => [`{{#${flag}}}`, `## ${flag}`, `{{/${flag}}}`]),
   ...values.flatMap((value) => [`## ${value}`, `{{${value}}}`])].join("\n")}\n`;
@@ -156,6 +156,19 @@ describe("assignments", () => {
       commitAll("no thread");
       const { values } = assign("implementer");
       assert.deepEqual([values.mode, values["changed-inputs"], values["base-conflicts"]], [["Respond"], ["none"], ["src/app.js"]]);
+      write(NOTES, withFrontmatter({ status: "in-progress" }, "\n# Notes\n"));
+      commitAll("in progress");
+      const unfinished = assign("implementer").values;
+      assert.deepEqual([unfinished.mode, unfinished["base-conflicts"]], [["Implement"], ["src/app.js"]]);
+    });
+
+    it("the threads the role opened to the owner that are answered, and no other role's", () => {
+      pipeline(1);
+      const answered = thread({ n: 1, ...TO_OWNER, status: "answered", messages: [["spec-producer", "abc1234"], ["owner", "abc1234"]] });
+      thread({ n: 3, ...TO_OWNER, opener: "implementer", status: "answered", messages: [["implementer", "abc1234"], ["owner", "abc1234"]] });
+      write(INTENT, `${read(INTENT)}Changed.\n`);
+      commitAll("threads");
+      assert.deepEqual(assign("spec-producer").values["owner-answers"], [in_(realpathSync(root), answered)]);
     });
 
     it("respond without changed inputs: the thread alone", () => {

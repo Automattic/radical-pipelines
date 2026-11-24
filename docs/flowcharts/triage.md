@@ -6,7 +6,7 @@ This chart mirrors [`reference/entries/triage.md`](../../skills/radical-pipeline
 flowchart TD
     A{"The request has an issue?"} -->|No| MI["Manage issues: create it"]
     A -->|Yes| SCAN
-    MI --> SCAN["git fetch; rp pipelines --issue; fast-forward each pipeline's base branch; rp check on each pipeline found"]
+    MI --> SCAN["git fetch; fast-forward the artifact base branch; rp pipelines --issue; fast-forward each pipeline's base branch (state.md); rp check on each pipeline found"]
     SCAN --> B{"The issue declares dependencies the tracker reports open?"}
     B -->|Yes| E{"Owner chooses"}
     E -->|Wait| WAIT["Wait"]

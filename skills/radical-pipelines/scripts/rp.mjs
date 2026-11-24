@@ -857,17 +857,23 @@ export function mergeBaseOf(root, baseBranch, tip) {
   return gitText(root, ["merge-base", baseCommit, tip]) || fail(`no merge-base between ${baseBranch} and ${tip}`);
 }
 
-// The tree of merging the commit `theirs` into `ours`, as Git merges them, and the paths that conflict; the tree holds
-// conflict markers where they do. Only objects are written.
+// The tree of merging the commit `theirs` into `ours`, as Git merges them, and the paths that conflict: the files Git
+// leaves unmerged and the paths its `CONFLICT` messages name, which alone report a conflict that leaves no file
+// unmerged. The tree holds conflict markers where files conflict. Only objects are written.
 function mergeTree(root, ours, theirs) {
   let merged;
-  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
   catch (error) {
     if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${ours} ${theirs}: ${error.stderr?.toString().trim() || error.message}`);
     merged = error.stdout;
   }
-  const [tree, ...conflicts] = merged.split("\0").filter(Boolean);
-  return { tree, conflicts };
+  // `<tree>`, each unmerged file, an empty field, then each message as its path count, its paths, its type, and its text.
+  const fields = merged.split("\0"), tree = fields[0], conflicts = new Set();
+  let at = 1;
+  for (; at < fields.length && fields[at] !== ""; at++) conflicts.add(fields[at]);
+  for (at++; /^\d+$/.test(fields[at] ?? ""); at += Number(fields[at]) + 3)
+    if (fields[at + Number(fields[at]) + 1].startsWith("CONFLICT")) for (const path of fields.slice(at + 1, at + 1 + Number(fields[at]))) conflicts.add(path);
+  return { tree, conflicts: [...conflicts].sort() };
 }
 // Whether two tree-ishes differ outside the pipelines folder root.
 function codeDiffers(root, a, b, pipelinesRoot) {
@@ -879,10 +885,10 @@ function codeDiffers(root, a, b, pipelinesRoot) {
   return false;
 }
 
-// `commit` merged with the merge-base: the merged tree, and the paths that conflict outside the pipelines folder root;
-// conflicts inside it are ignored.
-function mergedWithBase(root, commit, mergeBase, pipelinesRoot) {
-  const { tree, conflicts } = mergeTree(root, commit, mergeBase);
+// `commit` merged with `base`, the merge-base or the base branch's tip: the merged tree, and the paths that conflict
+// outside the pipelines folder root; conflicts inside it are ignored.
+function mergedWithBase(root, commit, base, pipelinesRoot) {
+  const { tree, conflicts } = mergeTree(root, commit, base);
   return { tree, conflicts: conflicts.filter((path) => !path.startsWith(`${pipelinesRoot}/`)) };
 }
 // The paths outside the pipelines folder root that conflict when the base branch is merged into the tip.
@@ -1301,7 +1307,7 @@ function rolesWoken(entry) {
 // inputs of its artifact, and the frontier entries of the malformed files it writes; null when no entry wakes it. A
 // frontier naming malformed files wakes only the roles that write one, a producer or the implementer in Respond.
 function turnOf(state, entries, role) {
-  const turn = (mode, entry = {}) => ({ mode, threads: entry.threads ?? [], changed: entry.changed ?? [], conflicts: entry["base-conflicts"] ?? [], malformed: [] });
+  const turn = (mode, entry = {}) => ({ mode, threads: entry.threads ?? [], changed: entry.changed ?? [], malformed: [] });
   if (entries[0].action === "malformed") {
     const malformed = entries.filter((entry) => writes(role, entry.target));
     return malformed.length ? { ...turn("Respond"), malformed } : null;
@@ -1391,7 +1397,8 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}${lane.after ? `, written after ${lane.after.join(", ")}` : ""}`),
       "previous-candidates": role.lane ? previousCandidates(config, artifact.phase, role.lane).map(at) : [],
       threads: turn.threads.map(at),
-      "base-conflicts": turn.conflicts,
+      "owner-answers": state.threads.filter((thread) => thread.status === "answered" && thread.opener === role.name).map((thread) => at(thread.path)),
+      "base-conflicts": artifact.phase === IMPLEMENTATION && !role.lane ? state.baseConflicts() : [],
       "write-to": at(artifact.path),
     });
   } else {
@@ -1610,7 +1617,7 @@ async function planOf(ctx) {
   };
 
   if (entries[0].action !== "escalate")
-    for (const { role, rejected } of repairs.values()) await wake(role, { mode: "Respond", threads: [], changed: [], conflicts: [], malformed: rejected }, rejected);
+    for (const { role, rejected } of repairs.values()) await wake(role, { mode: "Respond", threads: [], changed: [], malformed: rejected }, rejected);
   for (const role of (entries[0].action === "malformed" ? roles : entries.flatMap(rolesWoken)).filter((each) => !repairs.has(each.name))) {
     const turn = turnOf(state, entries, role);
     if (!turn) continue;

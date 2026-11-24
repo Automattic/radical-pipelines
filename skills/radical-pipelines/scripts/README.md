@@ -114,7 +114,7 @@ No other key exists at any level. `check`, `next`, and `land` read the file wher
 | `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
 | An approval | `0-intent/intent.md`; every later input |
 
-- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. A file without a certification is stale on each required input. Pins of other files are checked for grammar only. At target phase 3 or 4, `notes.md` is also stale while `git merge-tree --write-tree --name-only <tip> <base branch>` conflicts on a path outside the pipelines folder root; conflicts inside it are ignored.
+- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. A file without a certification is stale on each required input. Pins of other files are checked for grammar only. At target phase 3 or 4, `notes.md` is also stale while `git merge-tree --write-tree --name-only <tip> <base branch>` conflicts on a path outside the pipelines folder root; conflicts inside it are ignored. A merge's conflicts are the files it leaves unmerged and the paths its `CONFLICT` messages name.
 - **Missing**: the file is absent. `notes.md` is also missing until its `status` is `done`.
 - **Fresh**: neither.
 
@@ -209,11 +209,11 @@ review <lane> <approval>                       at target phase 4, for each revie
 thread <thread> <status>[ awaits <role>]
 ```
 
-`<state>` is `missing`, `fresh`, or `stale` followed by the changed inputs and, when the base branch conflicts, `base`. `<approval>` is `approved`, `unapproved` when the latest review thread is no approval, or `stale` followed by the changed inputs and, when the code changed, `code`. On a `malformed` frontier, only the frontier lines are printed. Paths are relative to the pipeline folder.
+`<state>` is `missing`, `fresh`, or `stale` followed by the changed inputs and, when the base branch conflicts, `base`. `<approval>` is `approved`, `unapproved` when the latest review thread is no approval, or `stale` followed by the changed inputs and, when the code changed, `code`. On a `malformed` frontier, only the frontier lines are printed. Paths are relative to the pipeline folder; `base-conflicts` holds paths from the repository root.
 
 `--json` prints one object:
 
-- `pipeline`, `tip`, `target-phase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role; not on a lane's entry), `changed` (the changed inputs of a stale artifact, candidate, or approval), and `base-conflicts` (the paths that conflict when the base branch is merged into the tip).
+- `pipeline`, `tip`, `target-phase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role; not on a lane's entry), `changed` (the changed inputs of a stale artifact, candidate, or approval), and `base-conflicts` (the paths that conflict when the base branch is merged into the tip, from the repository root).
 - `phases`, `complete`, `threads`: unless the frontier is `malformed`. Each phase has `phase`, its number, `artifact`, its artifact's name, `path`, `state`, `stale` when stale, `base-conflicts` when the base branch conflicts, and `lanes` (`lane`, `path`, `state`, `stale`) while its artifact is missing. `complete` lists the numbers of the complete phases (§ Complete phases), ascending. Each thread has `path`, `status`, `opener`, `recipient`, `about`, `awaits`, and `approved-commit`, from an approval's certification, else `null`.
 - `net-change` (`<merge-base>..<tip>`), `reviews` (`lane`, `approved`, `stale` with the changed inputs, `code-changed` when the code changed): at target phase 4, unless the frontier is `malformed`. A `review` frontier entry carries `changed` and `code-changed` the same way.
 
