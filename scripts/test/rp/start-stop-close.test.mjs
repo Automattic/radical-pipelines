@@ -318,11 +318,29 @@ describe("rp stop", () => {
     assert.ok(branches().includes("demo-spec-a"));
   });
 
-  it("reads no pipeline file but the turn record", () => {
+  it("stops on a folder that is no pipeline folder, removing nothing", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
-    rmSync(abs(`${PIPELINE}/config.json`));
-    assert.deepEqual(stop(), removes("spec-producer-a", "demo-spec-a"));
+    writeFile(".pipelines/tooling/readme.md", "tooling\n");
+    const before = snapshot();
+    for (const command of ["stop", "close"]) {
+      const out = run(command, abs(".pipelines/tooling"), "--apply");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /is no pipeline folder in the working tree/);
+    }
+    assert.deepEqual(snapshot(), before);
+  });
+
+  it("takes each deleted lane out of the turn record as its branch goes, before a later action stops it", () => {
+    pipeline(0, { lanes: SPEC_LANES });
+    apply();
+    writeFileSync(abs(".git/refs/heads/demo-spec-b.lock"), "");
+    assert.equal(run("stop", abs(PIPELINE), "--apply").status, 1);
+    assert.deepEqual(branches(), ["demo", "demo-spec-b", "main"]);
+    rmSync(abs(".git/refs/heads/demo-spec-b.lock"));
+    seatAt("demo-spec-a");
+    assert.deepEqual(stop("--apply"), ["delete-branch demo-spec-b"]);
+    assert.ok(branches().includes("demo-spec-a"));
   });
 
   // A lane is the pipeline's by its recorded turn on the branch the pipeline branch gives it, never by a name alone.
@@ -474,7 +492,7 @@ describe("rp close", () => {
     const before = snapshot();
     const out = run("close", folder(), "--apply");
     assert.equal(out.status, 1);
-    assert.match(out.stderr, /not a folder in the working tree/);
+    assert.match(out.stderr, /is no pipeline folder in the working tree/);
     assert.deepEqual(snapshot(), before);
   });
 

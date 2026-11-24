@@ -1703,10 +1703,15 @@ function removeWorktree(root, path) {
   gitText(root, ["worktree", "remove", path]);
 }
 // Carries out what a plan does to worktrees and branches, from the worktree `root`, in order: worktree removals, branch
-// deletions, creations, and moves, worktree creations, and the closing removals.
-async function applyActions(root, plan, act) {
+// deletions, creations, and moves, worktree creations, and the closing removals. Each turn on a branch it deletes leaves
+// the turn record of the pipeline worktree `seat` as the branch goes, so no later branch of that name is taken for the lane.
+async function applyActions(root, plan, act, seat) {
   for (const { path } of plan.removals) await act(`remove-worktree ${path}`, () => removeWorktree(root, path));
-  for (const { branch } of plan.branches.filter((each) => each.action === "delete")) await act(`delete-branch ${branch}`, () => gitText(root, ["branch", "--quiet", "-D", branch]));
+  for (const { branch } of plan.branches.filter((each) => each.action === "delete")) await act(`delete-branch ${branch}`, () => {
+    gitText(root, ["branch", "--quiet", "-D", branch]);
+    const record = readRecord(seat), turns = Object.entries(record.turns);
+    if (turns.some(([, turn]) => turn.branch === branch)) writeRecord(seat, { ...record, turns: Object.fromEntries(turns.filter(([, turn]) => turn.branch !== branch)) });
+  });
   for (const branch of plan.branches.filter((each) => each.action !== "delete"))
     await act(`${branch.action}-branch ${branch.branch}`, () => {
       const target = branch.build ? commitBuild(root, branch.build) : branch.target;
@@ -1725,9 +1730,8 @@ async function applyActions(root, plan, act) {
 async function applyPlan(ctx, plan) {
   const { root, state, frontier: entries, record } = ctx;
   const act = actOf("next");
-  await applyActions(root, plan, act);
-  const turns = { ...record.turns };
-  for (const [name, turn] of Object.entries(turns)) if (plan.branches.some((each) => each.action === "delete" && each.branch === turn.branch)) delete turns[name];
+  await applyActions(root, plan, act, root);
+  const turns = { ...readRecord(root).turns };
   for (const wake of plan.wakes)
     await act(`write ${wake.assignment}`, () => {
       const tip = requireCommit(wake.worktree, "HEAD", "HEAD");
@@ -1776,7 +1780,7 @@ function remoteRefsOf(root, branch) {
     const held = remotes.get(remote) ?? remotes.set(remote, { refs: [], excluded: false }).get(remote);
     if (spec.startsWith("^")) { if (matched(spec.slice(1), source) !== null) held.excluded = true; continue; }
     const [from, to] = spec.replace(/^\+/, "").split(":"), star = matched(from, source);
-    if (to && star !== null) held.refs.push(to.replace("*", star));
+    if (to && star !== null) held.refs.push(to.replace("*", () => star));
   }
   return [...remotes.values()].filter((held) => !held.excluded).map((held) => held.refs.find((ref) => commitOf(root, ref))).filter(Boolean);
 }
@@ -1821,7 +1825,7 @@ async function cmdStart(args) {
   process.stdout.write(`${[...before, ...actions, ...(written ? [] : [`write-config ${path}`]), ...after, `pipeline-folder ${join(worktree, folder)}`].join("\n")}\n`);
   if (!args.apply) return;
   const act = actOf("start");
-  await applyActions(root, plan, act);
+  await applyActions(root, plan, act, root);
   if (!written) await act(`write-config ${path}`, () => {
     configPathOf(worktree, folder);
     try { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, bytes); }
@@ -1829,18 +1833,17 @@ async function cmdStart(args) {
   });
 }
 
-// What `stop` and `close` remove (README.md § `stop` and `close`), and the turn record without the lanes whose
-// branches they delete. A lane is the pipeline's while the turn record holds a turn of it on the lane branch the
+// What `stop` and `close` remove (README.md § `stop` and `close`). A lane is the pipeline's while the turn record holds a turn of it on the lane branch the
 // pipeline branch gives it and that branch holds the turn commit. A lane's branch is deleted once it holds no unlanded
 // commits; its worktree is removed then, and whenever the pipeline closes, which last removes the pipeline worktree
 // unless that is the main checkout.
 function removalsOf(args, command, closing) {
   const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
   const { folder } = pipelineFolder(rel, command);
-  if (!lstatOf(join(root, folder))?.isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
+  if (!lstatOf(join(root, folder, CONFIG))?.isFile()) fail(`${command}: ${folder} is no pipeline folder in the working tree: it holds no ${CONFIG}`);
   const main = mainOf(root, command), pipelineBranch = pipelineBranchOf(root, command), tip = requireCommit(root, "HEAD", "HEAD");
   const registered = worktreesOf(root).map((each) => each.path).filter((path) => path && existsSync(path)).map((path) => realpathSync(path));
-  const record = readRecord(root), turns = { ...record.turns };
+  const record = readRecord(root);
   const plan = { removals: [], branches: [], creations: [], closing: [] };
   for (const [name, turn] of Object.entries(record.turns)) {
     const { profile, lane } = parseRole(name), role = roleFor(profile, lane), branch = branchOfRole(pipelineBranch, role);
@@ -1850,21 +1853,17 @@ function removalsOf(args, command, closing) {
     if (worktree !== turn.worktree && registered.includes(turn.worktree)) fail(`${command}: ${turn.worktree} no longer has ${branch} checked out: check it out there, or remove that worktree`);
     const landed = !unlandedOf(root, tip, laneTip).length;
     if (worktree && (closing || landed)) plan.removals.push({ role, path: worktree });
-    if (landed) { plan.branches.push({ branch, action: "delete" }); delete turns[name]; }
+    if (landed) plan.branches.push({ branch, action: "delete" });
   }
-  const kept = !closing || root === main;
-  if (!kept) plan.closing.push({ role: PIPELINE_SEAT, path: root });
-  return { root, main, plan, record: kept && Object.keys(turns).length < Object.keys(record.turns).length ? { ...record, turns } : null };
+  if (closing && root !== main) plan.closing.push({ role: PIPELINE_SEAT, path: root });
+  return { root, main, plan };
 }
-// Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout,
-// and takes the lanes whose branches it deleted out of the turn record.
+// Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout.
 const cmdRemove = (command, closing) => async (args) => {
-  const { root, main, plan, record } = removalsOf(args, command, closing);
+  const { root, main, plan } = removalsOf(args, command, closing);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write([...before, ...actions, ...after].map((line) => `${line}\n`).join(""));
-  if (!args.apply) return;
-  await applyActions(main, plan, actOf(command));
-  if (record) writeRecord(root, record);
+  if (args.apply) await applyActions(main, plan, actOf(command), root);
 };
 
 // Lands a role's recorded turn (README.md § `land`): verifies it, brings its commits onto the pipeline branch, certifies
