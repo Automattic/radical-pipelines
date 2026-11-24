@@ -20,7 +20,7 @@ Call `subagent` with the role's `sessionID`, `agent`, `model`, a short `descript
 
 ## Turn end
 
-When a role's run ends, you receive `<subagent sessionID="<session ID>" state="…">` carrying its final reply, which is its report. `completed` is a finished turn; `error` and `cancelled` are failures.
+When a role's run ends, you receive a message tagged with its `sessionID` and a `state`, carrying its final reply, which is its report. `completed` is a finished turn; `error` and `cancelled` are failures.
 
 ## Termination
 
