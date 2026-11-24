@@ -2,7 +2,7 @@
 
 The run stops: the frontier is `complete`, an owner escalation is pending, the owner cancelled, or something failed.
 
-1. Cancel health monitoring (`../conventions/health-monitoring.md`); stop each role still running.
+1. Cancel health monitoring (`../conventions/health-monitoring.md`); stop every role of the run.
 2. Make sure every commit, certifications included, is on the pipeline branch and pushed; remove lane worktrees and branches.
 3. Fire `run-ended` with the cause.
 4. Complete through the target phase: tell the owner the pipeline is ready for the closure actions below.

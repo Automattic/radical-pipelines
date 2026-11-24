@@ -111,7 +111,7 @@ Copy each text and value character for character as the conventions write it, it
 
 A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. A lane without a brief covers its profile's whole scope. A `design-doc-producer` lane's `after` lists the lanes of its profile it comes after; their candidates are its **previous candidates**. Lane ids start with a lowercase letter or digit and continue with those or hyphens. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
 
-`config.json` remains with a merged pipeline, holding the conventions of its last run start. It does not say whether a run is in progress; to know that, check which roles are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `withdrawn`. Stop each role still running under a changed lane.
+`config.json` remains with a merged pipeline, holding the conventions of its last run start. It does not say whether a run is in progress; to know that, check which roles are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `withdrawn`. Stop the roles under a changed lane.
 
 ## Names
 

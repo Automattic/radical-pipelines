@@ -88,7 +88,8 @@ describe("rp next", () => {
       assert.equal(lines[0], `frontier consolidate spec`);
       for (const id of ["a", "b"]) {
         const role = `spec-producer-${id}`, path = laneWorktree(`demo-spec-${id}`);
-        inOrder(lines, `hook before-removing-worktree ${role} ${path}`, `remove-worktree ${role} ${path}`, `delete-branch demo-spec-${id}`, `hook after-removing-worktree ${role} ${path}`);
+        assert.deepEqual(lines.filter((line) => line.split(" ").includes(role) || line.includes(`demo-spec-${id}`)),
+          [`hook before-removing-worktree ${role} ${path}`, `remove-worktree ${role} ${path}`, `delete-branch demo-spec-${id}`, `hook after-removing-worktree ${role} ${path}`]);
       }
       assert.deepEqual(wakeOf(lines, "spec-producer"), { profile: "spec-producer", phase: "1", worktree: at(), assignment: join(gitDir(root), "rp/spec-producer.md"), resources: [], new: true });
       assert.deepEqual(lines.filter((line) => line.startsWith("hook ") && / spec-producer$/.test(line)), ["hook before-spawning-agent spec-producer", "hook after-spawning-agent spec-producer"]);
