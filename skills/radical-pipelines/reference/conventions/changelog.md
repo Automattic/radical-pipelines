@@ -2,6 +2,14 @@
 
 Entries are ordered by version. Version 0 is a `.rp.md` without a conventions version.
 
+## 8
+
+Migrate from version 7.
+
+### Removals
+
+- The `before-terminating-agent` and `after-terminating-agent` lifecycle hooks. Offer to move each of their instructions: one about a lane's role to `before-removing-worktree` or `after-removing-worktree`; one about the roles without a lane to `run-ended`, which names no role, so the instruction must cover each of them.
+
 ## 7
 
 Migrate from version 6.

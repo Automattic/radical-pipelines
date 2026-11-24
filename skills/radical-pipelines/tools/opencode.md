@@ -24,7 +24,7 @@ When a role's run ends, you receive a message tagged with its `sessionID` and a 
 
 ## Stop
 
-Stop a running role with `opencode api POST /api/session/<session ID>/interrupt`, then each of its subagents, which `opencode api GET "/api/session?parentID=<session ID>"` lists; interrupting an idle session does nothing. Keep every role's session: it is the role's transcript.
+Stop a role with `opencode api POST /api/session/<session ID>/interrupt`, then each of its subagents, which `opencode api GET "/api/session?parentID=<session ID>"` lists; interrupting an idle session does nothing. Keep every role's session: it is the role's transcript.
 
 ## Health ticks
 

@@ -269,7 +269,7 @@ A tool must provide:
 3. **Turn-end notice** — the orchestrator learns when a role's turn ends, with its final reply, and when it fails.
 4. **Seating** — each role starts with its working directory fixed inside an orchestrator-chosen git worktree.
 5. **Addressing** — every role has an identifier, known to the orchestrator, that directs a message or a stop to it alone.
-6. **Stopping** — the orchestrator can stop a running role, and its session survives.
+6. **Stopping** — the orchestrator can stop a running role.
 7. **Periodic wake-ups** — the orchestrator's session can be woken on an interval for health ticks.
 8. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on roles, or they can be disabled.
 

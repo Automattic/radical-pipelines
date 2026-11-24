@@ -32,7 +32,7 @@ Find the repository's main root, even when running inside a worktree. Read:
 
 ## Conventions version
 
-`.rp.md`'s frontmatter records the conventions version in `conventions`. The current version is 7, written as the line `conventions: 7`.
+`.rp.md`'s frontmatter records the conventions version in `conventions`. The current version is 8, written as the line `conventions: 8`.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.
