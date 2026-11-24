@@ -168,7 +168,7 @@ Then restart the opencode service:
 opencode service restart
 ```
 
-A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. Before its first run, the orchestrator checks that the plugin is loaded, `subagent_depth` is at least 2, and automations are on, and stops with a pointer to this section when one is not.
+A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. Before its first run, the orchestrator checks that the plugin is loaded, `subagent_depth` is at least 2, and automations are available, and stops with a pointer to this section when one is not.
 
 The orchestrator drives roles with opencode's own primitives: it creates each role as a child session, moves it to its worktree, starts and wakes it with the `subagent` tool, learns that it finished or failed from opencode's completion notice, and runs health ticks as automations. The plugin ships only what opencode lacks:
 

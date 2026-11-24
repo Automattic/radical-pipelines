@@ -6,8 +6,8 @@
  * `sessionID`; a background run notifies its parent when it ends;
  * interrupting the child stops it and keeps its session, which its parent
  * lists among its children; and an automation created through Code Mode
- * targets the session that created it, wakes it with its prompt, and is
- * removed by deleting it.
+ * targets the session that created it, is listed until deleted, and starts
+ * a turn there with its prompt.
  */
 
 import assert from "node:assert/strict";
@@ -109,19 +109,27 @@ export async function run(ctx) {
     assert.ok(messages.status === 200 && messages.body.data.length > 0, "the child's transcript remains");
   });
 
-  await runCheck(results, "an interval automation created through Code Mode targets the orchestrator, and deleting it removes it", async () => {
-    await waitForIdle(server, orchestrator.id);
+  await runCheck(results, "an interval automation created through Code Mode targets the orchestrator, is listed, and deleting it removes it", async () => {
     const created = await runCode(`return await tools.automation.create({ name: "health tick", trigger: { type: "every", every: "1 minute" }, action: { type: "prompt", prompt: "tick" } });`);
     assert.equal(created.action?.to?.session, orchestrator.id, `the automation targets another session: ${JSON.stringify(created)}`);
-    assert.deepEqual(await runCode(`return await tools.automation.delete({ id: ${JSON.stringify(created.id)} });`), { id: created.id, removed: true });
+    const listedIDs = async () => (await runCode(`return await tools.automation.list();`)).automations.map((automation) => automation.id);
+    assert.ok((await listedIDs()).includes(created.id), "automation.list lists the automation");
+    await runCode(`return await tools.automation.delete({ id: ${JSON.stringify(created.id)} });`);
+    assert.ok(!(await listedIDs()).includes(created.id), "automation.list no longer lists the deleted automation");
   });
 
-  await runCheck(results, "an automation's prompt wakes the session that created it", async () => {
+  await runCheck(results, "an automation's prompt starts a turn in the session that created it", async () => {
     const tick = nonce();
     await runCode(`return await tools.automation.create({ name: "one tick", trigger: { type: "at", at: "in 2 seconds" }, action: { type: "prompt", prompt: ${JSON.stringify(tick)} } });`);
-    await pollMessages(server, orchestrator.id, (messages) => messages.find((message) => message.type === "user" && message.text === tick), {
-      label: "the automation's prompt in the orchestrator",
-    });
+    await pollMessages(
+      server,
+      orchestrator.id,
+      (messages) => {
+        const prompted = messages.find((message) => message.type === "user" && message.text === tick);
+        return prompted && messages.find((message) => message.type === "assistant" && message.time.created > prompted.time.created);
+      },
+      { label: "a turn answering the automation's prompt in the orchestrator" },
+    );
   });
 
   /**

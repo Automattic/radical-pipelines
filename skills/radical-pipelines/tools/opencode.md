@@ -4,7 +4,7 @@ Run `opencode api` commands with your shell tool. The plugin registers each prof
 
 ## Setup actions
 
-Verify that `opencode api GET /api/plugin` lists `radical-pipelines@<version>`, and that the opencode configuration sets `experimental.subagent_depth` to at least `2` and does not set `automations` to `false`. Otherwise stop setup and point the owner to the README's opencode installation section.
+Verify that `opencode api GET /api/plugin` lists `radical-pipelines@<version>`, that the Code Mode tool `automation.list` runs, and that the opencode configuration sets `experimental.subagent_depth` to at least `2`. Otherwise stop setup and point the owner to the README's opencode installation section.
 
 ## Spawn
 
