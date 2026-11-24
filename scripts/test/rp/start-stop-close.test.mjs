@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
@@ -373,6 +373,21 @@ describe("rp stop", () => {
     seatAt("demo-spec-a");
     assert.deepEqual(stop(), []);
     assert.deepEqual(lines("close", abs(PIPELINE)), []);
+  });
+
+  it("takes out of the turn record, when applied again, a turn whose branch went while the record could not be written", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    const path = git(root, "rev-parse", "--path-format=absolute", "--git-path", "rp/turns.json").trim();
+    chmodSync(path, 0o444);
+    const out = run("stop", abs(PIPELINE), "--apply");
+    chmodSync(path, 0o644);
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /its turn stays in the turn record/);
+    assert.deepEqual(branches(), ["demo", "main"]);
+    stop("--apply");
+    seatAt("demo-spec-a");
+    assert.deepEqual(stop(), []);
   });
 
   it("stops on a recorded worktree left detached while another has the lane's branch checked out", () => {

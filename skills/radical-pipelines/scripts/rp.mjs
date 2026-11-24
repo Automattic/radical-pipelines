@@ -1710,7 +1710,9 @@ async function applyActions(root, plan, act, seat) {
   for (const { branch } of plan.branches.filter((each) => each.action === "delete")) await act(`delete-branch ${branch}`, () => {
     gitText(root, ["branch", "--quiet", "-D", branch]);
     const record = readRecord(seat), turns = Object.entries(record.turns);
-    if (turns.some(([, turn]) => turn.branch === branch)) writeRecord(seat, { ...record, turns: Object.fromEntries(turns.filter(([, turn]) => turn.branch !== branch)) });
+    if (!turns.some(([, turn]) => turn.branch === branch)) return;
+    try { writeRecord(seat, { ...record, turns: Object.fromEntries(turns.filter(([, turn]) => turn.branch !== branch)) }); }
+    catch (error) { fail(`the branch is deleted, and its turn stays in the turn record: ${error.message}`); }
   });
   for (const branch of plan.branches.filter((each) => each.action !== "delete"))
     await act(`${branch.action}-branch ${branch.branch}`, () => {
@@ -1844,10 +1846,12 @@ function removalsOf(args, command, closing) {
   const main = mainOf(root, command), pipelineBranch = pipelineBranchOf(root, command), tip = requireCommit(root, "HEAD", "HEAD");
   const registered = worktreesOf(root).map((each) => each.path).filter((path) => path && existsSync(path)).map((path) => realpathSync(path));
   const record = readRecord(root);
-  const plan = { removals: [], branches: [], creations: [], closing: [] };
+  const plan = { removals: [], branches: [], creations: [], closing: [] }, gone = [];
   for (const [name, turn] of Object.entries(record.turns)) {
     const { profile, lane } = parseRole(name), role = roleFor(profile, lane), branch = branchOfRole(pipelineBranch, role);
-    const laneTip = lane && turn.branch === branch ? commitOf(root, `refs/heads/${branch}`) : null;
+    if (!lane || turn.branch !== branch) continue;
+    const laneTip = commitOf(root, `refs/heads/${branch}`);
+    if (!laneTip) gone.push(name);
     if (!laneTip || !commitOf(root, turn.commit) || !isAncestor(root, turn.commit, laneTip)) continue;
     const worktree = worktreeOf(root, branch);
     if (worktree !== turn.worktree && registered.includes(turn.worktree)) fail(`${command}: ${turn.worktree} no longer has ${branch} checked out: check it out there, or remove that worktree`);
@@ -1856,14 +1860,18 @@ function removalsOf(args, command, closing) {
     if (landed) plan.branches.push({ branch, action: "delete" });
   }
   if (closing && root !== main) plan.closing.push({ role: PIPELINE_SEAT, path: root });
-  return { root, main, plan };
+  return { root, main, plan, record: gone.length ? { ...record, turns: Object.fromEntries(Object.entries(record.turns).filter(([name]) => !gone.includes(name))) } : null };
 }
-// Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout.
+// Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout,
+// first taking out of the turn record each turn of the pipeline's lanes whose branch is gone.
 const cmdRemove = (command, closing) => async (args) => {
-  const { root, main, plan } = removalsOf(args, command, closing);
+  const { root, main, plan, record } = removalsOf(args, command, closing);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write([...before, ...actions, ...after].map((line) => `${line}\n`).join(""));
-  if (args.apply) await applyActions(main, plan, actOf(command), root);
+  if (!args.apply) return;
+  const act = actOf(command);
+  if (record) await act("write the turn record", () => { try { writeRecord(root, record); } catch (error) { fail(error.message); } });
+  await applyActions(main, plan, act, root);
 };
 
 // Lands a role's recorded turn (README.md § `land`): verifies it, brings its commits onto the pipeline branch, certifies
