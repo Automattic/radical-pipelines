@@ -6,7 +6,7 @@ Tool mechanics live in the skill. Project facts live in the project files and re
 
 Find the repository's main root, even when running inside a worktree. Read:
 
-1. `tools/<active tool>.md` from the skill, when present: spawn, seat, address, terminate, health-loop, and model mechanics. When the skill has no file for the active tool, those mechanics come from `.rp.md`, and setup asks the owner for the ones it lacks.
+1. `tools/<active tool>.md` from the skill, when present: spawn, seat, address, stop, health-loop, and model mechanics. When the skill has no file for the active tool, those mechanics come from `.rp.md`, and setup asks the owner for the ones it lacks.
 2. `.rp.md` from the main root.
 3. `.rp.local.md` from the main root, when present: overrides of `.rp.md`. Apply them only after the completeness check below.
 
@@ -32,7 +32,7 @@ Find the repository's main root, even when running inside a worktree. Read:
 
 ## Conventions version
 
-`.rp.md`'s frontmatter records the conventions version in `conventions`. The current version is 7, written as the line `conventions: 7`.
+`.rp.md`'s frontmatter records the conventions version in `conventions`. The current version is 8, written as the line `conventions: 8`.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

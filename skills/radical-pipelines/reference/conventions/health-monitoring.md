@@ -17,7 +17,7 @@ Inspect the run and lane worktrees and the roles' state through `tools/<tool>.md
 3. **Dead roles** — a role whose session is gone or whose turn failed.
 4. **Login or API-key errors** — a role or the orchestrator hit a provider authentication failure.
 5. **Network failures** — a tool call failed with a transient network error.
-6. **Steps that never land** — compare the roles the current step woke with their reports and live sessions. Land each that has ended its turn and is not landed (`../run/loop.md` § One step, step 6); treat a role that has not ended its turn and has no live session as a dead role.
+6. **Steps that never land** — compare the roles the current step woke with their reports and live sessions. Land each that has ended its turn and is not landed (`../run/loop.md` § One step, step 5); treat a role that has not ended its turn and has no live session as a dead role.
 
 ## Recovery
 
@@ -25,12 +25,12 @@ Each issue occurrence gets two recovery attempts before escalation; a success re
 
 | Issue                 | First                                                                 | Second                                   |
 | --------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
-| Stalled role          | Ask once for status                                                   | Terminate; spawn a new instance          |
-| Dead role             | Terminate any remaining session; spawn a new instance                 | Do it once more                          |
+| Stalled role          | Ask once for status                                                   | Spawn a new instance                     |
+| Dead role             | Wake it again                                                         | Spawn a new instance                     |
 | Login or API-key error| Swap to an authenticated model the project's **Models** convention names | Spawn a new instance on the new model    |
 | Network failure       | Retry the call                                                        | Wait one interval and retry              |
 
-Spawn a new instance with the one-line message of `../run/loop.md` § Waking a role; its assignment is already written. A replaced role's work waits for the new instance.
+Wake or spawn a role per `../run/loop.md` § Waking a role; its assignment is already written. Stop a role before spawning its new instance. A replaced role's work waits for the new instance.
 
 ## Escalation
 

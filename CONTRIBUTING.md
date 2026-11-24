@@ -260,7 +260,7 @@ Because this is a **private** repository, the token needs read access to private
 
 ## Integrating an agentic coding tool
 
-Radical Pipelines is generic; each supported tool gets a mechanics file in `skills/radical-pipelines/tools/` (e.g. `claude-code.md`, `opencode.md`) stating, in the tool's own primitives, how the orchestrator spawns a role on a model and profile, seats it in a worktree, wakes it with a message, learns that its turn ended or failed, terminates it, and runs health ticks, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
+Radical Pipelines is generic; each supported tool gets a mechanics file in `skills/radical-pipelines/tools/` (e.g. `claude-code.md`, `opencode.md`) stating, in the tool's own primitives, how the orchestrator spawns a role on a model and profile, seats it in a worktree, wakes it with a message, learns that its turn ended or failed, stops it, and runs health ticks, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
 
 A tool must provide:
 
@@ -268,8 +268,8 @@ A tool must provide:
 2. **Concurrent background agents** — several roles alive and working at once while the orchestrator continues.
 3. **Turn-end notice** — the orchestrator learns when a role's turn ends, with its final reply, and when it fails.
 4. **Seating** — each role starts with its working directory fixed inside an orchestrator-chosen git worktree.
-5. **Addressing** — every role has an identifier, known to the orchestrator, that directs a message or a termination to it alone.
-6. **Session termination** — the orchestrator can end a role's session when its work ends.
+5. **Addressing** — every role has an identifier, known to the orchestrator, that directs a message or a stop to it alone.
+6. **Stopping** — the orchestrator can stop a running role.
 7. **Periodic wake-ups** — the orchestrator's session can be woken on an interval for health ticks.
 8. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on roles, or they can be disabled.
 

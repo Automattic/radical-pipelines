@@ -251,8 +251,6 @@ frontier <action>[ <target>][ <lane>][: <reason>]
 land <role>
 fix malformed <path>: <reason>
 repair <role> malformed <path>: <reason>
-terminate <role> profile <profile>
-terminate <role> lane <lane>
 remove-worktree <role> <path>
 delete-branch <branch>
 create-branch <branch> <commit | review-head>
@@ -276,13 +274,12 @@ hook phase-started <phase>
 | `land` | A lane's turn that ended without landing, to land before anything else |
 | `fix` | A malformed file no role writes |
 | `repair` | A malformed file a lane's landing would bring, which the lane's role repairs |
-| `terminate` | A role to terminate before applying, by its profile and its lane |
 | `remove-worktree`, `create-worktree` | A worktree applying removes or creates, with the role it is for |
 | `delete-branch`, `create-branch`, `move-branch` | A branch applying deletes, creates, or moves, and where it leaves it: a commit, or `review-head`, the review head built from the tip (§ Review lanes) |
 | `wake` | A role to wake, one line per fact: its profile; its lane, for a lane's role; its model name, when `config.json` gives it one; its phase; its worktree; the assignment applying writes for it; each resource its assignment carries; and `new` when its turn needs a new instance |
-| `hook` | A lifecycle hook the step fires: a worktree's with the role the worktree is for and its path, a spawning, terminating, or landing one's with its role, `phase-started` with its phase. No hook names a branch |
+| `hook` | A lifecycle hook the step fires: a worktree's with the role the worktree is for and its path, a spawning or landing one's with its role, `phase-started` with its phase. No hook names a branch |
 
-The lines come in the order the orchestrator acts on them. A plan that names a turn to land holds only the frontier and each turn to land between `before-landing-lane` and `after-landing-lane`. Any other plan lists the frontier; the files to fix and to repair; each termination between `before-terminating-agent` and `after-terminating-agent`; the `before-removing-worktree` and `before-creating-worktree` hooks; the actions; the matching `after-` hooks and each `phase-started`; and each role to wake between `before-spawning-agent` and `after-spawning-agent`, which fire only when the orchestrator spawns the role. A lane's role is followed by `before-landing-lane` and `after-landing-lane`, which fire around its landing, once its turn ends.
+The lines come in the order the orchestrator acts on them. A plan that names a turn to land holds only the frontier and each turn to land between `before-landing-lane` and `after-landing-lane`. Any other plan lists the frontier; the files to fix and to repair; the `before-removing-worktree` and `before-creating-worktree` hooks; the actions; the matching `after-` hooks and each `phase-started`; and each role to wake between `before-spawning-agent` and `after-spawning-agent`, which fire only when the orchestrator spawns the role. A lane's role is followed by `before-landing-lane` and `after-landing-lane`, which fire around its landing, once its turn ends.
 
 1. **Unlanded commits.** A lane's **unlanded commits** are the commits of its branch that `git cherry <tip> <lane branch>` marks `+`, other than a review base or a review head. For every configured lane whose branch holds some, whatever the frontier, `next` computes its landing (§ `land`) from commits alone:
    - When the landing would bring no malformed file, the lane holds a turn that ended without landing: the plan names it to land.
@@ -294,7 +291,7 @@ The lines come in the order the orchestrator acts on them. A plan that names a t
    | Frontier line | Plan |
    | --- | --- |
    | `produce <artifact> <lane>`, `respond <artifact> <lane>` | The lane's branch at the tip, with a worktree; its producer woken there |
-   | `consolidate <artifact>` | Each production lane of the phase whose worktree or branch exists terminated, its worktree removed and its branch deleted; the artifact's producer woken in the pipeline worktree on a new instance |
+   | `consolidate <artifact>` | The worktrees of the phase's production lanes removed and their branches deleted; the artifact's producer woken in the pipeline worktree on a new instance |
    | `produce <artifact>`, `respond <artifact>` | Its owner woken in the pipeline worktree |
    | `review <lane>` | The lane's branch at the review head built from the tip, with a worktree; its reviewer woken there |
    | `malformed <path>: <reason>` | Each role that writes a malformed file (§ Assignments), seated as for its lane's line or in the pipeline worktree; each malformed file no role writes, to fix |

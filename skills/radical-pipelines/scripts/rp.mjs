@@ -1577,10 +1577,10 @@ function newGitDirOf(root, path, reserved) {
 }
 
 // The step's plan (README.md § `next`): a lane's turn that ended without landing, to land first; or the worktrees,
-// branches, terminations, assignments, and woken roles the frontier dispatches, a lane under repair's beside them.
+// branches, assignments, and woken roles the frontier dispatches, a lane under repair's beside them.
 async function planOf(ctx) {
   const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, main } = ctx, { config } = state;
-  const plan = { land: [], fix: [], terminate: [], removals: [], branches: [], creations: [], wakes: [], started: [] };
+  const plan = { land: [], fix: [], removals: [], branches: [], creations: [], wakes: [], started: [] };
   const worktrees = worktreesOf(root);
   const worktreeOf = (branch) => { const path = worktrees.find((each) => each.branch === branch)?.path; return path ? realpathSync(path) : null; };
   const roles = rolesOf(config);
@@ -1631,12 +1631,10 @@ async function planOf(ctx) {
   for (const role of (entries[0].action === "malformed" ? roles : entries.flatMap(rolesWoken)).filter((each) => !repairs.has(each.name))) {
     const turn = turnOf(state, entries, role);
     if (!turn) continue;
-    // A consolidation terminates the phase's production lanes and removes their worktrees and branches first.
+    // A consolidation removes the worktrees and branches of the phase's production lanes first.
     if (turn.mode === "Consolidate")
       for (const lane of productionLanes(config, artifactOf(role).phase).map((each) => roleFor(role.profile, each.id)).filter((each) => !repairs.has(each.name))) {
         const branch = branchOfRole(pipelineBranch, lane), worktree = worktreeOf(branch), exists = Boolean(commitOf(root, `refs/heads/${branch}`));
-        if (!worktree && !exists) continue;
-        plan.terminate.push(lane);
         if (worktree) plan.removals.push({ role: lane, path: worktree });
         if (exists) plan.branches.push({ branch, action: "delete" });
       }
@@ -1656,8 +1654,6 @@ function planLines(plan, entries) {
   if (plan.land.length) return [...lines, ...plan.land.flatMap((role) => { const [before, after] = landing(role); return [before, `land ${role.name}`, after]; })];
   lines.push(...plan.fix.map((entry) => `fix ${frontierText(entry)}`));
   for (const wake of plan.wakes) lines.push(...(wake.rejected ?? []).map((entry) => `repair ${wake.role.name} ${frontierText(entry)}`));
-  for (const role of plan.terminate)
-    lines.push(`hook before-terminating-agent ${role.name}`, `terminate ${role.name} profile ${role.profile}`, `terminate ${role.name} lane ${role.lane}`, `hook after-terminating-agent ${role.name}`);
   const worktreeHooks = (moment) => [...plan.removals.map(({ role, path }) => `hook ${moment}-removing-worktree ${role.name} ${path}`),
     ...plan.creations.map(({ role, path }) => `hook ${moment}-creating-worktree ${role.name} ${path}`)];
   lines.push(...worktreeHooks("before"), ...plan.removals.map(({ role, path }) => `remove-worktree ${role.name} ${path}`),

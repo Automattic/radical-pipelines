@@ -8,7 +8,7 @@ Enter from `load.md`:
 
 Tell the owner what exists and what is missing. Offer setup. If declined, stop and list the missing facts.
 
-Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, addressing, termination, health-loop, and model mechanics it already defines, so they will not be asked for.
+Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, addressing, stopping, health-loop, and model mechanics it already defines, so they will not be asked for.
 
 ## Fresh setup
 
@@ -136,7 +136,7 @@ Write each value and text as the owner gave it. When a guardrail, resource, comm
 
 1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
 2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
-3. On the artifact base branch, write `.rp.md`: the frontmatter `conventions: 7`, then the conventions.
+3. On the artifact base branch, write `.rp.md`: the frontmatter `conventions: 8`, then the conventions.
 4. With permission, append the worktree folder root's entry to `.gitignore`.
 5. Commit the approved `.rp.md` on that branch, co-committing `.gitignore` when changed. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
 6. Report whether `.rp.md` was created or updated and whether setup is complete.

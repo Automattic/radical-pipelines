@@ -8,8 +8,7 @@ flowchart TD
     PLAN --> TOLAND{"Turns to land?"}
     TOLAND -->|Yes| LANDFIRST["Land each named turn (below)"]
     LANDFIRST --> PLAN
-    TOLAND -->|No| TERM["Terminate each role the plan names, between its terminating hooks"]
-    TERM --> APPLY["Fire the before- worktree hooks; rp next --apply creates, moves, and removes lane branches and worktrees and writes each assignment; fire the after- worktree hooks and phase-started"]
+    TOLAND -->|No| APPLY["Fire the before- worktree hooks; rp next --apply creates, moves, and removes lane branches and worktrees and writes each assignment; fire the after- worktree hooks and phase-started"]
     APPLY --> C{"Frontier"}
     C -->|escalate thread| OE["Owner escalation"]
     C -->|complete| CLOSE["Close-out"]
