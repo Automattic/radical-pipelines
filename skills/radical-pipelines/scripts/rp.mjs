@@ -816,11 +816,13 @@ export function staleInputs(state, subject) {
 // The implementation is done when `notes.md`'s frontmatter `status` is `done`.
 const implementationDone = (state) => state.docs.get(IMPLEMENTATION.path)?.values.get("status") === "done";
 
-// A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done.
+// A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done, and
+// stale also while merging the base branch into the tip conflicts, with the paths that conflict.
 function statusOf(state, path) {
   if (!state.docs.has(path) || (path === IMPLEMENTATION.path && !implementationDone(state))) return { state: "missing" };
   const stale = staleInputs(state, state.docs.get(path));
-  return stale.length ? { state: "stale", stale } : { state: "fresh" };
+  const conflicts = path === IMPLEMENTATION.path ? state.baseConflicts() : [];
+  return stale.length || conflicts.length ? { state: "stale", stale, ...(conflicts.length ? { "base-conflicts": conflicts } : {}) } : { state: "fresh" };
 }
 
 // The role an `open` thread awaits: its opener when its recipient wrote the last message, its recipient otherwise.
@@ -883,6 +885,10 @@ function mergedWithBase(root, commit, mergeBase, pipelinesRoot) {
   const { tree, conflicts } = mergeTree(root, commit, mergeBase);
   return { tree, conflicts: conflicts.filter((path) => !path.startsWith(`${pipelinesRoot}/`)) };
 }
+// The paths outside the pipelines folder root that conflict when the base branch is merged into the tip.
+export function baseConflicts(root, baseBranch, tip, pipelinesRoot) {
+  return mergedWithBase(root, tip, requireCommit(root, baseBranch, "base-branch"), pipelinesRoot).conflicts;
+}
 // Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the merge-base:
 // a conflict outside the root, or any difference from the merged tree outside it. Null when the clone lacks the commit.
 export function codeChanged(root, approved, mergeBase, tip, pipelinesRoot) {
@@ -915,7 +921,8 @@ function phaseActions(state, phase) {
     if (!lanes.length) actions.push({ action: "produce", target: phase.name, threads });
     else if (!unfinished.length) actions.push({ action: "consolidate", target: phase.name, threads });
   } else if ((inTarget && status.state === "stale") || threads.length)
-    actions.push({ action: "respond", target: phase.name, threads, ...(inTarget && status.stale ? { changed: status.stale } : {}) });
+    actions.push({ action: "respond", target: phase.name, threads, ...(inTarget && status.stale ? { changed: status.stale } : {}),
+      ...(inTarget && status["base-conflicts"] ? { "base-conflicts": status["base-conflicts"] } : {}) });
   return actions.length ? actions : null;
 }
 
@@ -975,6 +982,9 @@ async function inspect(root, folder, pipelinesRoot, ref) {
     if (!judged.has(approved)) judged.set(approved, codeChanged(root, approved, mergeBase, tip, pipelinesRoot));
     return judged.get(approved);
   };
+  // The base branch is merged into the tip once the target reaches the implementation.
+  let conflicts;
+  state.baseConflicts = () => conflicts ??= state.config.targetPhase >= IMPLEMENTATION.n ? baseConflicts(root, state.config.baseBranch, tip, pipelinesRoot) : [];
   return { pipeline, state, tip, mergeBase, frontier: frontier(state) };
 }
 
@@ -1005,7 +1015,7 @@ async function cmdCheck(args) {
   }
   if (args.json) return process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   const lines = report.frontier.map((entry) => `frontier ${frontierText(entry)}`);
-  const status = (entry) => entry.state === "stale" ? `stale ${entry.stale.join(" ")}` : entry.state;
+  const status = (entry) => entry.state === "stale" ? ["stale", ...entry.stale, ...(entry["base-conflicts"] ? ["base"] : [])].join(" ") : entry.state;
   for (const phase of report.phases ?? []) {
     for (const lane of phase.lanes) lines.push(`candidate ${phase.artifact} ${lane.lane} ${status(lane)}`);
     lines.push(`artifact ${phase.artifact} ${status(phase)}`);
@@ -1291,7 +1301,7 @@ function rolesWoken(entry) {
 // inputs of its artifact, and the frontier entries of the malformed files it writes; null when no entry wakes it. A
 // frontier naming malformed files wakes only the roles that write one, a producer or the implementer in Respond.
 function turnOf(state, entries, role) {
-  const turn = (mode, entry = {}) => ({ mode, threads: entry.threads ?? [], changed: entry.changed ?? [], malformed: [] });
+  const turn = (mode, entry = {}) => ({ mode, threads: entry.threads ?? [], changed: entry.changed ?? [], conflicts: entry["base-conflicts"] ?? [], malformed: [] });
   if (entries[0].action === "malformed") {
     const malformed = entries.filter((entry) => writes(role, entry.target));
     return malformed.length ? { ...turn("Respond"), malformed } : null;
@@ -1381,6 +1391,7 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
       "lane-candidates": productionLanes(config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}${lane.after ? `, written after ${lane.after.join(", ")}` : ""}`),
       "previous-candidates": role.lane ? previousCandidates(config, artifact.phase, role.lane).map(at) : [],
       threads: turn.threads.map(at),
+      "base-conflicts": turn.conflicts,
       "write-to": at(artifact.path),
     });
   } else {
@@ -1599,7 +1610,7 @@ async function planOf(ctx) {
   };
 
   if (entries[0].action !== "escalate")
-    for (const { role, rejected } of repairs.values()) await wake(role, { mode: "Respond", threads: [], changed: [], malformed: rejected }, rejected);
+    for (const { role, rejected } of repairs.values()) await wake(role, { mode: "Respond", threads: [], changed: [], conflicts: [], malformed: rejected }, rejected);
   for (const role of (entries[0].action === "malformed" ? roles : entries.flatMap(rolesWoken)).filter((each) => !repairs.has(each.name))) {
     const turn = turnOf(state, entries, role);
     if (!turn) continue;

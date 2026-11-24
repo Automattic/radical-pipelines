@@ -33,5 +33,6 @@ A producer's and the implementer's templates also use:
 - `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree, followed by `, written after <lanes>` for a lane that comes after others.
 - `previous-candidates`: a list of the paths of a lane's previous candidates, in its worktree.
 - `threads`: a list of the threads awaiting the role.
+- `base-conflicts`: a list of the paths that conflict when the base branch is merged into the turn commit; the implementer's alone holds any.
 
 A reviewer's templates also use `review-base`, and its later-turn template `thread`, the lane's review thread, `thread-arg`, that path as one shell word, `diff`, the diff it reads, the flag `code-changed`, true when that diff holds a change or a merge of the base branch conflicted, `conflicts`, a list of the paths that conflicted, and `changed-inputs`, a list of the paths of the inputs that changed since the lane read them.

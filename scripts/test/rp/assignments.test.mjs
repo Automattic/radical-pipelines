@@ -27,7 +27,7 @@ function skillWith(templates, name = null) {
 // alone under its own `## <name>` heading.
 const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "merge-base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
   "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "facts"];
-const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "previous-candidates", "threads", "write-to"];
+const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "previous-candidates", "threads", "base-conflicts", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
 const echo = (name, values, flags = []) => `${["## template", name, ...flags.flatMap((flag) => [`{{#${flag}}}`, `## ${flag}`, `{{/${flag}}}`]),
   ...values.flatMap((value) => [`## ${value}`, `{{${value}}}`])].join("\n")}\n`;
@@ -140,6 +140,22 @@ describe("assignments", () => {
       assert.equal(git(root, "diff", "--numstat", spec, tip, "--", P(SPEC)).trim(), `1\t1\t${P(SPEC)}`);
       assert.throws(() => git(root, "cat-file", "-e", `${proposal}:${P("0-intent/proposal-1.md")}`));
       assert.equal(git(root, "cat-file", "-e", `${proposal}~0`), "");
+    });
+
+    it("respond to a base branch that conflicts: the paths that conflict, and none while it merges cleanly", () => {
+      pipeline(3);
+      writeFile("src/app.js", "export const a = 2;\n");
+      const awaiting = thread({ n: 1, ...REVIEW("default"), messages: [["reviewer-default", "abc1234"]] });
+      commitAll("edit");
+      assert.deepEqual(assign("implementer").values["base-conflicts"], ["none"]);
+      git(root, "checkout", "--quiet", "main");
+      writeFile("src/app.js", "export const a = 3;\n");
+      commitAll("base moves");
+      git(root, "checkout", "--quiet", "demo");
+      remove(awaiting);
+      commitAll("no thread");
+      const { values } = assign("implementer");
+      assert.deepEqual([values.mode, values["changed-inputs"], values["base-conflicts"]], [["Respond"], ["none"], ["src/app.js"]]);
     });
 
     it("respond without changed inputs: the thread alone", () => {

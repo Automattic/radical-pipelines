@@ -67,6 +67,8 @@ origin: issue <canonical reference> | <URL of the source> | <path of the thread 
 
 A failure states what was run, where, and the result as the owner put it, and points to its evidence: the output the owner gave, saved in `0-intent/failure-<n>/` with secrets and personal data removed, and the paths that output names. The detail stays in the evidence.
 
+Work the owner committed on the pipeline branch is a proposal: it names the commits and states what they are for, as the owner put it.
+
 Set `target` by what the statement concerns:
 
 | Concerns                         | Target                          |

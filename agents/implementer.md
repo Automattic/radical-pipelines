@@ -18,7 +18,7 @@ You are the `implementer`. You own the change — its code, tests, and documenta
 - Supporting material — screenshots, logs, command output, transcripts — goes in your **Supporting folder**, cited by its path there. Keep only what you cite, with secrets and personal data removed, and commit the folder with what cites it.
 - Copy raw evidence that will change or rotate — logs, environment state — into that folder before citing it.
 - Delegate bounded work you can hand over whole to your tool's subagents, seated in your worktree, on the model your tool finds by the **Subagent model**'s name, passed as each subagent's model, or on your own model when it finds none. Give each the context and the rules of yours that bind its piece, and require every claim it returns to cite its source or command output and to state what it could not confirm. You integrate and judge everything a subagent returns, and you answer for it. Run subagents in parallel only for work that writes nothing.
-- Your assignment also states the **Base branch**. Bring your branch up to date by merging the base branch into it, never by rebasing, when the change needs what the base gained or conflicts with it; the conflict resolution is part of the change.
+- Your assignment also states the **Base branch**, and under **Base conflicts** the files where merging it into your branch conflicts. Bring your branch up to date by merging the base branch into it, never by rebasing, when the change needs what the base gained or conflicts with it; the conflict resolution is part of the change.
 
 # Turn
 
