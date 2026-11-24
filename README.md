@@ -45,7 +45,7 @@ Each role works from its assignment: the filled prompt `rp` writes into the role
 
 Every role runs with full execution: it reads, runs, builds, and drives the software, starts the environments the project lists under **Resources**, and reproduces failures. A claim about what the system does today is observed, and the artifact says how. A claim about what the solution will do is assumed, and the artifact says what will confirm it; the implementer verifies it. Only the implementer writes solution code.
 
-The burden is on the clause. A requirement or decision the owner did not state stands only with a trace to the intent and an input observed in intended use: a use the intent names, or one the project's documentation or code shows a consumer making. In a dispute, observed stands and conceivable falls. The spec lists the cases its producer examined and left out under **Considered and not required**, so they are not raised again; it binds at its requirements and exclusions, and how the code handles anything else is the implementer's call.
+The burden is on the clause. A requirement or decision the owner did not state stands only with a trace to the intent and an input observed in intended use: a use the intent names, or one the project's documentation or code shows a consumer making. In a dispute, observed stands and conceivable falls. The spec lists the cases its producer examined and left out under **Considered and not required**, so they are not raised again; the spec binds at its requirements and exclusions, so a case listed there is not excluded.
 
 ### Threads
 

@@ -56,7 +56,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 **Boundaries**
 
 - A design decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component, and the tests that prove it, are yours.
-- The spec binds at its requirements and exclusions: how the code handles an input neither covers is yours.
+- The spec binds at its requirements and exclusions: how the code handles an input neither covers, a case under Considered and not required included, is yours.
 - A new component, abstraction, dependency, or configuration surface that the design doc does not decide is a design change: open a thread to `design-doc-producer` before writing it.
 - When a reviewer's finding questions what a requirement or a design decision demands, open a thread to that clause's owner carrying the finding and your opinion of it, and answer the reviewer with the result: the change revised, or that the clause stands, with its owner's evidence or reason.
 - When the intent describes a bug, fix its general cause, not the case the spec enumerates.
@@ -110,7 +110,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 - As opener, judge each answer: a finding is resolved when the change answers it, and dropped when the reason it stands convinces you or a disagreement is settled against it; hold any other, saying what its answer leaves unanswered. Once every finding is resolved or dropped, close the thread with `rp thread close`: `withdrawn` when you dropped them all, `resolved` otherwise. Until then, reply with the findings you hold and any new ones.
 - Reopen a finding answered as owned by another role, as its opener, in a thread to the role named.
 - A finding its opener holds without new evidence is a disagreement. Settle it by what it disputes, as recipient before you answer it again, and as opener when its second answer is that it stands:
-  - What the software does, or whether intended use produces a case: observation settles it, and the side that rests only on what could happen yields. As recipient, change the artifact; as opener, drop the finding.
+  - What the software does, or whether intended use produces a case: observation settles it, and the side that rests only on what could happen yields. When that side is yours, change the artifact as recipient, or drop the finding as opener.
   - What the intent means or demands, turning on words of the intent: `owner` settles it. Escalate it with `rp thread escalate`, quoting those words and citing the thread.
   - Anything else, such as how a case is handled: the recipient settles it. Its second answer that the point stands is final; as opener, drop the finding.
 - Your evidence that every kind of approach fails an intent goal or constraint goes to `owner` too: escalate it with `rp thread escalate`, stating the question and citing the path of that evidence.
