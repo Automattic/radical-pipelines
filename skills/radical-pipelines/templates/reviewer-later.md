@@ -23,7 +23,7 @@ The code has not changed since your last message there.
 {{#changed-inputs}}
 These changed since then: {{changed-inputs}}
 {{/changed-inputs}}
-Check any answer the author gave you, and review what changed and what it affects. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
+Check any answer the author gave you, and review what changed and what it affects. An answer may disagree with a finding: drop the finding when its reasons convince you, and hold it when they do not. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
 
 ```
 {{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread {{thread-arg}} --status approved --body - <<'EOF'
@@ -39,7 +39,7 @@ Otherwise, say what still needs to change with this one, your answer in place of
 EOF
 ```
 
-When you and the author disagree on what the issue means or demands, say so: the author takes the question to the person who wrote the issue.
+When you and the author disagree on what the issue means or demands, say so, quoting the issue's words it turns on: the author takes the question to the person who wrote the issue. When the author answers a second time that a finding you held stands, drop it unless the code does something wrong on an input someone would actually give it, or the issue's words demand the change.
 
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 

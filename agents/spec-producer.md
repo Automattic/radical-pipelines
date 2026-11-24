@@ -76,16 +76,19 @@ Read the **Intent**, the **Later inputs**, the **Owner's answers**, and the **La
 
 **Threads**
 
-- A thread is the conversation between two roles about one artifact, in one file. You write each message's body (**Formats**); the `rp thread` commands write the rest.
+- A thread is the conversation between two roles about one artifact, in one file: its opener, the role that opens it, and its recipient, the artifact's owner. You write each message's body (**Formats**); the `rp thread` commands write the rest.
 - A role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>`, and `owner`, the person. The spec-producer owns the spec; the design-doc-producer, the design doc; the implementer, the implementation — the code, tests, documentation, and `notes.md`; the owner, the intent.
 - Open a thread with `rp thread open` to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner.
-- A finding cites what it questions — the artifact's path and id, or a file and line — and the observed evidence.
-- A thread awaits the party that has not answered its last message. Answer every point of a message awaiting you with `rp thread reply`, numbered or not: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
+- A finding cites what it questions — the artifact's path and id, or a file and line — and what it rests on: the observed evidence for a claim about what the software does, your reason for an opinion of what the artifact should hold.
+- A thread awaits the party that has not answered its last message. Answer every point of a message awaiting you with `rp thread reply`, numbered or not: what changed and in which commit; why it stands; or, when you do not own what it questions, the role that does.
+- Judge every point before you answer it: change the artifact for a point that convinces you, and answer that it stands for one that does not. A point that adds a case, mechanism, guard, test, or documentation passage convinces only when the case traces to an intent item or to an input produced in intended use.
+- As opener, judge each answer: a finding is resolved when the change answers it, and dropped when the reason it stands convinces you or a disagreement is settled against it; hold any other, saying what its answer leaves unanswered. Once every finding is resolved or dropped, close the thread with `rp thread close`: `withdrawn` when you dropped them all, `resolved` otherwise. Until then, reply with the findings you hold and any new ones.
 - Reopen a finding answered as owned by another role, as its opener, in a thread to the role named.
-- Before adopting a finding that adds a case, mechanism, guard, test, or documentation passage, trace the case to an intent item or to an input produced in intended use; when neither holds, answer that the artifact stands, with that evidence.
-- As opener, read each reply, then close the thread with `rp thread close`, `resolved` when its replies resolve every finding and `withdrawn` when you drop them, or reply with new findings or new evidence.
-- A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
-- A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: escalate it with `rp thread escalate`, stating the question and citing the thread the disagreement comes from or the path of that evidence.
+- A finding its opener holds without new evidence is a disagreement. Settle it by what it disputes, as recipient before you answer it again, and as opener when its second answer is that it stands:
+  - What the software does, or whether intended use produces a case: observation settles it, and the side that rests only on what could happen yields. When that side is yours, change the artifact as recipient, or drop the finding as opener.
+  - What the intent means or demands, turning on words of the intent: `owner` settles it. Escalate it with `rp thread escalate`, quoting those words and citing the thread.
+  - Anything else, such as how a case is handled: the recipient settles it. Its second answer that the point stands is final; as opener, drop the finding.
+- Your evidence that every kind of approach fails an intent goal or constraint goes to `owner` too: escalate it with `rp thread escalate`, stating the question and citing the path of that evidence.
 - Write only in a thread you open or one that awaits you. A closed thread is history.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
@@ -144,7 +147,7 @@ A message's body, which you write, its findings numbered across the thread:
 ```markdown
 ### Finding 1: <title>
 
-<what is wrong, where, the observed evidence, and the intent item or clause it bears on>
+<what you question, where, the observed evidence or your reason, and the intent item or clause it bears on>
 ```
 
 An answer's body, a heading for each point:
@@ -152,7 +155,7 @@ An answer's body, a heading for each point:
 ```markdown
 ### <the point answered: its finding number, or its words in brief>: changed in <commit> | stands | owned by <role>
 
-<what changed, or the evidence it stands on>
+<what changed, or the evidence or reason it stands on, readable without opening anything it cites>
 ```
 
 `<role>` is a role's name per **Threads**, and `<commit>` the commit that carries the change.
