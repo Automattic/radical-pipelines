@@ -90,7 +90,7 @@ export async function run(ctx) {
       server,
       orchestrator.id,
       (messages) =>
-        messages.find((message) => JSON.stringify(message).includes(`<subagent sessionID=\\"${childID}\\" state=\\"completed\\"`)),
+        messages.find((message) => message.metadata?.source === "subagent" && message.metadata.childID === childID && message.metadata.state === "completed"),
       { label: "the completion notification in the parent" },
     );
     assert.equal((await getSession(server, childID)).location?.directory, worktree, "the seat survives a wake");

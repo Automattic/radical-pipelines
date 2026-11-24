@@ -2,7 +2,7 @@
 
 What the opencode plugin does once installed, and why each piece is still plugin code. Installation lives in the README's [opencode plugin install](../README.md#opencode-plugin-install) section.
 
-Verified against opencode v2.2.5.
+Verified against opencode v2.4.1.
 
 ## What opencode covers natively
 
@@ -10,7 +10,7 @@ The orchestrator drives roles with opencode's own primitives, as [`tools/opencod
 
 - **Spawn and seat.** The `subagent` tool always creates its child at the parent's location. The orchestrator instead creates the child session itself through the API, with `parentID` set to its own session (`$OPENCODE_SESSION_ID` in the shell), and moves that session to the worktree. It then starts it with `subagent` and that `sessionID`. A moved idle session switches location without a model call, and the location holds across wakes.
 - **Wake.** `subagent` with `sessionID` reaches a running or finished child. opencode accepts only children of the calling session.
-- **Turn end and failure.** A background run posts `<subagent sessionID=… state=completed|error|cancelled>` with the final reply to the parent.
+- **Turn end and failure.** A background run posts the parent a message tagged with the child's `sessionID` and a `state` of `completed`, `error`, or `cancelled`, carrying the final reply.
 - **Termination.** `POST /api/session/<id>/interrupt` stops a running session and keeps it, so the role's transcript survives; it returns `interrupted: false` for an idle one. `GET /api/session?parentID=<id>` lists a role's subagents to interrupt them too. Deleting a session would destroy the transcript, so nothing deletes one.
 - **Health ticks.** The `opencode.schedule_create` Code Mode tool wakes the calling session on an interval. It requires `experimental.schedules`. Session state is read through `opencode api`.
 - **Delegation by roles.** `experimental.subagent_depth` defaults to 1, which stops a role from spawning subagents. The setup actions require at least 2.
