@@ -1049,7 +1049,9 @@ async function certificationOf(root, folder, config, subject, at, approvedCommit
   const answers = subject.kind === "artifact" ? new RegExp(`^threads/\\d+-${subject.phase.owner}-${OWNERS.intent}-intent\\.md$`) : null;
   const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || Boolean(answers?.test(path));
   const state = parseFiles(await readCommit(root, at, folder, reads), `${at}:${folder}`, config, false);
-  if (state.invalid.length) fail(`${at}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
+  // A thread malformed at `at` is no answer the turn read: it is pinned by the turn that follows its repair.
+  const invalid = state.invalid.filter((entry) => kindOf(entry.path).kind !== "thread");
+  if (invalid.length) fail(`${at}:${folder}/${invalid[0].path}: ${invalid[0].reason}`);
   const inputs = requiredInputs(state, subject).map((path) => `${path}@${identityIn(state, path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)}`).sort();
   return Buffer.from(`${JSON.stringify({ inputs, ...(approvedCommit ? { "approved-commit": approvedCommit } : {}) }, null, 2)}\n`);
 }
@@ -1388,6 +1390,7 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
     "subagent-model": models["subagent-model"] ?? "",
     "pipeline-folder": at(""), "pipeline-folder-arg": shellWord(at("")), intent: at(INTENT), spec: at(PHASES[0].path), "design-doc": at(PHASES[1].path),
     "later-inputs": laterInputs,
+    "owner-answers": artifact && !role.lane ? requiredInputs(state, { kind: "artifact", phase: artifact.phase }).filter((path) => kindOf(path).kind === "thread").map(at) : [],
     "malformed-files": turn.malformed.map(frontierText),
   };
   const files = [];

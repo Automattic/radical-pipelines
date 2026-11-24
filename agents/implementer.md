@@ -33,7 +33,7 @@ You are the `implementer`. You own the change — its code, tests, and documenta
 ## Implement
 
 1. Read `notes.md` at **Write to** when it exists and continue from what remains.
-2. Read the **Intent**, the **Later inputs**, the **Spec**, and the **Design doc**. Run the software to observe the behavior you will change.
+2. Read the **Intent**, the **Later inputs**, the **Owner's answers**, the **Spec**, and the **Design doc**. Run the software to observe the behavior you will change.
 3. Build first the smallest change that satisfies the spec's `from-intent` requirements; then each `derived` requirement in its own commit.
 4. Verify each outcome with the proof the design doc assigns. A new test of a changed outcome fails on its assertion before the change and passes after it. An existing automated proof assigned to a changed outcome, kept in place, fails against the old behavior of that outcome. Refactor with the tests green.
 5. Verify each open assumption a requirement or decision rests on as soon as building makes it observable, before building further on it, and record it under Assumptions in `notes.md`. A refuted one goes in a thread to that artifact's owner.

@@ -20,6 +20,7 @@ Every template may use:
 - `brief`: the lane's brief, or on a consolidation its profile's consolidation brief, its placeholders expanded, or empty.
 - `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree, as written; and `pipeline-folder-arg`, the pipeline folder's as one shell word, for a command line.
 - `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
+- `owner-answers`: a list of the `answered` threads the role opened to `owner`, the required inputs of its artifact beside its later inputs; a lane's and a reviewer's hold none.
 - `malformed-files`: a list of the frontier's `malformed` lines naming a file the role writes, as `rp check` prints them.
 - `guardrails`, `resources`: a list of the entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
 - `commit-format`: the commit format, its placeholders expanded, or `An imperative subject line.` when the project sets none.

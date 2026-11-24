@@ -26,7 +26,7 @@ function skillWith(templates, name = null) {
 // A template naming itself under `## template`, then each flag that holds as a `## <flag>` heading, and each value
 // alone under its own `## <name>` heading.
 const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "merge-base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
-  "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "facts"];
+  "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "owner-answers", "malformed-files", "guardrails", "resources", "commit-format", "facts"];
 const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "previous-candidates", "threads", "base-conflicts", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
 const echo = (name, values, flags = []) => `${["## template", name, ...flags.flatMap((flag) => [`{{#${flag}}}`, `## ${flag}`, `{{/${flag}}}`]),
@@ -174,10 +174,18 @@ describe("assignments", () => {
       commitAll("answered");
       const { values } = assign("spec-producer");
       const at = realpathSync(root);
-      assert.deepEqual([values.mode, values["changed-inputs"].map((line) => line.split(" — ")[0])], [["Respond"], [in_(at, answered)]]);
+      assert.deepEqual([values.mode, values["changed-inputs"].map((line) => line.split(" — ")[0]), values["owner-answers"]], [["Respond"], [in_(at, answered)], [in_(at, answered)]]);
       landRole("spec-producer");
       assert.deepEqual(JSON.parse(read(`certification/${SPEC}.json`)).inputs.map((pin) => pin.split("@")[0]), [INTENT, answered]);
       assert.equal(runWith(ECHO, ["check", abs(PIPELINE)]).stdout.split("\n")[0], "frontier produce design-doc");
+    });
+
+    it("produce: the answered threads the role opened, which its landing pins", () => {
+      pipeline(0);
+      const answered = thread({ n: 1, ...TO_OWNER, status: "answered", messages: [["spec-producer", "abc1234"], ["owner", "abc1234"]] });
+      commitAll("answered before the spec exists");
+      const { values } = assign("spec-producer");
+      assert.deepEqual([values.mode, values["owner-answers"]], [["Produce"], [in_(realpathSync(root), answered)]]);
     });
 
     it("respond without changed inputs: the thread alone", () => {

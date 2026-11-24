@@ -26,6 +26,7 @@
 - Spec: {{spec}}
 - Design doc: {{design-doc}}
 - Later inputs: {{later-inputs}}
+- Owner's answers: {{owner-answers}}
 {{#respond}}
 - Changed inputs: {{changed-inputs}}
 {{/respond}}

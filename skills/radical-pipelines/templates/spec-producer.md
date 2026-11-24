@@ -27,6 +27,7 @@
 - Intent: {{intent}}
 {{^lane}}
 - Later inputs: {{later-inputs}}
+- Owner's answers: {{owner-answers}}
 {{/lane}}
 {{#respond}}
 - Changed inputs: {{changed-inputs}}

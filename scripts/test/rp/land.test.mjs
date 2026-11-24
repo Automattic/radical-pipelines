@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, SPEC, TO_SPEC, UPSTREAM,
-  abs, apply, certification, check, commitAll, commitIn, conventions, git, landRole, lane, laneWorktree, later, pipeline, read, root, run, thread, useRepo, withFrontmatter, write,
+  DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, SPEC, TO_OWNER, TO_SPEC, UPSTREAM,
+  abs, apply, certification, check, commitAll, commitIn, conventions, frontier, git, landRole, lane, laneWorktree, later, pipeline, read, root, run, thread, useRepo, withFrontmatter, write,
 } from "./fixture.mjs";
 
 const head = (at = root) => git(at, "rev-parse", "HEAD").trim();
@@ -260,6 +260,18 @@ describe("rp land", () => {
       assert.match(out.stderr, new RegExp(`^rp: land: ${laneWorktree("demo-spec-a")}: landing demo-spec-a conflicts on ${P(candidate("a")).replaceAll(".", "\\.")}$`, "m"));
       assert.deepEqual(untouched(), before);
     });
+  });
+
+  it("lands the repair of a malformed thread its role opened to the owner, pinning it on the turn after", () => {
+    pipeline(3);
+    const path = thread({ ...TO_OWNER, status: "pending" });
+    commitAll("a rejected thread to the owner");
+    apply();
+    write(path, read(path).replace("status: pending", "status: answered"));
+    commitAll("Repair the thread");
+    landRole("spec-producer");
+    assert.deepEqual(certification(SPEC).inputs.map((pin) => pin.split("@")[0]), [INTENT]);
+    assert.deepEqual(frontier(), ["respond spec"]);
   });
 
   it("certifies at the turn commit whatever it holds that the certification does not read", () => {
