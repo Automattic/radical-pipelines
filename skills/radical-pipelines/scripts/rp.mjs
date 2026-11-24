@@ -1043,15 +1043,17 @@ async function cmdCheck(args) {
 // at their identities in the tree of the turn's commit `at`, and on an approval its approved commit. Only
 // what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), the threads
 // an artifact's owner opened to the person (their `status` says whether they apply), and what the subject pins before
-// later inputs. One of those malformed, or a required input missing, stops it.
+// later inputs. One of those malformed, or a required input missing, stops it; a malformed thread yields null.
 async function certificationOf(root, folder, config, subject, at, approvedCommit = null) {
   const upstream = upstreamOf(config, subject);
   const answers = subject.kind === "artifact" ? new RegExp(`^threads/\\d+-${subject.phase.owner}-${OWNERS.intent}-intent\\.md$`) : null;
   const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || Boolean(answers?.test(path));
   const state = parseFiles(await readCommit(root, at, folder, reads), `${at}:${folder}`, config, false);
-  // A thread malformed at `at` is no answer the turn read: it is pinned by the turn that follows its repair.
+  // With a thread malformed at `at`, the subject's required inputs are not known: it is not certified, and the turn
+  // that follows the thread's repair certifies it.
   const invalid = state.invalid.filter((entry) => kindOf(entry.path).kind !== "thread");
   if (invalid.length) fail(`${at}:${folder}/${invalid[0].path}: ${invalid[0].reason}`);
+  if (state.invalid.length) return null;
   const inputs = requiredInputs(state, subject).map((path) => `${path}@${identityIn(state, path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)}`).sort();
   return Buffer.from(`${JSON.stringify({ inputs, ...(approvedCommit ? { "approved-commit": approvedCommit } : {}) }, null, 2)}\n`);
 }
@@ -1740,7 +1742,8 @@ async function cmdLand(args) {
   // review thread the turn brings open or withdrawn.
   const subjects = [], uncertified = [];
   const artifact = artifactOf(role), doc = artifact && state.docs.get(artifact.path);
-  if (doc) subjects.push([doc, await certificationOf(root, folder, state.config, doc, turn.commit)]);
+  const certificate = doc && await certificationOf(root, folder, state.config, doc, turn.commit);
+  if (certificate) subjects.push([doc, certificate]);
   for (const thread of state.threads.filter((each) => isReview(each) && bring.changed.has(each.path))) {
     const read = isApproval(thread) && commitOf(root, thread.messages.findLast((message) => message.author === thread.opener).commit);
     if (read && !codeDiffers(root, read, bring.landed, pipelinesRoot)) subjects.push([thread, await certificationOf(root, folder, state.config, thread, read, bring.landed)]);

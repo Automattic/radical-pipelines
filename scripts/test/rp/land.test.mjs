@@ -262,17 +262,23 @@ describe("rp land", () => {
     });
   });
 
-  it("lands the repair of a malformed thread its role opened to the owner, pinning it on the turn after", () => {
-    pipeline(3);
-    const path = thread({ ...TO_OWNER, status: "pending" });
-    commitAll("a rejected thread to the owner");
-    apply();
-    write(path, read(path).replace("status: pending", "status: answered"));
-    commitAll("Repair the thread");
-    landRole("spec-producer");
-    assert.deepEqual(certification(SPEC).inputs.map((pin) => pin.split("@")[0]), [INTENT]);
-    assert.deepEqual(frontier(), ["respond spec"]);
-  });
+  for (const repaired of [true, false])
+    it(`leaves the certification as it is on a turn that starts with a malformed thread its role opened to the owner, ${repaired ? "repaired" : "left malformed"}`, () => {
+      pipeline(3);
+      const path = thread({ ...TO_OWNER, status: "answered", messages: [["spec-producer", "abc1234"], ["owner", "abc1234"]] });
+      commitAll("an answered thread");
+      apply();
+      landRole("spec-producer");
+      const pinned = certification(SPEC);
+      assert.deepEqual(pinned.inputs.map((pin) => pin.split("@")[0]), [INTENT, path]);
+      write(path, read(path).replace("status: answered", "status: pending"));
+      commitAll("a rejected thread to the owner");
+      apply();
+      if (repaired) { write(path, `${read(path).replace("status: pending", "status: answered")}\nRepaired.\n`); commitAll("Repair the thread"); }
+      landRole("spec-producer");
+      assert.deepEqual(certification(SPEC), pinned);
+      assert.deepEqual(frontier(), repaired ? ["respond spec"] : [`malformed ${path}`]);
+    });
 
   it("certifies at the turn commit whatever it holds that the certification does not read", () => {
     pipeline(3);
