@@ -1,12 +1,15 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, discovers pipelines, plans and applies each step of the loop — its lane branches and worktrees and each woken role's assignment — and lands each turn, certifying what it landed. A role writes its threads and checks its own files with it. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory, against which every relative path resolves. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, discovers pipelines, starts each run — the pipeline branch, its worktree, and the pipeline configuration — plans and applies each step of the loop — its lane branches and worktrees and each woken role's assignment — lands each turn, certifying what it landed, and removes the worktrees a stopped run or a closed pipeline leaves. A role writes its threads and checks its own files with it. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory, against which every relative path resolves. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
+node rp.mjs start <pipeline folder> --branch <pipeline branch> --config <file | -> [--apply]
 node rp.mjs next <pipeline folder> [--apply]
 node rp.mjs land <pipeline folder> --role <role>
+node rp.mjs stop <pipeline folder> [--apply]
+node rp.mjs close <pipeline folder> [--apply]
 node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->
 node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
 node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]
@@ -234,6 +237,32 @@ Of each pipeline folder, discovery reads only `0-intent/intent.md`, through the 
 
 Without `--json`, one line per pipeline: `<live|merged> <ref> <pipeline folder>`. `--json` prints a list of `{state, ref, commit, folder, origins}`.
 
+## `start`
+
+```text
+node rp.mjs start <pipeline folder> --branch <pipeline branch> --config <file | -> [--apply]
+```
+
+`<pipeline folder>` is the pipeline folder's path in any worktree of the repository, such as the main checkout; it need not exist. `--config` names a file holding the pipeline configuration (§ `config.json`), against the process directory, or `-` for standard input. `start` prints the plan that starts a run, in the lines of § Plan and two of its own, and changes nothing. `pipeline` stands where a lane's line names its role:
+
+```text
+hook before-creating-branch pipeline
+hook before-creating-worktree pipeline <path>
+create-branch <pipeline branch> <commit>
+create-worktree pipeline <pipeline branch> <path>
+write-config <path>
+hook after-creating-branch pipeline
+hook after-creating-worktree pipeline <path>
+pipeline-folder <path>
+```
+
+1. **Branch.** A pipeline branch that does not exist is created: at the remote-tracking branch of the one remote that holds it, which it then tracks; else at the configuration's `base-branch`, tracking nothing. Several remotes holding it stop the command.
+2. **Worktree.** The pipeline worktree is the worktree that has the pipeline branch checked out; when none has, the plan creates one at `<worktree folder root>/<pipeline branch>`, the root being the configuration's.
+3. **`write-config`** names `config.json` in the pipeline folder of the pipeline worktree, when it does not hold the bytes given.
+4. **`pipeline-folder`** names the pipeline folder in the pipeline worktree, which `next`, `land`, `stop`, and `close` take.
+
+With `--apply`, `start` prints the plan and carries it out: it creates the branch and the worktree, then writes `config.json` byte for byte, committing nothing. A failed action stops it with `rp: start --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A branch name Git rejects, a configuration that cannot be read or is malformed, and a `base-branch` the branch would start at that does not resolve stop `start` before it creates anything.
+
 ## `next`
 
 ```text
@@ -343,6 +372,26 @@ node rp.mjs land <pipeline folder> --role <role>
 7. **Report.** It prints `hook phase-completed <phase>` for each phase complete after the landing (§ Complete phases) that was not complete when the step was applied and that no earlier landing of the step reported, in phase order, and adds them to the turn record.
 
 Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, a detached pipeline worktree, a turn record that cannot be read or is malformed, and a git failure also stop `land`.
+
+## `stop` and `close`
+
+```text
+node rp.mjs stop <pipeline folder> [--apply]
+node rp.mjs close <pipeline folder> [--apply]
+```
+
+`<pipeline folder>` is in the pipeline worktree, as for `next`. `stop` prints what a stopped run leaves to remove, and `close` what a pipeline that is merged or closed without merging does, in the lines of § Plan: the `before-removing-worktree` hooks, each `remove-worktree`, each `delete-branch`, and the `after-removing-worktree` hooks. Neither changes anything without `--apply`, and a pipeline with nothing to remove prints nothing.
+
+The pipeline's lanes are here those `config.json` declares and those the turn record (§ Turn record) holds a turn of, so a lane the configuration dropped is removed too. Each command reads `config.json` in the working tree and the turn record, and no other pipeline file.
+
+| | `stop` | `close` |
+| --- | --- | --- |
+| A lane's worktree | Removed when its branch holds no unlanded commits (§ `next`) | Removed |
+| A lane's branch | Deleted when it holds no unlanded commits | Deleted when it holds no unlanded commits |
+| The pipeline worktree | Kept | Removed, named with `pipeline` where a lane's line names its role, unless it is the main checkout |
+| The pipeline branch | Kept | Kept |
+
+With `--apply`, each removes the worktrees with `git worktree remove`, which stops on an untracked or modified file, then deletes the branches. It changes no other ref, worktree, or remote. A failed action stops it with `rp: <command> --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A detached pipeline worktree, a configuration or turn record that cannot be read or is malformed, and a git failure stop both.
 
 ## `thread`
 

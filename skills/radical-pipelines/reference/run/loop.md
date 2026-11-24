@@ -14,7 +14,7 @@ Throughout the run:
 To plan, apply, wake, and land, you run no Git command, open no thread or assignment, and pass only the pipeline folder and the paths the plan prints.
 
 1. **Plan.** Run `rp next <pipeline folder>`. When the plan names turns to land, land each (step 5), then plan again.
-2. **Apply.** Fire the plan's `before-removing-worktree` and `before-creating-worktree` hooks, then run `rp next <pipeline folder> --apply`. Then fire its `after-removing-worktree` and `after-creating-worktree` hooks and each `phase-started`.
+2. **Apply.** Apply the plan (`../conventions/lifecycle-hooks.md` § Applying a plan), then fire each `phase-started`.
 3. **Stop or fix.** On `escalate`, the step ends at § Owner escalation; on `complete`, at close-out (`close-out.md`). A `fix` line names a malformed phase-0 file: fix it as you record phase 0, outside the step, and plan again.
 4. **Wake.** Wake each role the plan names (§ Waking a role).
 5. **Land.** While roles work, end your turn with health monitoring active; their reports and health ticks resume the run. A role has ended its turn when its report ends with "Completion declared: no work remains." or reports a blocker (§ Waking a role); after any other report the role is still working: wait for it. When a role ends its turn:
@@ -23,7 +23,7 @@ To plan, apply, wake, and land, you run no Git command, open no thread or assign
    - When `rp land` stops, nothing landed and `after-landing-lane` does not fire. A stop on malformed files is repaired by the next step, which wakes their author; on any other stop, tell the owner its message; the run stops through close-out.
 6. **Repeat.** Once every role the step woke has ended its turn, and you ran `rp land` for each that reported no blocker, go to 1.
 
-A blocking `before-` hook that fails keeps its action from happening — the plan is not applied, or the turn not landed — and the run stops through close-out. When `rp next --apply` stops, tell the owner its message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove; you delete no file in a lane's worktree yourself. Once the owner has repaired it, run it again without firing its `before-` hooks again; once it completes, fire the `after-` hooks of the plan it first printed.
+A blocking `before-` hook that fails keeps its action from happening — the plan is not applied, or the turn not landed — and the run stops through close-out.
 
 ## Waking a role
 

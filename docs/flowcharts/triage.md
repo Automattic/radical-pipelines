@@ -28,18 +28,19 @@ flowchart TD
     R7 --> GROUP
     GROUP --> NEED{"Writes an intent, constraint, or proposal; no config.json or the request changes it; or a question left open?"}
     NEED -->|Yes| CONFIRM["In one message: each route and why; the text to write; the configuration — target, lanes, each profile's models, and its guardrails and resources; what a lane change does to the tree; and the open questions. Revise until the owner confirms"]
-    NEED -->|No| PREP
-    CONFIRM --> PREP{"Prepare every route of the run"}
-    PREP --> P1["New pipeline: slug and branch; branch at the start ref and worktree; synthesize the intent"]
-    PREP --> P2["Later input: the live branch and worktree, or a new branch for a merged pipeline; write and commit each input"]
-    PREP --> P3["Continue: the pipeline's branch and worktree, created when missing"]
-    PREP --> P4["Rescope: modify the issue; re-synthesize and commit the intent; continue"]
+    NEED -->|No| BEGIN
+    CONFIRM --> BEGIN
+    BEGIN["Start the run: write the pipeline configuration to a file; fire the before- hooks; rp start --apply creates the pipeline branch and worktree this machine lacks and writes config.json; fire the after- hooks"] --> PREP{"Prepare every route of the run"}
+    PREP --> P1["New pipeline: synthesize the intent"]
+    PREP --> P2["Later input: write and commit each input"]
+    PREP --> P3["Continue: nothing more"]
+    PREP --> P4["Rescope: modify the issue; re-synthesize and commit the intent"]
     P1 --> CFG
     P2 --> CFG
     P3 --> CFG
     P4 --> CFG
-    CFG["Record the pipeline configuration and commit config.json, a new pipeline's with its intent"] --> RUN
+    CFG["Commit config.json, a new pipeline's with its intent"] --> RUN
     RUN["Record unconsumed statements a role must act on as later input"] --> START["Fire run-started; run the loop"]
     START --> NEXT{"Another run?"}
-    NEXT -->|Yes| PREP
+    NEXT -->|Yes| BEGIN
 ```
