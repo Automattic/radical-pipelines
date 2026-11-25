@@ -3,7 +3,7 @@
 The run stops: the frontier is `complete`, an owner escalation is pending, the owner cancelled, or something failed.
 
 1. Cancel health monitoring (`../conventions/health-monitoring.md`); stop every role of the run.
-2. Make sure every commit, certifications included, is on the pipeline branch and pushed; apply the plan of `rp stop <pipeline folder>` (`../conventions/lifecycle-hooks.md` § Applying a plan), which removes the worktree and branch of each lane whose commits have landed.
+2. Make sure every commit, certifications included, is on the pipeline branch and pushed; apply the plan of `rp stop <pipeline folder> --branch <pipeline branch>` (`../conventions/lifecycle-hooks.md` § Applying a plan).
 3. Fire `run-ended` with the cause.
 4. Complete through the target phase: tell the owner the pipeline is ready for the closure actions below.
 5. Any other cause: report to the owner what stopped the run, the frontier as `rp check` shows it, and — for an escalation — the dossier (`loop.md` § Owner escalation). Leave the tree exactly as it is; a later triage continues from it.
@@ -11,7 +11,7 @@ The run stops: the frontier is `complete`, an owner escalation is pending, the o
 
 ## Closure actions
 
-Closure actions are moments the owner invokes on a pipeline: opening its pull request, merging it, closing without merging. Each fires its `before-`/`after-` hooks where the project defines them; beyond the steps below, the work lives in the hooks or with the owner. To **close the pipeline**, apply the plan of `rp close <pipeline folder>` (`../conventions/lifecycle-hooks.md` § Applying a plan) when this machine holds the pipeline worktree: it removes the pipeline's worktrees and keeps the pipeline branch. A pipeline may have several pull requests over its life.
+Closure actions are moments the owner invokes on a pipeline: opening its pull request, merging it, closing without merging. Each fires its `before-`/`after-` hooks where the project defines them; beyond the steps below, the work lives in the hooks or with the owner. To **close the pipeline**, apply the plan of `rp close <pipeline folder> --branch <pipeline branch>` (`../conventions/lifecycle-hooks.md` § Applying a plan), passing the pipeline folder's absolute path in the main checkout. A pipeline may have several pull requests over its life.
 
 ### Open the pull request
 

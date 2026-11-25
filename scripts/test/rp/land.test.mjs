@@ -248,6 +248,23 @@ describe("rp land", () => {
       assert.deepEqual(untouched(), before);
     });
 
+    it("on a review lane's merge commit, which a pick cannot bring", () => {
+      pipeline(3);
+      apply();
+      const wt = laneWorktree("demo-review-default");
+      git(wt, "checkout", "--quiet", "-b", "side");
+      commitIn(wt, { "threads/1-reviewer-default-implementer-implementation.md": withFrontmatter({ status: "open", ...REVIEW() }, "\n## reviewer-default — abc1234\n\nFindings.\n") }, "side");
+      git(wt, "checkout", "--quiet", "demo-review-default");
+      git(wt, "merge", "--quiet", "--no-ff", "-m", "merge side", "side");
+      const merge = head(wt);
+      assert.ok(run("next", abs(PIPELINE)).stdout.split("\n").includes("land reviewer-default"));
+      const before = untouched();
+      const out = run("land", abs(PIPELINE), "--role", "reviewer-default");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, new RegExp(`^rp: land: ${wt}: demo-review-default holds the merge commit ${merge}, which landing cannot pick`, "m"));
+      assert.deepEqual(untouched(), before);
+    });
+
     it("on a landing that conflicts", () => {
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       apply();

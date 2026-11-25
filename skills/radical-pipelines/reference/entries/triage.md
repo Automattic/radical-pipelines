@@ -52,13 +52,13 @@ Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 
-Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`.
+Prepare every route of a run before step 6. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`.
 
-First, start the run:
+First, give the run its pipeline branch, worktree, and configuration:
 
 1. Take the pipeline branch: a live pipeline's own, named without its remote when `rp pipelines` lists it at a remote, and for a new or a merged pipeline the one `../run/state.md` § Names gives. One live branch per pipeline; later input joins it.
-2. Write the pipeline configuration the run starts under (`../run/state.md` § Pipeline configuration) to a file outside the repository. A merged pipeline's `base-branch` is the artifact base branch.
-3. Apply the plan of `rp start <pipeline folder> --branch <pipeline branch> --config <file>` (`../conventions/lifecycle-hooks.md` § Applying a plan), passing the pipeline folder's absolute path in the main checkout. It creates the pipeline branch and worktree this machine lacks, writes `config.json` there, and prints the pipeline folder in the pipeline worktree, which every later command takes.
+2. Write the pipeline configuration the run starts under (`../run/state.md` § Pipeline configuration) to a file outside the repository.
+3. Apply the plan of `rp start <pipeline folder> --branch <pipeline branch> --config <file>` (`../conventions/lifecycle-hooks.md` § Applying a plan), passing the pipeline folder's absolute path in the main checkout. Every later command of the run takes the pipeline folder it prints.
 
 Then prepare each route in the pipeline worktree:
 

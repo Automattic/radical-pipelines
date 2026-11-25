@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
   DESIGN, INTENT, NOTES, PIPELINE, REVIEW, SPEC, TO_OWNER, TO_SPEC,
-  abs, apply, commitAll, commitIn, conventions, git, lane, laneWorktree, landRole, pipeline, plan, read, remove, root, run, thread, useRepo, wakeOf, withFrontmatter, write, writeFile,
+  abs, apply, commitAll, commitIn, conventions, git, lane, laneWorktree, landRole, pipeline, plan, read, remove, root, run, thread, turnRecord, useRepo, wakeOf, withFrontmatter, write, writeFile,
 } from "./fixture.mjs";
 
 const SPEC_LANES = [lane("spec-producer", "a"), lane("spec-producer", "b")];
@@ -14,10 +14,11 @@ const head = (at = root) => git(at, "rev-parse", "HEAD").trim();
 const at = () => realpathSync(root);
 const gitDir = (worktree) => realpathSync(git(worktree, "rev-parse", "--path-format=absolute", "--git-dir").trim());
 const worktreePaths = () => git(root, "worktree", "list", "--porcelain").split("\n").filter((line) => line.startsWith("worktree ")).map((line) => realpathSync(line.slice(9)));
-// Everything a plan may change: every ref, every worktree with its status, and every file in each worktree's
-// private git directory under rp/, the assignments and the turn record among them.
+// Everything a plan may change: every ref, every worktree with its status, every file in each worktree's private git
+// directory under rp/, the assignments among them, and the turn record.
 function snapshot() {
   return {
+    record: existsSync(turnRecord()) ? readFileSync(turnRecord(), "utf8") : null,
     refs: git(root, "for-each-ref", "--format=%(refname) %(objectname)").split("\n").filter(Boolean),
     worktrees: worktreePaths().map((path) => {
       const prepared = join(gitDir(path), "rp");
@@ -95,6 +96,7 @@ describe("rp next", () => {
       assert.deepEqual(lines.filter((line) => line.startsWith("hook ") && / spec-producer$/.test(line)), ["hook before-spawning-agent spec-producer", "hook after-spawning-agent spec-producer"]);
       apply();
       assert.deepEqual([git(root, "branch", "--list", "demo-spec-*"), worktreePaths()], ["", [at()]]);
+      assert.deepEqual(Object.keys(JSON.parse(readFileSync(turnRecord(), "utf8")).turns), ["spec-producer"]);
     });
 
     it("produce and respond: the artifact's owner in the pipeline worktree, and nothing to create", () => {
@@ -176,7 +178,7 @@ describe("rp next", () => {
       assert.deepEqual(after.refs.filter((ref) => !before.refs.includes(ref)).map((ref) => ref.split(" ")[0]), named);
       assert.deepEqual(before.refs.filter((ref) => !after.refs.includes(ref)), []);
       assert.deepEqual(after.worktrees.map(([path]) => path).slice(1), lines.filter((line) => line.startsWith("create-worktree ")).map((line) => line.split(" ").slice(3).join(" ")));
-      assert.deepEqual(after.worktrees[0][2].map(([name]) => name), ["turns.json"]);
+      assert.notEqual(after.record, null);
       for (const id of ["a", "b"]) assert.equal(existsSync(wakeOf(lines, `reviewer-${id}`).assignment), true);
       assert.deepEqual([head(), git(root, "status", "--porcelain", "--untracked-files=all")], [tip, status]);
       const again = apply();
@@ -215,7 +217,42 @@ describe("rp next", () => {
     });
   });
 
+  it("stops at a consolidation on a lane's file its branch lacks, which the repository's status configuration hides", () => {
+    pipeline(0, { lanes: SPEC_LANES });
+    apply();
+    produceCandidates();
+    git(root, "config", "status.showUntrackedFiles", "no");
+    writeFileSync(join(laneWorktree("demo-spec-a"), "scratch.txt"), "kept\n");
+    const out = run("next", abs(PIPELINE), "--apply");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /^rp: next --apply: remove-worktree .*scratch\.txt/m);
+    assert.ok(existsSync(join(laneWorktree("demo-spec-a"), "scratch.txt")));
+  });
+
   describe("keeps a lane's commits that did not land", () => {
+    it("naming to land a production lane whose only change is a merge commit's own, which landing brings", () => {
+      pipeline(0, { lanes: [lane("spec-producer", "a")] });
+      apply();
+      write("notes.txt", "more\n");
+      commitAll("the pipeline branch moves");
+      const wt = laneWorktree("demo-spec-a");
+      git(wt, "merge", "--quiet", "--no-ff", "--no-commit", "demo");
+      commitIn(wt, { [candidate("a")]: "# Candidate a\n" }, "merge the pipeline branch, adding the candidate");
+      assert.deepEqual(plan().filter((line) => line.startsWith("land ")), ["land spec-producer-a"]);
+      landRole("spec-producer-a");
+      assert.equal(read(candidate("a")), "# Candidate a\n");
+    });
+
+    it("stopping on a lane whose branch holds commits that did not land and no turn on it is recorded", () => {
+      pipeline(0, { lanes: [lane("spec-producer", "a")] });
+      apply();
+      commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate a\n" });
+      rmSync(turnRecord());
+      const out = run("next", abs(PIPELINE));
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /^rp: next: demo-spec-a holds commits the pipeline branch lacks, and no turn of spec-producer-a on it is recorded/m);
+    });
+
     it("naming its turn alone to land, which applying leaves as it is", () => {
       pipeline(0, { lanes: SPEC_LANES });
       apply();
@@ -316,7 +353,7 @@ describe("rp next", () => {
   it("reads a turn record it wrote, and stops naming one that is malformed", () => {
     pipeline(1);
     apply();
-    const record = join(gitDir(root), "rp/turns.json");
+    const record = turnRecord();
     assert.deepEqual(Object.keys(JSON.parse(readFileSync(record, "utf8"))), ["turns", "woke", "complete", "reported"]);
     const written = JSON.parse(readFileSync(record, "utf8"));
     assert.deepEqual(written.turns["design-doc-producer"], { worktree: at(), branch: "demo", commit: head() });
@@ -328,7 +365,7 @@ describe("rp next", () => {
       ["a reviewer's turn without its review head", { ...written, turns: { "reviewer-default": turn } }, "turns.reviewer-default.review-head: must be a full commit hash"],
     ];
     for (const [what, data, reason] of malformed) {
-      writeFile(".git/rp/turns.json", `${JSON.stringify(data)}\n`);
+      writeFile(".git/rp-turns/demo.json", `${JSON.stringify(data)}\n`);
       for (const args of [["next"], ["land", "--role", "reviewer-default"]])
         assert.match(run(args[0], abs(PIPELINE), ...args.slice(1)).stderr, new RegExp(`^rp: ${record.replaceAll(".", "\\.")}: ${reason}$`, "m"), what);
     }

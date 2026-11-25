@@ -1194,11 +1194,15 @@ function reviewHeadOf(root, laneTip) {
   const reviewBase = head && commitOf(root, `${head}^`);
   return reviewBase && subjectOf(root, reviewBase) === REVIEW_BASE ? head : null;
 }
-// A lane branch's commits that have not landed on the pipeline branch: those `git cherry <tip> <lane tip>` marks `+`,
-// other than a review base or a review head.
-function unlandedOf(root, tip, laneTip) {
-  return gitText(root, ["cherry", tip, laneTip]).split("\n").filter((line) => line.startsWith("+ ")).map((line) => line.slice(2))
-    .filter((commit) => ![REVIEW_BASE, REVIEW_HEAD].includes(subjectOf(root, commit)));
+// A lane's unlanded commits: those of its branch at `laneTip` that landing has not brought onto the tip `tip`. A
+// production lane lands by merge: each commit of its branch the tip does not reach. A review lane lands by cherry-pick:
+// each commit `git cherry <tip> <lane tip>` marks `+`, other than a review base or a review head, and each merge commit
+// the tip does not reach, which `git cherry` leaves out.
+function unlandedOf(root, tip, laneTip, role) {
+  const list = (args) => gitText(root, args).split("\n").filter(Boolean);
+  if (role.profile !== "reviewer") return list(["rev-list", laneTip, `^${tip}`]);
+  return [...list(["rev-list", "--merges", laneTip, `^${tip}`]), ...list(["cherry", tip, laneTip]).filter((line) => line.startsWith("+ ")).map((line) => line.slice(2))
+    .filter((commit) => ![REVIEW_BASE, REVIEW_HEAD].includes(subjectOf(root, commit)))];
 }
 
 // --- conventions --------------------------------------------------------------------
@@ -1441,15 +1445,16 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
 
 // --- turn record ------------------------------------------------------------------
 
-// The turn record, in the pipeline worktree's assignment folder: `turns`, each woken role's latest turn by its name —
-// its worktree, branch, turn commit, and a reviewer's review head; `woke`, the phases of the roles the last applied
-// step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported.
-const recordPath = (root) => gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "rp/turns.json"]);
+// The turn record of a pipeline branch, in the repository's common git directory, so it outlives the pipeline
+// worktree: `turns`, each woken role's latest turn by its name — its worktree, branch, turn commit, and a reviewer's
+// review head; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was
+// applied; and `reported`, the phases its landings reported.
+const recordPath = (root, pipelineBranch) => join(realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])), "rp-turns", `${pipelineBranch}.json`);
 const NO_RECORD = { turns: {}, woke: [], complete: [], reported: [] };
-// The turn record of the pipeline worktree `root`, or an empty one before any step was applied there. One that cannot be
-// read or is malformed stops the command, naming it.
-function readRecord(root) {
-  const path = recordPath(root);
+// The turn record of `pipelineBranch`, or an empty one before any step was applied to it. One that cannot be read or
+// is malformed stops the command, naming it.
+function readRecord(root, pipelineBranch) {
+  const path = recordPath(root, pipelineBranch);
   let bytes;
   try { bytes = readFileSync(path); }
   catch (error) { if (error.code === "ENOENT") return structuredClone(NO_RECORD); fail(`cannot read ${path}: ${error.message}`); }
@@ -1470,10 +1475,20 @@ function readRecord(root) {
   }
   return data;
 }
-function writeRecord(root, record) {
-  const path = recordPath(root);
+function writeRecord(root, pipelineBranch, record) {
+  const path = recordPath(root, pipelineBranch);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
+}
+
+// A role's turn on the pipeline: the turn the record holds of it on the branch the pipeline branch gives the role, with
+// that branch's tip, null when the branch is gone, and `holds`, whether it holds the turn commit: only then is the turn,
+// and a lane's branch, the pipeline's. Null when the record holds no such turn.
+function recordedTurnOf(root, record, pipelineBranch, role) {
+  const turn = record.turns[role.name], branch = branchOfRole(pipelineBranch, role);
+  if (!turn || turn.branch !== branch) return null;
+  const tip = commitOf(root, `refs/heads/${branch}`);
+  return { turn, branch, tip, holds: Boolean(tip && commitOf(root, turn.commit) && isAncestor(root, turn.commit, tip)) };
 }
 
 // --- landing ------------------------------------------------------------------------
@@ -1518,26 +1533,29 @@ function commitFiles(root, parent, files, message) {
 }
 
 // What landing a role's turn brings onto the pipeline tip, built from commits alone: `landed`, the commit the pipeline
-// branch would reach, and `changed`, the pipeline files the turn's unlanded commits change; or the paths that conflict.
+// branch would reach, and `changed`, the pipeline files the turn's unlanded commits change; or `refused`, why it cannot
+// land: the paths that conflict, or a merge commit a review lane holds, which a pick cannot bring.
 // A production lane's branch is merged when it holds unlanded commits. A review lane's unlanded commits after its
 // review head `since` are picked one by one, and none of the commits that built the review head. A role in the pipeline worktree
 // brings nothing: its commits after its turn commit `since` are on the tip already.
 function bringOf(ctx, role, branchTip, since) {
-  const { root, folder, tip, state } = ctx;
+  const { root, folder, tip, state, pipelineBranch } = ctx;
   if (!role.lane) return { landed: tip, changed: changedFiles(root, folder, since, tip) };
-  const unlanded = new Set(unlandedOf(root, tip, branchTip));
+  const branch = branchOfRole(pipelineBranch, role), conflicting = (conflicts) => ({ refused: `landing ${branch} conflicts on ${conflicts.join(", ")}` });
+  const unlanded = new Set(unlandedOf(root, tip, branchTip, role));
   if (!unlanded.size) return { landed: tip, changed: new Set() };
   if (role.profile === "reviewer") {
     let landed = tip;
     for (const commit of gitText(root, ["rev-list", "--reverse", `${since}..${branchTip}`]).split("\n").filter((each) => unlanded.has(each))) {
+      if (gitText(root, ["rev-list", "--parents", "-n", "1", commit]).split(" ").length > 2) return { refused: `${branch} holds the merge commit ${commit}, which landing cannot pick: take it out of the branch` };
       const picked = pick(root, landed, commit);
-      if (picked.conflicts) return picked;
+      if (picked.conflicts) return conflicting(picked.conflicts);
       landed = picked.commit;
     }
     return { landed, changed: changedFiles(root, folder, since, branchTip) };
   }
   const { tree, conflicts } = mergeTree(root, tip, branchTip);
-  if (conflicts.length) return { conflicts };
+  if (conflicts.length) return conflicting(conflicts);
   const message = landingMessage(state.config, `Merge ${artifactOf(role).phase.noun} lane ${role.lane}`);
   return { landed: gitText(root, ["commit-tree", tree, "-p", tip, "-p", branchTip, "-m", message]), changed: changedFiles(root, folder, gitText(root, ["merge-base", tip, branchTip]), branchTip) };
 }
@@ -1559,7 +1577,7 @@ async function contextOf(args, command) {
   const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
   const { folder, pipelinesRoot } = pipelineFolder(rel, command);
   const pipelineBranch = pipelineBranchOf(root, command);
-  const record = readRecord(root);
+  const record = readRecord(root, pipelineBranch);
   const inspected = await inspect(root, folder, pipelinesRoot, null);
   return { root, folder, pipelinesRoot, main: mainOf(root, command), pipelineBranch, record, ...inspected };
 }
@@ -1600,10 +1618,11 @@ async function planOf(ctx) {
   const repairs = new Map();
   for (const role of roles.filter((each) => each.lane)) {
     const branch = branchOfRole(pipelineBranch, role), laneTip = commitOf(root, `refs/heads/${branch}`);
-    if (!laneTip || !unlandedOf(root, tip, laneTip).length) continue;
+    if (!laneTip || !unlandedOf(root, tip, laneTip, role).length) continue;
+    if (!recordedTurnOf(root, record, pipelineBranch, role)?.holds) fail(`next: ${branch} holds commits the pipeline branch lacks, and no turn of ${role.name} on it is recorded: bring them onto the pipeline branch, or delete the branch`);
     const since = role.profile === "reviewer" ? reviewHeadOf(root, laneTip) ?? fail(`next: ${branch} holds commits the pipeline branch lacks, and no review head`) : null;
     const bring = bringOf(ctx, role, laneTip, since);
-    const rejected = bring.conflicts ? [] : (await landingOf(ctx, bring)).rejected;
+    const rejected = bring.refused ? [] : (await landingOf(ctx, bring)).rejected;
     if (rejected.length) repairs.set(role.name, { role, rejected });
     else plan.land.push(role);
   }
@@ -1695,23 +1714,25 @@ const actOf = (command) => async (what, action) => {
   try { return await action(); }
   catch (error) { if (error instanceof RpError) fail(`${command} --apply: ${what}: ${error.message}`); throw error; }
 };
-// Removes a worktree, unless it holds a file Git does not ignore that its branch lacks, modified or untracked, whatever
-// the repository's status configuration shows.
+// The files a worktree holds that its branch lacks, modified or untracked, whatever the repository's status
+// configuration shows; files Git ignores aside.
+const strayFilesOf = (worktree) => gitBytes(worktree, ["status", "--porcelain", "--untracked-files=all", "--no-renames", "-z"]).toString("utf8").split("\0").filter(Boolean).map((entry) => entry.slice(3));
+// Removes a worktree, unless it holds stray files.
 function removeWorktree(root, path) {
-  const changed = gitBytes(path, ["status", "--porcelain", "--untracked-files=all", "-z"]).toString("utf8").split("\0").filter(Boolean);
-  if (changed.length) fail(`it holds files its branch does not: ${changed.map((entry) => entry.slice(3)).join(", ")}`);
+  const stray = strayFilesOf(path);
+  if (stray.length) fail(`it holds files its branch does not: ${stray.join(", ")}`);
   gitText(root, ["worktree", "remove", path]);
 }
 // Carries out what a plan does to worktrees and branches, from the worktree `root`, in order: worktree removals, branch
 // deletions, creations, and moves, worktree creations, and the closing removals. Each turn on a branch it deletes leaves
-// the turn record of the pipeline worktree `seat` as the branch goes, so no later branch of that name is taken for the lane.
-async function applyActions(root, plan, act, seat) {
+// the turn record of `pipelineBranch` as the branch goes, so no later branch of that name is taken for the lane.
+async function applyActions(root, plan, act, pipelineBranch) {
   for (const { path } of plan.removals) await act(`remove-worktree ${path}`, () => removeWorktree(root, path));
   for (const { branch } of plan.branches.filter((each) => each.action === "delete")) await act(`delete-branch ${branch}`, () => {
     gitText(root, ["branch", "--quiet", "-D", branch]);
-    const record = readRecord(seat), turns = Object.entries(record.turns);
+    const record = readRecord(root, pipelineBranch), turns = Object.entries(record.turns);
     if (!turns.some(([, turn]) => turn.branch === branch)) return;
-    try { writeRecord(seat, { ...record, turns: Object.fromEntries(turns.filter(([, turn]) => turn.branch !== branch)) }); }
+    try { writeRecord(root, pipelineBranch, { ...record, turns: Object.fromEntries(turns.filter(([, turn]) => turn.branch !== branch)) }); }
     catch (error) { fail(`the branch is deleted, and its turn stays in the turn record: ${error.message}`); }
   });
   for (const branch of plan.branches.filter((each) => each.action !== "delete"))
@@ -1730,10 +1751,10 @@ async function applyActions(root, plan, act, seat) {
 }
 // Carries out a step's plan: what it does to worktrees and branches, each woken role's assignment, and the turn record.
 async function applyPlan(ctx, plan) {
-  const { root, state, frontier: entries, record } = ctx;
+  const { root, state, frontier: entries, pipelineBranch } = ctx;
   const act = actOf("next");
-  await applyActions(root, plan, act, root);
-  const turns = { ...readRecord(root).turns };
+  await applyActions(root, plan, act, pipelineBranch);
+  const turns = { ...readRecord(root, pipelineBranch).turns };
   for (const wake of plan.wakes)
     await act(`write ${wake.assignment}`, () => {
       const tip = requireCommit(wake.worktree, "HEAD", "HEAD");
@@ -1744,7 +1765,7 @@ async function applyPlan(ctx, plan) {
       }
       turns[wake.role.name] = { worktree: wake.worktree, branch: wake.branch, commit: tip, ...(reviewHead ? { "review-head": reviewHead } : {}) };
     });
-  writeRecord(root, { turns, woke: phasesOf(plan.wakes), complete: completePhases(state, entries), reported: [] });
+  writeRecord(root, pipelineBranch, { turns, woke: phasesOf(plan.wakes), complete: completePhases(state, entries), reported: [] });
 }
 
 // Prints the step's plan, changing nothing (README.md § `next`); with `--apply`, also carries it out, unless it names
@@ -1816,18 +1837,23 @@ async function cmdStart(args) {
     plan.branches.push({ branch, action: "create", role: PIPELINE_SEAT, upstream: held[0] ?? null, target: held.length ? commitOf(root, held[0]) : requireCommit(root, config.baseBranch, "base-branch") });
   }
   let worktree = worktreeOf(root, branch);
+  // What the pipeline worktree holds as config.json: its file, or the blob the commit it is created at holds.
+  let current = null;
   if (!worktree) {
     worktree = worktreePathOf(mainOf(root, "start"), config, branch);
     plan.creations.push({ role: PIPELINE_SEAT, branch, path: worktree, gitDir: newGitDirOf(root, worktree, new Set()) });
+    try { current = gitBytes(root, ["cat-file", "blob", `${plan.branches[0]?.target ?? commitOf(root, `refs/heads/${branch}`)}:${folder}/${CONFIG}`]); }
+    catch (error) { if (!(error instanceof RpError)) throw error; }
   }
   let path;
   try { path = configPathOf(worktree, folder); } catch (error) { if (error instanceof RpError) fail(`start: ${error.message}`); throw error; }
-  const written = lstatOf(path) && readFileSync(path).equals(bytes);
+  if (lstatOf(path)) current = readFileSync(path);
+  const written = Boolean(current?.equals(bytes));
   const { before, actions, after } = actionLines(plan);
   process.stdout.write(`${[...before, ...actions, ...(written ? [] : [`write-config ${path}`]), ...after, `pipeline-folder ${join(worktree, folder)}`].join("\n")}\n`);
   if (!args.apply) return;
   const act = actOf("start");
-  await applyActions(root, plan, act, root);
+  await applyActions(root, plan, act, branch);
   if (!written) await act(`write-config ${path}`, () => {
     configPathOf(worktree, folder);
     try { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, bytes); }
@@ -1835,43 +1861,46 @@ async function cmdStart(args) {
   });
 }
 
-// What `stop` and `close` remove (README.md § `stop` and `close`). A lane is the pipeline's while the turn record holds a turn of it on the lane branch the
-// pipeline branch gives it and that branch holds the turn commit. A lane's branch is deleted once it holds no unlanded
-// commits; its worktree is removed then, and whenever the pipeline closes, which last removes the pipeline worktree
-// unless that is the main checkout.
+// What `stop` and `close` remove (README.md § `stop` and `close`). A lane is the pipeline's while its recorded turn is
+// (§ recordedTurnOf). A lane holds work that has not landed while its branch holds unlanded commits or its worktree
+// holds stray files. Stopping removes the worktree and branch of each lane that holds none. Closing removes each lane's
+// worktree, deletes each lane branch that holds no unlanded commits, and last removes the pipeline worktree unless that
+// is the main checkout.
 function removalsOf(args, command, closing) {
   const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
   const { folder } = pipelineFolder(rel, command);
-  if (!lstatOf(join(root, folder, CONFIG))?.isFile()) fail(`${command}: ${folder} is no pipeline folder in the working tree: it holds no ${CONFIG}`);
-  const main = mainOf(root, command), pipelineBranch = pipelineBranchOf(root, command), tip = requireCommit(root, "HEAD", "HEAD");
+  const pipelineBranch = args.branch ?? misused(command, "--branch <pipeline branch> is required");
+  const tip = commitOf(root, `refs/heads/${pipelineBranch}`) ?? fail(`${command}: the pipeline branch ${pipelineBranch} does not exist`);
+  if (!lsTree(root, tip, `${folder}/${CONFIG}`, false).length) fail(`${command}: ${pipelineBranch} holds no pipeline folder ${folder}: it holds no ${folder}/${CONFIG}`);
+  const main = mainOf(root, command), seat = worktreeOf(root, pipelineBranch);
   const registered = worktreesOf(root).map((each) => each.path).filter((path) => path && existsSync(path)).map((path) => realpathSync(path));
-  const record = readRecord(root);
+  const record = readRecord(root, pipelineBranch);
   const plan = { removals: [], branches: [], creations: [], closing: [] }, gone = [];
-  for (const [name, turn] of Object.entries(record.turns)) {
-    const { profile, lane } = parseRole(name), role = roleFor(profile, lane), branch = branchOfRole(pipelineBranch, role);
-    if (!lane || turn.branch !== branch) continue;
-    const laneTip = commitOf(root, `refs/heads/${branch}`);
-    if (!laneTip) gone.push(name);
-    if (!laneTip || !commitOf(root, turn.commit) || !isAncestor(root, turn.commit, laneTip)) continue;
-    const worktree = worktreeOf(root, branch);
-    if (worktree !== turn.worktree && registered.includes(turn.worktree)) fail(`${command}: ${turn.worktree} no longer has ${branch} checked out: check it out there, or remove that worktree`);
-    const landed = !unlandedOf(root, tip, laneTip).length;
-    if (worktree && (closing || landed)) plan.removals.push({ role, path: worktree });
-    if (landed) plan.branches.push({ branch, action: "delete" });
+  for (const name of Object.keys(record.turns)) {
+    const { profile, lane } = parseRole(name), role = roleFor(profile, lane), recorded = lane && recordedTurnOf(root, record, pipelineBranch, role);
+    if (recorded && !recorded.tip) gone.push(name);
+    if (!recorded?.holds) continue;
+    const worktree = worktreeOf(root, recorded.branch);
+    if (worktree !== recorded.turn.worktree && registered.includes(recorded.turn.worktree)) fail(`${command}: ${recorded.turn.worktree} no longer has ${recorded.branch} checked out: check it out there, or remove that worktree`);
+    const unlanded = unlandedOf(root, tip, recorded.tip, role).length > 0, held = unlanded || Boolean(worktree && strayFilesOf(worktree).length);
+    if (worktree && (closing || !held)) plan.removals.push({ role, path: worktree });
+    if (closing ? !unlanded : !held) plan.branches.push({ branch: recorded.branch, action: "delete" });
   }
-  if (closing && root !== main) plan.closing.push({ role: PIPELINE_SEAT, path: root });
-  return { root, main, plan, record: gone.length ? { ...record, turns: Object.fromEntries(Object.entries(record.turns).filter(([name]) => !gone.includes(name))) } : null };
+  if (closing && seat && seat !== main) plan.closing.push({ role: PIPELINE_SEAT, path: seat });
+  return { main, pipelineBranch, plan, record: gone.length ? { ...record, turns: Object.fromEntries(Object.entries(record.turns).filter(([name]) => !gone.includes(name))) } : null };
 }
 // Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout,
-// first taking out of the turn record each turn of the pipeline's lanes whose branch is gone.
+// first taking out of the turn record each turn of the pipeline's lanes whose branch is gone. Closing last removes the
+// turn record once it holds no turn.
 const cmdRemove = (command, closing) => async (args) => {
-  const { root, main, plan, record } = removalsOf(args, command, closing);
+  const { main, pipelineBranch, plan, record } = removalsOf(args, command, closing);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write([...before, ...actions, ...after].map((line) => `${line}\n`).join(""));
   if (!args.apply) return;
-  const act = actOf(command);
-  if (record) await act("write the turn record", () => { try { writeRecord(root, record); } catch (error) { fail(error.message); } });
-  await applyActions(main, plan, act, root);
+  const act = actOf(command), recording = (what, action) => act(what, () => { try { action(); } catch (error) { if (error instanceof RpError) throw error; fail(error.message); } });
+  if (record) await recording("write the turn record", () => writeRecord(main, pipelineBranch, record));
+  await applyActions(main, plan, act, pipelineBranch);
+  if (closing && !Object.keys(readRecord(main, pipelineBranch).turns).length) await recording("remove the turn record", () => rmSync(recordPath(main, pipelineBranch), { force: true }));
 };
 
 // Lands a role's recorded turn (README.md § `land`): verifies it, brings its commits onto the pipeline branch, certifies
@@ -1881,13 +1910,14 @@ async function cmdLand(args) {
   const ctx = await contextOf(args, "land");
   const { root, folder, pipelinesRoot, tip, record } = ctx;
   const name = args.role ?? misused("land", "--role <role> is required");
-  const turn = record.turns[name] ?? fail(`land: no turn of ${name} is recorded: rp next --apply records each role it wakes`);
-  const { profile, lane } = parseRole(name);
+  const { profile, lane } = parseRole(name) ?? misused("land", `--role names a role, <profile>[-<lane>]: ${name}`);
   const role = roleFor(profile, lane);
-  const branchTip = commitOf(root, `refs/heads/${turn.branch}`) ?? fail(`land: ${turn.worktree}: its branch ${turn.branch} does not exist`);
-  if (!commitOf(root, turn.commit) || !isAncestor(root, turn.commit, branchTip)) fail(`land: ${turn.worktree}: ${turn.branch} does not hold the turn commit ${turn.commit}`);
+  const recorded = recordedTurnOf(root, record, ctx.pipelineBranch, role) ?? fail(`land: no turn of ${name} is recorded: rp next --apply records each role it wakes`);
+  const { turn, branch, tip: branchTip } = recorded;
+  if (!branchTip) fail(`land: ${turn.worktree}: its branch ${branch} does not exist`);
+  if (!recorded.holds) fail(`land: ${turn.worktree}: ${branch} does not hold the turn commit ${turn.commit}`);
   const bring = bringOf(ctx, role, branchTip, profile === "reviewer" ? turn["review-head"] : turn.commit);
-  if (bring.conflicts) fail(`land: ${turn.worktree}: landing ${turn.branch} conflicts on ${bring.conflicts.join(", ")}`);
+  if (bring.refused) fail(`land: ${turn.worktree}: ${bring.refused}`);
   const { pipeline, state, rejected } = await landingOf(ctx, bring);
   if (rejected.length) fail(`land: ${turn.worktree}: the turn brings malformed files:\n${rejected.map(frontierText).join("\n")}`);
 
@@ -1916,7 +1946,7 @@ async function cmdLand(args) {
   if (landed !== tip)
     try { gitText(root, ["merge", "--ff-only", "--quiet", landed]); }
     catch (error) { if (error instanceof RpError) fail(`land: ${root}: the pipeline branch cannot move to the landing: ${error.message}`); throw error; }
-  if (reported.length) writeRecord(root, { ...record, reported: [...record.reported, ...reported] });
+  if (reported.length) writeRecord(root, ctx.pipelineBranch, { ...record, reported: [...record.reported, ...reported] });
   process.stdout.write(reported.map((n) => `hook phase-completed ${n}\n`).join(""));
 }
 // Whether `ancestor` is an ancestor of `commit`, or the commit itself.
@@ -2147,8 +2177,8 @@ const COMMANDS = {
   start: { run: cmdStart, usage: "start <pipeline folder> --branch <pipeline branch> --config <file | -> [--apply]", options: { "--branch": "value", "--config": "value", "--apply": "flag" } },
   next: { run: cmdNext, usage: "next <pipeline folder> [--apply]", options: { "--apply": "flag" } },
   land: { run: cmdLand, usage: "land <pipeline folder> --role <role>", options: { "--role": "value" } },
-  stop: { run: cmdRemove("stop", false), usage: "stop <pipeline folder> [--apply]", options: { "--apply": "flag" } },
-  close: { run: cmdRemove("close", true), usage: "close <pipeline folder> [--apply]", options: { "--apply": "flag" } },
+  stop: { run: cmdRemove("stop", false), usage: "stop <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
+  close: { run: cmdRemove("close", true), usage: "close <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
   "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->",
     options: { "--role": "value", "--about": "value", "--body": "value" } },
   "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->",

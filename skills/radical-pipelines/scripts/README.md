@@ -8,8 +8,8 @@ node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--i
 node rp.mjs start <pipeline folder> --branch <pipeline branch> --config <file | -> [--apply]
 node rp.mjs next <pipeline folder> [--apply]
 node rp.mjs land <pipeline folder> --role <role>
-node rp.mjs stop <pipeline folder> [--apply]
-node rp.mjs close <pipeline folder> [--apply]
+node rp.mjs stop <pipeline folder> --branch <pipeline branch> [--apply]
+node rp.mjs close <pipeline folder> --branch <pipeline branch> [--apply]
 node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->
 node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
 node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]
@@ -259,7 +259,7 @@ pipeline-folder <path>
 1. **Branch.** A pipeline branch that does not exist is created: at the remote-tracking branch of the one remote that holds it, where that remote's fetch refspecs map it and none excludes it, which it then tracks; else at the configuration's `base-branch`, tracking nothing. Several remotes holding it, or a `--branch` no remote holds that names a remote-tracking branch, stop the command.
 2. **Worktree.** The pipeline worktree is the worktree that has the pipeline branch checked out; when none has, the plan creates one at `<worktree folder root>/<pipeline branch>`, the root being the configuration's.
 3. **`write-config`** names `config.json` in the pipeline folder of the pipeline worktree, when it does not hold the bytes given. A path there that is no folder where a folder belongs, or no regular file where `config.json` belongs, such as a symbolic link, stops the command.
-4. **`pipeline-folder`** names the pipeline folder in the pipeline worktree, which `next`, `land`, `stop`, and `close` take.
+4. **`pipeline-folder`** names the pipeline folder in the pipeline worktree, which `next` and `land` take.
 
 With `--apply`, `start` prints the plan and carries it out: it creates the branch and the worktree, then writes `config.json` byte for byte, committing nothing. A failed action stops it with `rp: start --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A branch name Git rejects, a configuration that cannot be read or is malformed, a `base-branch` the branch would start at that does not resolve, and a worktree Git records whose folder is missing stop `start` before it creates anything.
 
@@ -306,11 +306,11 @@ hook phase-started <phase>
 | `remove-worktree`, `create-worktree` | A worktree applying removes or creates, with the role it is for |
 | `delete-branch`, `create-branch`, `move-branch` | A branch applying deletes, creates, or moves, and where it leaves it: a commit, or `review-head`, the review head built from the tip (§ Review lanes) |
 | `wake` | A role to wake, one line per fact: its profile; its lane, for a lane's role; its model name, when `config.json` gives it one; its phase; its worktree; the assignment applying writes for it; each resource its assignment carries; and `new` when its turn needs a new instance |
-| `hook` | A lifecycle hook the step fires: a worktree's with the role the worktree is for and its path, a spawning or landing one's with its role, `phase-started` with its phase. No hook names a branch |
+| `hook` | A lifecycle hook the step fires: a branch's with the role the branch is for, a worktree's with the role the worktree is for and its path, a spawning or landing one's with its role, `phase-started` with its phase. No hook names a branch |
 
 The lines come in the order the orchestrator acts on them. A plan that names a turn to land holds only the frontier and each turn to land between `before-landing-lane` and `after-landing-lane`. Any other plan lists the frontier; the files to fix and to repair; the `before-removing-worktree` and `before-creating-worktree` hooks; the actions; the matching `after-` hooks and each `phase-started`; and each role to wake between `before-spawning-agent` and `after-spawning-agent`, which fire only when the orchestrator spawns the role. A lane's role is followed by `before-landing-lane` and `after-landing-lane`, which fire around its landing, once its turn ends.
 
-1. **Unlanded commits.** A lane's **unlanded commits** are the commits of its branch that `git cherry <tip> <lane branch>` marks `+`, other than a review base or a review head. For every configured lane whose branch holds some, whatever the frontier, `next` computes its landing (§ `land`) from commits alone:
+1. **Unlanded commits.** A lane's **unlanded commits** are the commits of its branch that landing has not brought onto the tip. A production lane lands by merge: each commit of its branch the tip does not reach. A review lane lands by cherry-pick: each commit `git cherry <tip> <lane branch>` marks `+`, other than a review base or a review head, and each merge commit the tip does not reach. For every configured lane whose branch holds some, whatever the frontier, `next` computes its landing (§ `land`) from commits alone; a lane whose turn the turn record does not hold on that branch (§ `land`) stops `next`:
    - When the landing would bring no malformed file, the lane holds a turn that ended without landing: the plan names it to land.
    - Otherwise the lane is **under repair**: on any frontier but `escalate`, its role is woken in its worktree as it stands, its branch not moved, with each such file's line among its malformed files, and the plan names each line with `repair`. A lane under repair is dispatched for nothing else.
 
@@ -334,7 +334,7 @@ The lines come in the order the orchestrator acts on them. A plan that names a t
 With `--apply`, `next` prints the plan and, unless it names a turn to land, carries it out in this order:
 
 1. It removes each worktree with `git worktree remove`, after stopping on one that holds a file Git does not ignore that its branch lacks, modified or untracked.
-2. It deletes, creates, and moves each branch, building a review lane's review head first. A branch a worktree has checked out moves with `git reset --keep` there, which stops on local changes it would overwrite.
+2. It deletes, creates, and moves each branch, building a review lane's review head first. Each turn on a branch it deletes leaves the turn record as the branch goes. A branch a worktree has checked out moves with `git reset --keep` there, which stops on local changes it would overwrite.
 3. It creates each worktree.
 4. It writes each woken role's assignment (§ Assignments), its turn commit the tip of its worktree, and then the turn record.
 
@@ -351,7 +351,7 @@ The **lane's view** of the pipeline is, at the tip, every file under `<pipeline 
 
 ### Turn record
 
-The turn record is `rp/turns.json` in the pipeline worktree's private git directory, beside its assignments: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, and a review lane's `review-head`, each commit a full hash; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, and landing adds to `reported`.
+The turn record is `rp-turns/<pipeline branch>.json` in the repository's common git directory, so it outlives the pipeline worktree: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, and a review lane's `review-head`, each commit a full hash; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, landing adds to `reported`, and `close` removes it once it holds no turn.
 
 Everything `check` stops on, a detached pipeline worktree, a turn record that cannot be read or is malformed, a `base-branch` that does not resolve, an unreadable or malformed template, and a git failure stop `next`.
 
@@ -363,8 +363,8 @@ node rp.mjs land <pipeline folder> --role <role>
 
 `<pipeline folder>` is in the pipeline worktree, as for `next`. `land` lands the turn the turn record holds for `<role>`:
 
-1. **Verify.** The role's branch exists and holds its turn commit; otherwise `land` stops, naming the role's worktree.
-2. **Bring.** From commits alone. A production lane's branch, when it holds unlanded commits (§ `next`), is merged into the tip. A review lane's unlanded commits after its review head are picked onto the tip one by one, keeping their authors and messages, and none of the commits that built the review head. A role in the pipeline worktree has its commits on the tip already. A conflict stops `land`.
+1. **Verify.** The turn record holds the role's turn on the branch the pipeline branch gives the role (§ Plan), and that branch exists and holds the turn commit; otherwise `land` stops, naming the role's worktree when the record holds its turn.
+2. **Bring.** From commits alone. A production lane's branch, when it holds unlanded commits (§ `next`), is merged into the tip. A review lane's unlanded commits after its review head are picked onto the tip one by one, keeping their authors and messages, and none of the commits that built the review head. A role in the pipeline worktree has its commits on the tip already. A conflict, or a merge commit among a review lane's unlanded commits, stops `land`.
 3. **Validate.** The pipeline files the turn's unlanded commits change, or for a role in the pipeline worktree its commits after its turn commit, are validated as `check` validates them, as the pipeline branch would hold them after the landing. A malformed one stops `land` with `rp: land: <worktree>: the turn brings malformed files:`, then each `malformed <path>: <reason>` line as `check` prints it. Whatever stops `check` on the pipeline after the landing, such as a `base-branch` that does not resolve, stops `land` too.
 4. **Certify.** It writes `certification/<path>.json` (§ Certification) for the role's artifact or candidate when it exists, at the turn commit, and for each approval among the files the turn brings, at the commit its reviewer's last message names, with `approved-commit` the last commit brought, the pipeline commit holding it. An approval whose named commit does not resolve, or whose code outside the pipelines folder root differs from that pipeline commit's, lands uncertified, any certification its path held removed, so its lane is not approved. A review thread the turn brings `open` or `withdrawn` loses its certification the same way. `inputs` are the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit is not certified. Only what certifying reads at that commit is validated there: the intent, every later input (its `target` says whether it applies), the file's upstream artifacts, and a candidate's previous candidates; one of them malformed, or a required input missing, stops `land`. The threads an artifact's owner opened to `owner` are read there too. While one is malformed there, the artifact's required inputs are not known and its certification is left as it is: the turn that follows the thread's repair certifies it.
 5. **Commit.** It commits the merge and then the certifications that change or are removed, each subject naming what it landed, such as `Merge spec lane a` or `Certify spec`, in the `landing-commit-format` template when one is set. A landing that changes no certification and brings no commit makes no commit.
@@ -380,18 +380,18 @@ node rp.mjs stop <pipeline folder> [--apply]
 node rp.mjs close <pipeline folder> [--apply]
 ```
 
-`<pipeline folder>` is in the pipeline worktree, as for `next`. `stop` prints what a stopped run leaves to remove, and `close` what a pipeline that is merged or closed without merging does, in the lines of § Plan: the `before-removing-worktree` hooks, each lane's `remove-worktree`, each `delete-branch`, the pipeline worktree's `remove-worktree`, and the `after-removing-worktree` hooks. Neither changes anything without `--apply`, and a pipeline with nothing to remove prints nothing.
+`<pipeline folder>` and `--branch` are as for `start`: the pipeline is read from its branch, whichever worktree, if any, has it checked out. `stop` prints what a stopped run leaves to remove, and `close` what a pipeline that is merged or closed without merging does, in the lines of § Plan: the `before-removing-worktree` hooks, each lane's `remove-worktree`, each `delete-branch`, the pipeline worktree's `remove-worktree`, and the `after-removing-worktree` hooks. Neither changes anything without `--apply`, and a pipeline with nothing to remove prints nothing.
 
-A lane is the pipeline's here while the turn record (§ Turn record) holds a turn of it on the lane branch the pipeline branch gives it (§ `next`) and that branch holds the turn commit, whether or not `config.json` still declares it; a branch or worktree that only bears a lane's name is left alone. Each command reads the turn record and no pipeline file, and stops on a folder that holds no `config.json` in the working tree.
+A lane is the pipeline's here while the turn record holds its turn as `land` verifies it, whether or not `config.json` still declares the lane; a branch or worktree that only bears a lane's name is left alone. A lane **holds work that has not landed** while its branch holds unlanded commits (§ `next`) or its worktree holds a file Git does not ignore that its branch lacks, modified or untracked.
 
 | | `stop` | `close` |
 | --- | --- | --- |
-| A lane's worktree | Removed when its branch holds no unlanded commits (§ `next`) | Removed |
-| A lane's branch | Deleted when it holds no unlanded commits | Deleted when it holds no unlanded commits |
+| A lane's worktree | Removed unless the lane holds work that has not landed | Removed |
+| A lane's branch | Deleted unless the lane holds work that has not landed | Deleted unless it holds unlanded commits |
 | The pipeline worktree | Kept | Removed, named with `pipeline` where a lane's line names its role, unless it is the main checkout |
 | The pipeline branch | Kept | Kept |
 
-With `--apply`, each removes the lanes' worktrees as `next --apply` does (§ Applying), deletes the branches, and then removes the pipeline worktree, so applying again after a failed action still finds the turn record. Each turn on a lane branch leaves the turn record as the branch is deleted, as when `next --apply` deletes one; applying first takes out each turn of the pipeline's lanes whose branch is already gone. It changes no other ref, worktree, or remote. A failed action stops it with `rp: <command> --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains. A detached pipeline worktree, a turn record that cannot be read or is malformed, a worktree Git records whose folder is missing, a lane's recorded worktree that Git still records and no longer has its branch checked out, and a git failure stop both.
+With `--apply`, each first takes out of the turn record each turn of the pipeline's lanes whose branch is gone, then removes the lanes' worktrees and deletes the branches as `next --apply` does (§ Applying), and last removes the pipeline worktree. `close` then removes the turn record once it holds no turn. Neither changes another ref, worktree, or remote. A failed action stops it with `rp: <command> --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains, so a closed pipeline closed again prints nothing. A pipeline branch that does not exist or holds no `config.json` in the pipeline folder, a turn record that cannot be read or is malformed, a worktree Git records whose folder is missing, a lane's recorded worktree that Git still records and no longer has its branch checked out, and a git failure stop both.
 
 ## `thread`
 
