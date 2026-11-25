@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, fast-forward the artifact base branch to its upstream, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the artifact base branch's tree.
+`git fetch`, fast-forward the artifact base branch to its upstream, then `rp pipelines <pipelines folder root> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder> --ref <commit>` on each live pipeline, at the commit `rp pipelines --json` lists it at: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the artifact base branch's tree.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies' state the tracker cannot report, proceeds without comment.
 
@@ -52,32 +52,32 @@ Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 
-Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`.
+Prepare every route of a run before step 6. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`.
+
+First, give the run its pipeline branch, worktree, and configuration:
+
+1. Take the pipeline branch: a live pipeline's own, named without its remote when `rp pipelines` lists it at a remote, and for a new or a merged pipeline the one `../run/state.md` § Names gives. One live branch per pipeline; later input joins it.
+2. Write the pipeline configuration the run starts under (`../run/state.md` § Pipeline configuration) to a file outside the repository.
+3. Apply the plan of `rp start <pipeline folder> --branch <pipeline branch> --config <file>` (`../conventions/lifecycle-hooks.md` § Applying a plan), passing the pipeline folder's absolute path in the main checkout. Every later command of the run takes the pipeline folder it prints.
+
+Then prepare each route in the pipeline worktree:
 
 **A new pipeline**
 
-1. Pipeline slug and branch per `../run/state.md` § Names.
-2. Branch at the chosen start ref; worktree per **Worktree folder root**.
-3. `<pipelines folder root>/<pipeline slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `starts-from` records the starting branch and `re-attempts` the prior pipeline's slug.
+1. `0-intent/intent.md` in the pipeline folder, synthesized from the whole issue by `intent-format.md`; `starts-from` records the starting branch and `re-attempts` the prior pipeline's slug.
 
-Every branch and worktree you create here fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.
+`after-creating-pipeline` fires once the intent is committed.
 
 **Later input**
 
-1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the artifact base branch, with a worktree. One live branch per pipeline; later input joins it.
-2. Write the input per `intent-format.md` § Later input and commit it.
-
-**Continue**
-
-1. Use the pipeline's branch and worktree, creating them when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the artifact base branch.
+1. Write the input per `intent-format.md` § Later input and commit it.
 
 **Rescope**
 
 1. Modify the issue (`manage-issues.md`).
 2. Re-synthesize `intent.md` (`intent-format.md`) and commit it.
-3. Continue.
 
-Last, record the pipeline configuration the run starts under (`../run/state.md` § Pipeline configuration) and commit `config.json` per the **Commit format** convention; a new pipeline commits it with its intent.
+Last, commit `config.json` per the **Commit format** convention; a new pipeline commits it with its intent.
 
 ### 6. Run
 

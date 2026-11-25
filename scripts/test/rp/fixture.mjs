@@ -176,6 +176,9 @@ export function useRepo(folder = null) {
   afterEach(() => rmSync(folder ? dirname(root) : root, { recursive: true, force: true }));
 }
 
+// The turn record of the pipeline branch `branch`, in the repository's common git directory.
+export const turnRecord = (branch = "demo") => join(realpathSync(git(root, "rev-parse", "--path-format=absolute", "--git-common-dir").trim()), "rp-turns", `${branch}.json`);
+
 // The plan `rp next` prints, with `args`, as its lines.
 export function plan(...args) {
   const out = run("next", abs(PIPELINE), ...args);

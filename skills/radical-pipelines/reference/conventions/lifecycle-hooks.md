@@ -1,6 +1,6 @@
 # Lifecycle hooks
 
-At each configured moment of a run, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`. A worktree's hooks also know the role the worktree is for, the pipeline worktree being for every role without a lane; a spawning hook knows the role, and a spawned role's resources are those its plan names (`../run/loop.md`).
+At each configured moment of a run, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`. A worktree's hooks also know what the worktree is for: a lane's role, or `pipeline` for the pipeline worktree, where every role without a lane sits; a spawning hook knows the role, and a spawned role's resources are those its plan names (`../run/loop.md`).
 
 Report a failed instruction to the owner and continue. When the failed instruction is marked **blocking**, stop the run through close-out; if you are already closing out, continue with the remaining close-out actions. `run-ended` still fires.
 
@@ -11,8 +11,8 @@ Report a failed instruction to the owner and continue. When the failed instructi
 | `before-creating-pipeline`     | A pipeline is about to be created, before any step                                                      |
 | `after-creating-pipeline`      | The pipeline exists: branch, worktree, pipeline folder, and committed intent                             |
 | `run-started`                  | Work on a pipeline begins — created, continued, or corrected — before dispatch                          |
-| `before-creating-branch`       | Triage is about to create a branch                                                                      |
-| `after-creating-branch`        | Triage created a branch                                                                                 |
+| `before-creating-branch`       | The pipeline branch is about to be created                                                              |
+| `after-creating-branch`        | The pipeline branch is created                                                                          |
 | `before-creating-worktree`     | A worktree is about to be created or recreated                                                          |
 | `after-creating-worktree`      | A worktree is created or recreated                                                                      |
 | `before-removing-worktree`     | A worktree is about to be removed                                                                       |
@@ -30,6 +30,12 @@ Report a failed instruction to the owner and continue. When the failed instructi
 | `before-merging-pr`            | The owner asks to merge the pull request, before any work                                               |
 | `after-merging-pr`             | The pull request is merged — by the orchestrator, or by the owner who reports it                        |
 | `before-closing-without-merge` | The owner asks to close the pipeline without merging                                                    |
-| `after-closing-without-merge`  | The pipeline is closed without merging                                                                  |
+| `after-closing-without-merge`  | The pipeline is closed without merging; its worktrees remain until `rp close` removes them              |
 
 A `before-`/`after-` pair brackets its action. A blocking failure in a `before-` hook stops that action. The closure pairs bracket the actions the owner invokes on a pipeline (`../run/close-out.md`).
+
+## Applying a plan
+
+`rp start`, `rp next`, `rp stop`, and `rp close` each print a plan: the branches and worktrees it creates and removes, and a `hook` line for each branch and worktree hook around them (`../../scripts/README.md`). To apply a plan, run the command, fire those `before-` hooks, run it again with `--apply`, then fire those `after-` hooks.
+
+When the command stops, with or without `--apply`, tell the owner its message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove; you delete no file in a lane's worktree yourself. Once the owner has repaired it, run it again, firing again only the `before-` hooks you have not fired; once it completes, fire those `after-` hooks of the plan it first printed whose branch or worktree was created or removed.

@@ -3,14 +3,14 @@ import { readFileSync, rmSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
-  PIPELINE, abs, apply, commitIn, conventions, git, ignore, lane, laneWorktree, landRole, pipeline, read, root, run, useRepo, wakeOf, write, writeFile,
+  PIPELINE, abs, apply, commitIn, conventions, git, ignore, lane, laneWorktree, landRole, pipeline, read, root, run, turnRecord, useRepo, wakeOf, write, writeFile,
 } from "./fixture.mjs";
 
 const candidate = (id) => `1-spec/lanes/${id}/spec.md`;
 const head = () => git(root, "rev-parse", "HEAD").trim();
 const subjects = (range) => git(root, "log", "--first-parent", "--format=%s", range).split("\n").filter(Boolean);
 // The turn record and the assignment `rp next --apply` wrote for `role`, by the plan `lines` printed.
-const written = (lines, role) => [readFileSync(git(root, "rev-parse", "--path-format=absolute", "--git-path", "rp/turns.json").trim(), "utf8"),
+const written = (lines, role) => [readFileSync(turnRecord(), "utf8"),
   readFileSync(wakeOf(lines, role).assignment, "utf8")];
 // What `rp next --apply` prints and writes for the spec's first lane.
 const applied = () => { const lines = apply(); return [lines, ...written(lines, "spec-producer-a")]; };

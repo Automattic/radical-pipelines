@@ -28,7 +28,7 @@ The pipeline branch as a template over `<pipeline slug>`.
 
 ### Worktree folder root (required)
 
-The root holding one worktree per branch, at `<root>/<branch>`: the pipeline's, which triage creates, and each lane's, which `rp next --apply` creates and removes. Suggested: `.worktrees/`. Check the location rule in `tools/<tool>.md` (for example, that the root must be inside the repository).
+The root holding one worktree per branch, at `<root>/<branch>`: the pipeline's and each lane's, which `rp` creates and removes. Suggested: `.worktrees/`. Check the location rule in `tools/<tool>.md` (for example, that the root must be inside the repository).
 
 ### Pipelines folder root (optional)
 
