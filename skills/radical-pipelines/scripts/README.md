@@ -308,6 +308,8 @@ hook phase-started <phase>
 | `wake` | A role to wake, one line per fact: its profile; its lane, for a lane's role; its model name, when `config.json` gives it one; its phase; its worktree; the assignment applying writes for it; each resource its assignment carries; and `new` when its turn needs a new instance |
 | `hook` | A lifecycle hook the step fires: a branch's with what the branch is for, a worktree's with what the worktree is for and its path, a spawning or landing one's with its role, `phase-started` with its phase. No hook line holds a branch's name |
 
+No plan removes a worktree that holds a file Git does not ignore that its branch lacks, modified or untracked: such a worktree stops the command while it plans, before any hook fires, with `rp: <command>: worktrees to remove hold files their branches lack:` and a line `<path>: <files>` for each. `stop` keeps such a lane instead (§ `stop` and `close`).
+
 The lines come in the order the orchestrator acts on them. A plan that names a turn to land holds only the frontier and each turn to land between `before-landing-lane` and `after-landing-lane`. Any other plan lists the frontier; the files to fix and to repair; the `before-removing-worktree` and `before-creating-worktree` hooks; the actions; the matching `after-` hooks and each `phase-started`; and each role to wake between `before-spawning-agent` and `after-spawning-agent`, which fire only when the orchestrator spawns the role. A lane's role is followed by `before-landing-lane` and `after-landing-lane`, which fire around its landing, once its turn ends.
 
 1. **Unlanded commits.** A lane's **unlanded commits** are the commits of its branch that landing has not brought onto the tip. A production lane lands by merge: each commit of its branch the tip does not reach. A review lane lands by cherry-pick: each commit `git cherry <tip> <lane branch>` marks `+`, other than a review base or a review head, and each merge commit the tip does not reach. For every configured lane whose branch holds some, whatever the frontier, `next` computes its landing (§ `land`) from commits alone; a lane whose turn the turn record does not hold on that branch (§ `land`) stops `next`:
@@ -333,7 +335,7 @@ The lines come in the order the orchestrator acts on them. A plan that names a t
 
 With `--apply`, `next` prints the plan and, unless it names a turn to land, carries it out in this order:
 
-1. It removes each worktree with `git worktree remove`, after stopping on one that holds a file Git does not ignore that its branch lacks, modified or untracked.
+1. It removes each worktree with `git worktree remove`, stopping on one that has come to hold a file Git does not ignore that its branch lacks since it was planned.
 2. It deletes, creates, and moves each branch, building a review lane's review head first. Each turn on a branch it deletes leaves the turn record as the branch goes. A branch a worktree has checked out moves with `git reset --keep` there, which stops on local changes it would overwrite.
 3. It creates each worktree.
 4. It writes each woken role's assignment (§ Assignments), its turn commit the tip of its worktree, and then the turn record.

@@ -217,16 +217,19 @@ describe("rp next", () => {
     });
   });
 
-  it("stops at a consolidation on a lane's file its branch lacks, which the repository's status configuration hides", () => {
+  it("stops while it plans a consolidation, before any hook, on a lane's file its branch lacks, which the repository's status configuration hides", () => {
     pipeline(0, { lanes: SPEC_LANES });
     apply();
     produceCandidates();
     git(root, "config", "status.showUntrackedFiles", "no");
     writeFileSync(join(laneWorktree("demo-spec-a"), "scratch.txt"), "kept\n");
-    const out = run("next", abs(PIPELINE), "--apply");
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /^rp: next --apply: remove-worktree .*scratch\.txt/m);
-    assert.ok(existsSync(join(laneWorktree("demo-spec-a"), "scratch.txt")));
+    const before = snapshot();
+    for (const args of [[], ["--apply"]]) {
+      const out = run("next", abs(PIPELINE), ...args);
+      assert.deepEqual([out.status, out.stdout], [1, ""]);
+      assert.equal(out.stderr, `rp: next: worktrees to remove hold files their branches lack: commit or delete them, then plan again:\n${laneWorktree("demo-spec-a")}: scratch.txt\n`);
+    }
+    assert.deepEqual(snapshot(), before);
   });
 
   describe("keeps a lane's commits that did not land", () => {

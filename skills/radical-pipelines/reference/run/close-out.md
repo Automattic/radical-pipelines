@@ -11,7 +11,7 @@ The run stops: the frontier is `complete`, an owner escalation is pending, the o
 
 ## Closure actions
 
-Closure actions are moments the owner invokes on a pipeline: opening its pull request, merging it, closing without merging. Each fires its `before-`/`after-` hooks where the project defines them; beyond the steps below, the work lives in the hooks or with the owner. To **close the pipeline**, apply the plan of `rp close <pipeline folder> --branch <pipeline branch>` (`../conventions/lifecycle-hooks.md` § Applying a plan), passing the pipeline folder's absolute path in the main checkout. A pipeline may have several pull requests over its life.
+Closure actions are moments the owner invokes on a pipeline: opening its pull request, merging it, closing without merging. Each fires its `before-`/`after-` hooks where the project defines them; beyond the steps below, the work lives in the hooks or with the owner. Merging and closing without merging end with closing the pipeline, after their `after-` hook: apply the plan of `rp close <pipeline folder> --branch <pipeline branch>` (`../conventions/lifecycle-hooks.md` § Applying a plan), passing the pipeline folder's absolute path in the main checkout. A pipeline may have several pull requests over its life.
 
 ### Open the pull request
 
@@ -42,4 +42,4 @@ When the owner reports the pull request merged, continue at step 3.
 
 ### Close without merging
 
-Fire `before-closing-without-merge`, close the pipeline, fire `after-closing-without-merge`, and report the outcome.
+Fire `before-closing-without-merge`, then `after-closing-without-merge`, close the pipeline, and report the outcome.

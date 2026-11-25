@@ -570,18 +570,25 @@ describe("rp close", () => {
     assert.ok(git(root, "merge-base", "--is-ancestor", unlanded, "demo") === "");
   });
 
-  it("removes the worktree of a lane holding a stray file only once the file is gone, the pipeline worktree last", () => {
-    writeFileSync(join(laneWorktree("demo-spec-a"), "scratch.txt"), "kept\n");
-    assert.ok(close().includes(`remove-worktree spec-producer-a ${laneWorktree("demo-spec-a")}`));
-    const out = run("close", abs(PIPELINE), "--branch", "demo", "--apply");
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /^rp: close --apply: remove-worktree .*scratch\.txt/);
-    assert.ok(existsSync(seat));
-    rmSync(join(laneWorktree("demo-spec-a"), "scratch.txt"));
-    close("--apply");
-    assert.deepEqual(worktrees(), [at()]);
-    assert.deepEqual(branches(), ["demo", "main"]);
-  });
+  // [the worktree holding files its branch lacks]
+  for (const [what, worktree] of [["a lane's worktree", () => laneWorktree("demo-spec-a")], ["the pipeline worktree", () => seat]])
+    it(`stops while it plans, before any hook, on ${what} holding files its branch lacks, naming each, and closes once they are gone`, () => {
+      git(root, "config", "status.showUntrackedFiles", "no");
+      writeFileSync(join(worktree(), "scratch.txt"), "kept\n");
+      writeFileSync(join(worktree(), "src/app.js"), "export const a = 9;\n");
+      const before = snapshot();
+      for (const args of [[], ["--apply"]]) {
+        const out = run("close", abs(PIPELINE), "--branch", "demo", ...args);
+        assert.deepEqual([out.status, out.stdout], [1, ""]);
+        assert.equal(out.stderr, `rp: close: worktrees to remove hold files their branches lack: commit or delete them, then plan again:\n${worktree()}: src/app.js, scratch.txt\n`);
+      }
+      assert.deepEqual(snapshot(), before);
+      rmSync(join(worktree(), "scratch.txt"));
+      git(worktree(), "checkout", "--quiet", "--", "src/app.js");
+      close("--apply");
+      assert.deepEqual(worktrees(), [at()]);
+      assert.deepEqual(branches(), ["demo", "main"]);
+    });
 
   it("removes the turn record that holds turns of roles without a lane, whose next turns rp next records again", () => {
     commitIn(laneWorktree("demo-spec-a"), { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
@@ -597,14 +604,6 @@ describe("rp close", () => {
     commitIn(laneWorktree("demo-spec-a"), { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
     close("--apply");
     assert.deepEqual(Object.keys(JSON.parse(readFileSync(recordOf(), "utf8")).turns), ["spec-producer-a"]);
-  });
-
-  it("stops on an untracked file in the pipeline worktree, which it keeps", () => {
-    writeFileSync(join(seat, "scratch.txt"), "kept\n");
-    const out = run("close", abs(PIPELINE), "--branch", "demo", "--apply");
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /^rp: close --apply: remove-worktree /);
-    assert.ok(existsSync(join(seat, "scratch.txt")));
   });
 
   it("keeps a pipeline worktree that is the main checkout", () => {

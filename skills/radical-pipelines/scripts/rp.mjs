@@ -1726,6 +1726,12 @@ const actOf = (command) => async (what, action) => {
 // The files a worktree holds that its branch lacks, modified or untracked, whatever the repository's status
 // configuration shows; files Git ignores aside.
 const strayFilesOf = (worktree) => gitBytes(worktree, ["status", "--porcelain", "--untracked-files=all", "--no-renames", "-z"]).toString("utf8").split("\0").filter(Boolean).map((entry) => entry.slice(3));
+// A plan never removes a worktree that holds stray files: they stop `command` while it plans, before any hook fires,
+// naming each such worktree with its files.
+function refuseStrayRemovals(command, plan) {
+  const held = [...plan.removals, ...plan.closing].map(({ path }) => [path, strayFilesOf(path)]).filter(([, files]) => files.length);
+  if (held.length) fail(`${command}: worktrees to remove hold files their branches lack: commit or delete them, then plan again:\n${held.map(([path, files]) => `${path}: ${files.join(", ")}`).join("\n")}`);
+}
 // Removes a worktree, unless it holds stray files.
 function removeWorktree(root, path) {
   const stray = strayFilesOf(path);
@@ -1782,6 +1788,7 @@ async function applyPlan(ctx, plan) {
 async function cmdNext(args) {
   const ctx = await contextOf(args, "next");
   const plan = await planOf(ctx);
+  refuseStrayRemovals("next", plan);
   process.stdout.write(`${planLines(plan, ctx.frontier).join("\n")}\n`);
   if (args.apply && !plan.land.length) await applyPlan(ctx, plan);
 }
@@ -1906,6 +1913,7 @@ function removalsOf(args, command, closing) {
 // turn record only the turns of the lanes whose branches it keeps, and removes it when none remain.
 const cmdRemove = (command, closing) => async (args) => {
   const { main, pipelineBranch, plan, record } = removalsOf(args, command, closing);
+  refuseStrayRemovals(command, plan);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write([...before, ...actions, ...after].map((line) => `${line}\n`).join(""));
   if (!args.apply) return;
