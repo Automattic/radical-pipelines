@@ -354,7 +354,7 @@ describe("rp next", () => {
     pipeline(1);
     apply();
     const record = turnRecord();
-    assert.deepEqual(Object.keys(JSON.parse(readFileSync(record, "utf8"))), ["turns", "woke", "complete", "reported"]);
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(record, "utf8"))), ["folder", "turns", "woke", "complete", "reported"]);
     const written = JSON.parse(readFileSync(record, "utf8"));
     assert.deepEqual(written.turns["design-doc-producer"], { worktree: at(), branch: "demo", commit: head() });
     const turn = { worktree: at(), branch: "demo-review-default", commit: head() };
@@ -363,6 +363,7 @@ describe("rp next", () => {
       ["a phase that is no phase", { ...written, woke: ["1"] }, "woke: must be a list of phases"],
       ["a turn commit that is no full commit hash", { ...written, turns: { "design-doc-producer": { ...turn, commit: "abc1234" } } }, "turns.design-doc-producer.commit: must be a full commit hash"],
       ["a reviewer's turn without its review head", { ...written, turns: { "reviewer-default": turn } }, "turns.reviewer-default.review-head: must be a full commit hash"],
+      ["no pipeline folder", { ...written, folder: "" }, "folder: must be the pipeline folder, a non-empty string"],
     ];
     for (const [what, data, reason] of malformed) {
       writeFile(".git/rp-turns/demo.json", `${JSON.stringify(data)}\n`);

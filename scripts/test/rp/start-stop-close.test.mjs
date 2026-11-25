@@ -21,7 +21,7 @@ const recordOf = (branch = "demo") => join(realpathSync(git(root, "rev-parse", "
 // Writes the turn record of `demo`: a turn of each role, by its name, on `branch` in `worktree`, at HEAD.
 function record(turns) {
   mkdirSync(dirname(recordOf()), { recursive: true });
-  writeFileSync(recordOf(), JSON.stringify({ woke: [], complete: [], reported: [],
+  writeFileSync(recordOf(), JSON.stringify({ folder: PIPELINE, woke: [], complete: [], reported: [],
     turns: Object.fromEntries(Object.entries(turns).map(([role, { branch, worktree }]) => [role, { branch, worktree, commit: commit("HEAD") }])) }));
 }
 // A branch at HEAD with a worktree under `.worktrees`, as a lane's is, built with Git alone.
@@ -71,6 +71,7 @@ describe("rp start", () => {
 
   it("applies the plan, and applying again repeats nothing", () => {
     start("demo", "--apply");
+    assert.deepEqual(JSON.parse(readFileSync(recordOf(), "utf8")), { folder: PIPELINE, turns: {}, woke: [], complete: [], reported: [] });
     assert.equal(commit("demo"), commit("main"));
     assert.equal(git(seat("demo"), "symbolic-ref", "--short", "HEAD").trim(), "demo");
     assert.equal(spawnSync("git", ["rev-parse", "--abbrev-ref", "demo@{upstream}"], { cwd: root }).status !== 0, true);
@@ -87,6 +88,24 @@ describe("rp start", () => {
     rmSync(seat("demo"), { recursive: true, force: true });
     assert.deepEqual(start("demo", "--apply").filter((line) => !line.startsWith("hook ")),
       [`create-worktree pipeline demo ${seat("demo")}`, `write-config ${join(folder("demo"), "config.json")}`, `pipeline-folder ${folder("demo")}`]);
+  });
+
+  it("stops on a pipeline branch whose turn record names another pipeline folder, creating nothing", () => {
+    start("demo", "--apply");
+    const before = snapshot();
+    const out = run("start", abs(".pipelines/other"), "--branch", "demo", "--config", configFile, "--apply");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /^rp: start: demo is the pipeline branch of \.pipelines\/demo, not \.pipelines\/other$/m);
+    assert.deepEqual(snapshot(), before);
+  });
+
+  it("makes a pipeline that stop keeps and close removes before its configuration is committed", () => {
+    start("demo", "--apply");
+    assert.deepEqual(lines("stop", abs(PIPELINE), "--branch", "demo", "--apply"), []);
+    rmSync(join(folder("demo"), "config.json"));
+    lines("close", abs(PIPELINE), "--branch", "demo", "--apply");
+    assert.deepEqual(worktrees(), [at()]);
+    assert.equal(existsSync(recordOf()), false);
   });
 
   it("writes no config.json the branch already holds as given", () => {
@@ -368,25 +387,26 @@ describe("rp stop", () => {
     sameLines(stop(), [...removes("spec-producer-a", "demo-spec-a"), ...removes("spec-producer-b", "demo-spec-b")]);
   });
 
-  // [what --branch and the pipeline folder name, the reason]
-  const notPipelines = [
-    ["a branch that does not exist", ["--branch", "absent"], PIPELINE, /the pipeline branch absent does not exist/],
-    ["a folder the branch holds no config.json in", ["--branch", "demo"], ".pipelines/tooling", /demo holds no pipeline folder \.pipelines\/tooling/],
-  ];
-  for (const [what, args, folder, reason] of notPipelines)
-    it(`stops on ${what}, removing nothing`, () => {
-      pipeline(0, { lanes: [lane("spec-producer", "a")] });
-      apply();
-      writeFile(".pipelines/tooling/readme.md", "tooling\n");
-      commitAll("tooling");
-      const before = snapshot();
-      for (const command of ["stop", "close"]) {
-        const out = run(command, abs(folder), ...args, "--apply");
-        assert.equal(out.status, 1);
-        assert.match(out.stderr, reason);
-      }
-      assert.deepEqual(snapshot(), before);
-    });
+  it("removes nothing of a pipeline branch with no turn record, which rp start did not make on this machine", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    git(root, "worktree", "add", "--quiet", "-b", "unrelated", join(at(), ".worktrees", "unrelated"), "main");
+    const before = snapshot();
+    for (const command of ["stop", "close"]) assert.deepEqual(lines(command, abs(PIPELINE), "--branch", "unrelated", "--apply"), []);
+    assert.deepEqual(snapshot(), before);
+  });
+
+  it("stops on a pipeline folder other than the one the turn record names, removing nothing", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    const before = snapshot();
+    for (const command of ["stop", "close"]) {
+      const out = run(command, abs(".pipelines/tooling"), "--branch", "demo", "--apply");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, new RegExp(`^rp: ${command}: demo is the pipeline branch of \\.pipelines/demo, not \\.pipelines/tooling$`, "m"));
+    }
+    assert.deepEqual(snapshot(), before);
+  });
 
   it("requires --branch", () => {
     const out = run("stop", abs(PIPELINE));
@@ -550,6 +570,15 @@ describe("rp close", () => {
     close("--apply");
     assert.deepEqual(worktrees(), [at()]);
     assert.deepEqual(branches(), ["demo", "main"]);
+  });
+
+  it("removes the turn record that holds turns of roles without a lane, whose next turns rp next records again", () => {
+    commitIn(laneWorktree("demo-spec-a"), { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
+    lines("land", folder(), "--role", "spec-producer-a");
+    assert.ok(lines("next", folder(), "--apply").includes("frontier consolidate spec"));
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(recordOf(), "utf8")).turns), ["spec-producer"]);
+    close("--apply");
+    assert.equal(existsSync(recordOf()), false);
   });
 
   it("stops on an untracked file in the pipeline worktree, which it keeps", () => {
