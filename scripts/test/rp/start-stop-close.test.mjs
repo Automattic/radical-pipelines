@@ -396,6 +396,17 @@ describe("rp stop", () => {
     assert.deepEqual(snapshot(), before);
   });
 
+  it("has next and land stop on a turn record that names another pipeline folder", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    writeFileSync(recordOf(), JSON.stringify({ ...JSON.parse(readFileSync(recordOf(), "utf8")), folder: ".pipelines/other" }));
+    for (const args of [["next"], ["land", "--role", "spec-producer-a"]]) {
+      const out = run(args[0], abs(PIPELINE), ...args.slice(1));
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, new RegExp(`^rp: ${args[0]}: demo is the pipeline branch of \\.pipelines/other, not \\.pipelines/demo$`, "m"));
+    }
+  });
+
   it("stops on a pipeline folder other than the one the turn record names, removing nothing", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
@@ -579,6 +590,13 @@ describe("rp close", () => {
     assert.deepEqual(Object.keys(JSON.parse(readFileSync(recordOf(), "utf8")).turns), ["spec-producer"]);
     close("--apply");
     assert.equal(existsSync(recordOf()), false);
+  });
+
+  it("keeps in the turn record the turn of a lane whose branch it keeps, and no other", () => {
+    record({ "spec-producer-a": { branch: "demo-spec-a", worktree: laneWorktree("demo-spec-a") }, "spec-producer": { branch: "demo", worktree: seat } });
+    commitIn(laneWorktree("demo-spec-a"), { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
+    close("--apply");
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(recordOf(), "utf8")).turns), ["spec-producer-a"]);
   });
 
   it("stops on an untracked file in the pipeline worktree, which it keeps", () => {
