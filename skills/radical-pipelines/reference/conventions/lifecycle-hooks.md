@@ -30,7 +30,7 @@ Report a failed instruction to the owner and continue. When the failed instructi
 | `before-merging-pr`            | The owner asks to merge the pull request, before any work                                               |
 | `after-merging-pr`             | The pull request is merged — by the orchestrator, or by the owner who reports it                        |
 | `before-closing-without-merge` | The owner asks to close the pipeline without merging                                                    |
-| `after-closing-without-merge`  | The pipeline is closed without merging                                                                  |
+| `after-closing-without-merge`  | The pipeline is closed without merging; its worktrees remain until `rp close` removes them              |
 
 A `before-`/`after-` pair brackets its action. A blocking failure in a `before-` hook stops that action. The closure pairs bracket the actions the owner invokes on a pipeline (`../run/close-out.md`).
 
