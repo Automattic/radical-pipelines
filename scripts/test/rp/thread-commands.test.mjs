@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -197,7 +197,7 @@ describe("rp thread", () => {
       ["two attachments of one name", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--body", "-", "--evidence", join(EVIDENCE(), "run.log"), "--evidence", join(EVIDENCE(), "again", "run.log")],
         /^rp: thread reply: two files attached as run\.log$/m, /^give each file you attach a name of its own$/m],
       ["an attachment whose path in the thread's folder exists", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--body", "-", "--evidence", join(EVIDENCE(), "taken.log")],
-        new RegExp(`^rp: thread reply: \\.pipelines/demo/threads/${AWAITS_SPEC.slice(0, -3)}/2/taken\\.log exists$`, "m"), /^remove it, and run the command again$/m],
+        new RegExp(`^rp: thread reply: \\.pipelines/demo/threads/${AWAITS_SPEC.slice(0, -3)}/2 exists$`, "m"), /^remove it, and run the command again$/m],
       ["an open about the intent", () => ["thread", "open", F(), "--role", "implementer", "--about", "intent", "--body", "-"],
         /^rp: thread open: the intent is the owner's$/m, /^raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path \| evidence path> --body <file \| ->$/m],
       ["a close with another status", () => ["thread", "close", F(), "--role", "design-doc-producer", "--thread", T(AWAITS_SPEC), "--status", "answered"],
@@ -257,6 +257,80 @@ describe("rp thread", () => {
       assert.deepEqual([read(`${folder}/2/run.log`), read(`${folder}/2/again/run.log`)], ["run\n", "nested\n"]);
       assert.ok(read(opened).endsWith(`## spec-producer — ${head()}\n\nStands.\n\nEvidence:\n\n- \`${folder}/2/run.log\`\n- \`${folder}/2/again\`\n`));
       assert.deepEqual(git(root, "diff", "--cached", "--name-only").split("\n").filter(Boolean), [P(`${folder}/2/again/run.log`), P(`${folder}/2/run.log`)]);
+    });
+
+    // [what fails, how it is made to, how it is repaired]
+    const failures = [
+      ["copying an attachment", () => chmodSync(join(EVIDENCE(), "again", "run.log"), 0o000), () => chmodSync(join(EVIDENCE(), "again", "run.log"), 0o644)],
+      ["staging the attachments", () => writeFile(".git/index.lock", ""), () => rmSync(abs(".git/index.lock"))],
+      ["writing the thread", () => chmodSync(abs(P(SPEC_THREAD)), 0o444), () => chmodSync(abs(P(SPEC_THREAD)), 0o644)],
+    ];
+    const SPEC_THREAD = "threads/1-implementer-spec-producer-spec.md";
+    for (const [what, fault, repair] of failures)
+      it(`writes nothing and stages nothing when ${what} fails, so the command runs again`, () => {
+        pipeline(3);
+        open("implementer", "spec", FINDINGS);
+        commitAll("opened");
+        writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
+        writeFileSync(join(EVIDENCE(), "again", "run.log"), "nested\n");
+        const args = ["--thread", abs(P(SPEC_THREAD)), "--evidence", join(EVIDENCE(), "run.log"), "--evidence", join(EVIDENCE(), "again")];
+        fault();
+        const before = snapshot(), out = threadAs("spec-producer", "reply", args, "Stands.\n");
+        repair();
+        assert.equal(out.status, 1);
+        assert.deepEqual([snapshot(), git(root, "diff", "--cached", "--name-only")], [before, ""]);
+        assert.equal(written(threadAs("spec-producer", "reply", args, "Stands.\n")), SPEC_THREAD);
+        assert.equal(read(`${SPEC_THREAD.slice(0, -3)}/2/again/run.log`), "nested\n");
+      });
+
+    it("copies the files a folder links to as regular files, which outlive their sources", () => {
+      pipeline(3);
+      const opened = open("implementer", "spec", FINDINGS), outside = mkdtempSync(join(tmpdir(), "rp-linked-"));
+      writeFileSync(join(outside, "report.txt"), "report\n");
+      symlinkSync(join(outside, "report.txt"), join(EVIDENCE(), "again", "report.txt"));
+      written(threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), "--evidence", join(EVIDENCE(), "again")], "Stands.\n"));
+      rmSync(outside, { recursive: true, force: true });
+      const path = P(`${opened.slice(0, -3)}/2/again/report.txt`);
+      assert.match(git(root, "ls-files", "--stage", "--", path), /^100644 /);
+      assert.equal(git(root, "show", `:${path}`), "report\n");
+    });
+
+    // [what the attached folder holds, how it is made, what was wrong]
+    const folders = [
+      ["a link that leads nowhere", (at) => { writeFileSync(join(at, "kept.txt"), "kept\n"); symlinkSync(join(at, "absent.txt"), join(at, "gone.txt")); }, /holds gone\.txt, which is no file or folder$/m],
+      ["no file", () => {}, /holds no file$/m],
+      ["a Git repository", (at) => { mkdirSync(join(at, "repro", ".git"), { recursive: true }); writeFileSync(join(at, "repro", "case.js"), "x\n"); }, /holds a Git repository at repro\/\.git$/m],
+      ["a link back into itself", (at) => { writeFileSync(join(at, "kept.txt"), "kept\n"); symlinkSync(at, join(at, "loop")); }, /links back into itself at loop$/m],
+    ];
+    for (const [what, make, reason] of folders)
+      it(`refuses a folder holding ${what}, writing nothing`, () => {
+        pipeline(3);
+        const opened = open("implementer", "spec", FINDINGS), folder = join(EVIDENCE(), "attached");
+        mkdirSync(folder);
+        make(folder);
+        const before = snapshot(), out = threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), "--evidence", folder], "Stands.\n");
+        assert.equal(out.status, 1);
+        assert.match(out.stderr, reason);
+        assert.deepEqual(snapshot(), before);
+      });
+
+    it("writes nothing through a link on the way to the message's folder", () => {
+      pipeline(3);
+      const opened = open("implementer", "spec", FINDINGS), outside = mkdtempSync(join(tmpdir(), "rp-elsewhere-"));
+      symlinkSync(outside, abs(P(opened.slice(0, -3))));
+      writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
+      const out = threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), "--evidence", join(EVIDENCE(), "run.log")], "Stands.\n");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /cannot write .*: not a folder$/m);
+      assert.deepEqual(readdirSync(outside), []);
+      rmSync(outside, { recursive: true, force: true });
+    });
+
+    it("cites the attachment in an escalation whose --cites names an attached source", () => {
+      pipeline(3);
+      writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
+      const escalated = written(threadAs("implementer", "escalate", ["--cites", join(EVIDENCE(), "run.log"), "--evidence", join(EVIDENCE(), "run.log")], "Every approach fails.\n"));
+      assert.match(read(escalated), new RegExp(`^cites: ${escalated.slice(0, -3)}/1/run\\.log$`, "m"));
     });
 
     it("on every command that writes a message, numbered as the message is in its thread", () => {

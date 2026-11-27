@@ -3,7 +3,7 @@
 // Commands: check, pipelines, start, next, land, close, thread, validate. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { closeSync, constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -1155,15 +1155,16 @@ function gitWithIndex(root, index, args, input) {
   try { return execFileSync("git", args, { cwd: root, input, encoding: "utf8", env: { ...process.env, GIT_INDEX_FILE: index }, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] }).trim(); }
   catch (error) { fail(`git ${args.join(" ")}: ${error.stderr?.toString().trim() || error.message}`); }
 }
-// `update-index --index-info` lines: each entry at its path, or removed with mode 0.
-const indexInfo = (entries, remove = false) => entries.map((entry) => `${remove ? "0" : entry.mode} ${remove ? "0".repeat(entry.oid.length) : entry.oid}\t${entry.path}\n`).join("");
+// `update-index -z --index-info` records: each entry at its path, or removed with mode 0, each ended by NUL so a path
+// may hold any character.
+const indexInfo = (entries, remove = false) => entries.map((entry) => `${remove ? "0" : entry.mode} ${remove ? "0".repeat(entry.oid.length) : entry.oid}\t${entry.path}\0`).join("");
 
 // The tree of `commit` with the pipelines folder root replaced by `rootEntries`, every file it holds.
 function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
   gitWithIndex(root, index, ["read-tree", commit]);
   const removed = lsTree(root, commit, `${pipelinesRoot}/`, true);
   const input = indexInfo(removed, true) + indexInfo(rootEntries);
-  if (input) gitWithIndex(root, index, ["update-index", "--index-info"], input);
+  if (input) gitWithIndex(root, index, ["update-index", "-z", "--index-info"], input);
   return gitWithIndex(root, index, ["write-tree"]);
 }
 
@@ -1564,8 +1565,8 @@ function commitFiles(root, parent, files, message) {
   try {
     const index = join(directory, "index");
     gitWithIndex(root, index, ["read-tree", parent]);
-    gitWithIndex(root, index, ["update-index", "--index-info"], files.map(([path, bytes]) => bytes === null ? `0 ${"0".repeat(parent.length)}\t${path}\n`
-      : `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\n`).join(""));
+    gitWithIndex(root, index, ["update-index", "-z", "--index-info"], files.map(([path, bytes]) => bytes === null ? `0 ${"0".repeat(parent.length)}\t${path}\0`
+      : `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\0`).join(""));
     return gitText(root, ["commit-tree", gitWithIndex(root, index, ["write-tree"]), "-p", parent, "-m", message]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
@@ -2091,39 +2092,80 @@ function notOpen(command, rel, thread) {
 // grammar accepts it and reads in it `messages`, the messages the command means. `message`, the role's message when the
 // command writes one, must leave the file open to a message after it. Otherwise `command` is refused and nothing is
 // written.
-// The files a message attaches, `--evidence` once per file or folder, against the process directory: each one's source
-// and its path in the thread's folder, `<folder>/<n>/<its name>`, `n` the message's number in the thread. Each is
-// validated before anything is written: it exists, its name is no other's and holds no backtick, and its path is free.
+// What a message attaches, `--evidence` once per file or folder, against the process directory: `folder`, the message's
+// folder in the thread's folder, `<thread folder>/<n>`, `n` the message's number in the thread; and each attachment's
+// source, its path there, `<folder>/<its name>`, and the files it copies, each regular file it reaches through links as
+// [source, path inside the attachment]. Everything is validated before anything is written: every source reaches files
+// alone, a folder holds at least one, no repository, and no link back into itself; names are unique and hold no backtick
+// or line break; the message's folder is free, and every folder on the way to it from the worktree is a real folder.
 function evidenceOf(args, seat, command, rel, n) {
   if (args.evidence.length && args.body === null) misused(command, "--evidence attaches files to a message: give --body <file | ->");
-  const names = new Set();
-  return args.evidence.map((given) => {
-    const source = resolve(process.cwd(), given), name = basename(source);
-    let stat;
-    try { stat = statSync(source); } catch (error) { if (error.code !== "ENOENT" && error.code !== "ENOTDIR") fail(`cannot read ${given}: ${error.message}`); }
-    if (!stat?.isFile() && !stat?.isDirectory()) wrong(command, `--evidence names no file or folder: ${given}`, "attach a file or a folder");
+  const folder = `${threadFolderOf(rel)}/${n}`, names = new Set();
+  if (!args.evidence.length) return { folder, items: [] };
+  const items = args.evidence.map((given) => {
+    const source = resolve(process.cwd(), given), name = basename(source), files = [], open = new Set();
+    const statOf = (path) => { try { return statSync(path); } catch (error) { if (error.code === "ENOENT" || error.code === "ENOTDIR") return null; fail(`cannot read ${path}: ${error.message}`); } };
+    const walk = (path, inner) => {
+      const stat = statOf(path);
+      if (!stat?.isFile() && !stat?.isDirectory())
+        return inner ? wrong(command, `${given} holds ${inner}, which is no file or folder`, "attach the files you cite without it") : wrong(command, `--evidence names no file or folder: ${given}`, "attach a file or a folder");
+      if (stat.isFile()) return files.push([path, inner]);
+      const real = realpathSync(path);
+      if (open.has(real)) wrong(command, `${given} links back into itself at ${inner}`, "attach the files you cite without that link");
+      open.add(real);
+      for (const entry of readdirSync(path).sort()) {
+        const at = inner ? `${inner}/${entry}` : entry;
+        if (entry === ".git") wrong(command, `${given} holds a Git repository at ${at}`, "attach the files you cite from it");
+        walk(join(path, entry), at);
+      }
+      open.delete(real);
+    };
+    walk(source, "");
+    if (!files.length) wrong(command, `${given} holds no file`, "attach the files you cite");
     if (names.has(name)) wrong(command, `two files attached as ${name}`, "give each file you attach a name of its own");
     if (/[`\r\n]/.test(name)) wrong(command, `the name of ${given} holds a backtick or a line break`, "rename it, and attach it again");
     names.add(name);
-    const target = `${threadFolderOf(rel)}/${n}/${name}`;
-    if (lstatOf(join(seat.base, target))) wrong(command, `${seat.folder}/${target} exists`, "remove it, and run the command again");
-    return { source, target };
+    return { source, target: `${folder}/${name}`, files };
   });
-}
-// A message's body with the paths of the files it attaches listed after it, from the pipeline folder.
-const withEvidence = (body, evidence) => evidence.length
-  ? Buffer.concat([body, Buffer.from(`${body.at(-1) === 0x0a ? "" : "\n"}\nEvidence:\n\n${evidence.map(({ target }) => `- \`${target}\``).join("\n")}\n`)]) : body;
-// Copies each attached file into the thread's folder and stages it, whatever the repository's ignore rules, so the
-// commit that carries the message carries it.
-function attach(seat, evidence) {
-  for (const { source, target } of evidence) {
-    const path = join(seat.base, target);
-    try { mkdirSync(dirname(path), { recursive: true }); cpSync(source, path, { recursive: true, dereference: true, errorOnExist: true, force: false }); }
-    catch (error) { fail(`cannot write ${seat.folder}/${target}: ${error.message}`); }
-    gitText(seat.root, ["add", "--force", "--", `:(top,literal)${seat.folder}/${target}`]);
+  const parts = `${seat.folder}/${folder}`.split("/");
+  for (let length = 1; length < parts.length; length++) {
+    const stat = lstatOf(join(seat.root, ...parts.slice(0, length)));
+    if (stat && !stat.isDirectory()) fail(`cannot write ${parts.slice(0, length).join("/")}: not a folder`);
   }
+  if (lstatOf(join(seat.base, folder))) wrong(command, `${seat.folder}/${folder} exists`, "remove it, and run the command again");
+  return { folder, items };
 }
-function writeThread(seat, command, rel, contents, messages, message, flag, evidence = []) {
+// A message's body with the paths of what it attaches listed after it, from the pipeline folder.
+const withEvidence = (body, evidence) => evidence.items.length
+  ? Buffer.concat([body, Buffer.from(`${body.at(-1) === 0x0a ? "" : "\n"}\nEvidence:\n\n${evidence.items.map(({ target }) => `- \`${target}\``).join("\n")}\n`)]) : body;
+// Copies the files a message attaches into its folder, as regular files, and stages them, whatever the repository's
+// ignore rules, so the commit that carries the message carries them. Returns `undo`, which removes every folder this
+// call created and unstages what it staged, and returns a note when the index still holds them. A failure undoes it.
+function attach(seat, evidence) {
+  if (!evidence.items.length) return () => "";
+  let created = join(seat.base, evidence.folder);
+  for (let at = dirname(created); at !== seat.base && !lstatOf(at); at = dirname(at)) created = at;
+  const staged = `:(top,literal)${seat.folder}/${posix(relative(seat.base, created))}`;
+  const undo = () => {
+    rmSync(created, { recursive: true, force: true });
+    try { gitText(seat.root, ["rm", "-r", "--cached", "--quiet", "--ignore-unmatch", "--", staged]); return ""; }
+    catch (error) { if (error instanceof RpError) return `; the index still holds ${seat.folder}/${evidence.folder}: unstage it with git rm -r --cached`; throw error; }
+  };
+  try {
+    for (const { target, files } of evidence.items)
+      for (const [source, inner] of files) {
+        const path = join(seat.base, target, ...(inner ? inner.split("/") : []));
+        mkdirSync(dirname(path), { recursive: true });
+        copyFileSync(source, path, fsConstants.COPYFILE_EXCL);
+      }
+    gitText(seat.root, ["add", "--force", "--", `:(top,literal)${seat.folder}/${evidence.folder}`]);
+  } catch (error) {
+    const note = undo();
+    fail(`cannot attach ${seat.folder}/${evidence.folder}: ${error.message}${note}`);
+  }
+  return undo;
+}
+function writeThread(seat, command, rel, contents, messages, message, flag, evidence = { items: [] }) {
   const read = (bytes) => {
     try { return parseFile(rel, kindOf(rel), bytes); }
     catch (error) {
@@ -2142,27 +2184,32 @@ function writeThread(seat, command, rel, contents, messages, message, flag, evid
     wrong(command, "the body leaves fenced code open, which hides every message heading after it", "close it, and run the command again");
   const path = join(seat.base, rel);
   if (flag === "wx" && lstatOf(path)) wrong(command, `${rel} exists`, "run the command again, which takes the next number");
-  attach(seat, evidence);
+  const undo = attach(seat, evidence);
   try {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, contents, { flag });
   } catch (error) {
+    const note = undo();
     if (error.code === "EEXIST") wrong(command, `${rel} exists`, "run the command again, which takes the next number");
-    fail(`cannot write ${seat.folder}/${rel}: ${error.message}`);
+    fail(`cannot write ${seat.folder}/${rel}: ${error.message}${note}`);
   }
   process.stdout.write(`${path}\n`);
 }
 
 // Opens the thread whose header holds `values` with the seat's role's message, at `threads/<n>-<opener>-<recipient>-<about>.md`:
 // `<n>` is one past the highest number among the names `threads/<n>-….md` in the working tree, or 1 when there is none.
+// Opens a thread with `values` as its header and the role's message. An escalation whose `cites` names a source the
+// message attaches cites the attachment's path instead.
 function openThread(seat, command, values, body, args) {
-  const header = headerOf(values) ?? wrong(command, `--cites cannot be written as a frontmatter value: ${JSON.stringify(values.cites)}`, "cite the thread or the evidence by its path");
   const threads = join(seat.base, "threads"), stat = lstatOf(threads);
   if (stat && !stat.isDirectory()) fail(`cannot read ${seat.folder}/threads: a file where a folder belongs`);
   const numbers = stat ? readdirSync(threads).map((name) => Number(name.match(/^([1-9]\d*)-.+\.md$/)?.[1] ?? 0)) : [];
   const rel = `threads/${Math.max(0, ...numbers) + 1}-${values.opener}-${values.recipient}-${values.about}.md`;
   const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
   const evidence = evidenceOf(args, seat, command, rel, 1);
+  const cited = values.cites !== undefined && evidence.items.find((item) => item.source === resolve(process.cwd(), values.cites));
+  const header = headerOf(cited ? { ...values, cites: cited.target } : values)
+    ?? wrong(command, `--cites cannot be written as a frontmatter value: ${JSON.stringify(values.cites)}`, "cite the thread or the evidence by its path");
   writeThread(seat, command, rel, withMessage(header, message.author, message.commit, withEvidence(body, evidence)), [message], message, "wx", evidence);
 }
 // What to run instead of a thread about the intent.

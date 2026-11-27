@@ -150,6 +150,14 @@ describe("review lanes", () => {
       assert.equal(git(root, "rev-parse", `${base}^{tree}`).trim(), git(root, "rev-parse", `${change}^{tree}`).trim());
     });
 
+    it("holding every file of a thread's folder, whatever characters its name holds", () => {
+      scenario();
+      write("threads/2-reviewer-a-implementer-implementation/2/report/line\nbreak.txt", "x\n");
+      commitAll("an attachment whose file name holds a line break");
+      apply();
+      assert.ok(files(built("a").reviewHead).includes(`"${PIPELINE}/threads/2-reviewer-a-implementer-implementation/2/report/line\\nbreak.txt"`));
+    });
+
     it("keeping a lane's threads apart from a lane whose id extends it", () => {
       scenario();
       apply();

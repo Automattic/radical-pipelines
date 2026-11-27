@@ -9,10 +9,10 @@ node rp.mjs start <pipeline folder> --branch <pipeline branch> --config <file | 
 node rp.mjs next <pipeline folder> [--apply]
 node rp.mjs land <pipeline folder> --role <role>
 node rp.mjs close <pipeline folder> --branch <pipeline branch> [--apply]
-node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->
-node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
-node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]
-node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->
+node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->] [--evidence <file | folder>]...
+node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | -> [--evidence <file | folder>]...
 node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 ```
 
@@ -400,7 +400,7 @@ node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path
 - `open` writes `threads/<n>-<role>-<recipient>-<about>.md`, `<recipient>` the owner of the artifact `--about` names, with status `open` and the role's message. `<n>` is one more than the highest number among the names `threads/<n>-….md` in the working tree, or 1 when it holds none; `threads/` is created when absent, and an existing file is never replaced.
 - `escalate` writes `threads/<n>-<role>-owner-intent.md`, numbered the same way, with status `escalated`, `cites` the text given, quoted when the frontmatter needs it (§ Frontmatter), and the role's message.
 - `reply` adds the role's message at the end of an `open` thread that awaits it, or of the role's **own approval**, its lane's review thread while that is an approval, which it sets `open`.
-- `--evidence`, once per file or folder, against the process directory, attaches each to the message the command writes: it copies it, following links, to `<n>/<its name>` in the thread's **folder**, the thread's path without `.md`, `<n>` the message's number in the thread; stages it with `git add --force`, whatever the repository's ignore rules; and ends the message's body with a blank line, `Evidence:`, a blank line, and a list item `` - `<path>` `` for each, its path from the pipeline folder.
+- `--evidence`, once per file or folder, against the process directory, attaches each to the message the command writes, in the message's folder `<n>/`, `<n>` its number in the thread, inside the thread's **folder**, the thread's path without `.md`. It copies each as `<n>/<its name>`: a file's contents, or a folder's files at their paths inside it, each as a regular file, following every link. It stages them with `git add --force`, whatever the repository's ignore rules, and ends the message's body with a blank line, `Evidence:`, a blank line, and a list item `` - `<path>` `` for each, its path from the pipeline folder. An escalation whose `--cites` names an attached source cites the attachment's path instead. The copies, the staging, and the thread are written together: when one fails, the command removes the folders it created and unstages what it staged. A path on the way to the message's folder that is a link or no folder stops the command before it writes.
 - `close` sets the status of an `open` thread the role opened to `approved` for a review thread or `resolved` for any other, or to `withdrawn`, and with `--body` adds the role's closing message at the end. A review thread is closed `approved` without `--body` only when its last message is the reviewer's and names the commit its worktree stands on, the commit `land` certifies the approval at. It closes the role's own approval `approved` again.
 
 A message is its heading `## <role> — <commit>` on a line of its own after a blank line, `<commit>` the full hash of the worktree's `HEAD`, then a blank line and the body. Every other byte of the file stays as it was, but for the status the command sets. The command writes the file only when the file grammar (§ `validate`) accepts it and reads in it the messages the command means, the role's last, and would read a message written after the role's; it then prints the file's absolute path. It writes nothing else but the files a message attaches: no certification, ref, or other file. Every other use is wrong, and writes nothing:
@@ -409,7 +409,7 @@ A message is its heading `## <role> — <commit>` on a line of its own after a b
 - a `--thread` that names no thread file of the pipeline folder, or a file the file grammar rejects;
 - `reply` to a thread that neither awaits the role nor is its own approval; `close` of a thread that is neither `open` nor the role's own approval, by a role other than its opener, or with another status, such as `approved` on a thread other than a review thread, or any but `approved` on its own approval; an approval without `--body` that the last message does not name;
 - a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it;
-- `--evidence` without a message, naming no file or folder, attaching two of one name or one whose name holds a backtick or a line break, or whose path in the thread's folder exists.
+- `--evidence` without a message; naming no file or folder; a folder holding no file, a Git repository, a link back into itself, or anything that is no file or folder; two attachments of one name, or one whose name holds a backtick or a line break; a message's folder that exists.
 
 The owner's answer on a thread to `owner` is written by hand (`../reference/run/loop.md` § Owner escalation).
 
