@@ -32,7 +32,7 @@ v4 keeps the promises and removes the structures that produced the failures.
 | 1 Spec | `1-spec/` | `spec.md`; production lanes in `lanes/<lane>/spec.md` | `spec-producer` |
 | 2 Design doc | `2-design-doc/` | `design-doc.md`; production lanes in `lanes/<lane>/design-doc.md` | `design-doc-producer` |
 | 3 Implementation | `3-implementation/` | `notes.md`; the code, tests, and documentation on the pipeline branch | `implementer` |
-| 4 Review | — | Review threads in `threads/`, one per review lane, closed `approved` | `reviewer` |
+| 4 Review | `4-review/` | Review threads in `threads/`, one per review lane, closed `approved`; each lane's supporting folder in `<lane>/` | `reviewer` |
 
 Threads live in `threads/` at the pipeline folder root. Every pipeline folder also carries `config.json`, the pipeline configuration: its target phase; the branch it started from; the models, lanes, and briefs the owner confirmed for the run; the conventions the orchestrator copied from `.rp.md` at its last run start; and the owner's directions to the orchestrator about its own part of its runs, which only the orchestrator reads.
 

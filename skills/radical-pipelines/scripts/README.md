@@ -225,14 +225,14 @@ thread <thread> <status>[ awaits <role>]
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
-Fetching is the caller's job. The pipelines folder root, absolute or relative to the process directory, selects the repository and names the folder of every pipeline, as a path inside it; it need not exist in the working tree. A path that is a file, the repository's root, or outside any repository stops the command. `pipelines` reads every local branch and remote-tracking branch tip:
+Fetching is the caller's job. The pipelines folder root, absolute or relative to the process directory, selects the repository and names the folder of every pipeline, as a path inside it; it need not exist in the working tree. A path that is a file, the repository's root, or outside any repository stops the command. `pipelines` reads every local branch tip but a lane branch's, one a turn record (§ Turn record) holds a lane's turn on as `land` verifies it, and every remote-tracking branch tip:
 
 1. Collect each pipeline folder (§ Pipeline files) of the pipelines folder root at each tip, with its tree id.
 2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.
 3. Every pipeline folder in the tree of `--base` is **merged**, reported once from `--base`.
 4. With `--issue`, keep those whose intent names `issue <ref>` among its origins.
 
-Of each pipeline folder, discovery reads only `0-intent/intent.md`, through the file grammar (§ `validate`): its origins are its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written. A pipeline whose intent is missing, not a regular file, or rejected by the file grammar stops the command, naming the intent and the reason, with or without `--issue`; no other file of a pipeline is read or validated. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+Of each pipeline folder, discovery reads only `0-intent/intent.md`, through the file grammar (§ `validate`): its origins are its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written. A pipeline whose intent is missing, not a regular file, or rejected by the file grammar stops the command, naming the intent and the reason, with or without `--issue`; no other file of a pipeline is read or validated. A missing or unresolving `--base`, a turn record that cannot be read or is malformed, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <ref> <pipeline folder>`. `--json` prints a list of `{state, ref, commit, folder, origins}`.
 

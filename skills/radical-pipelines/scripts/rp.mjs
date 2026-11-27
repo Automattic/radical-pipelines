@@ -1104,8 +1104,10 @@ async function cmdPipelines(args) {
   if (!pipelinesRoot) fail(`pipelines: the pipelines folder root is a folder inside the repository, not its root: ${given}`);
   if (existsSync(join(root, pipelinesRoot)) && !statSync(join(root, pipelinesRoot)).isDirectory()) fail(`pipelines: not a folder: ${given}`);
   const baseCommit = requireCommit(root, args.base ?? misused("pipelines", "--base <artifact base branch> is required"), "--base");
+  // Every branch tip but a lane branch's.
+  const lanes = laneBranchesOf(root);
   const refs = gitText(root, ["for-each-ref", "--format=%(objectname) %(objecttype) %(symref) %(refname)", "refs/heads", "refs/remotes"])
-    .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref]) => type === "commit" && !symref)
+    .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref, refname]) => type === "commit" && !symref && !(refname.startsWith("refs/heads/") && lanes.has(refname.slice("refs/heads/".length))))
     .map(([commit, , , refname]) => ({ commit, name: refname.replace(/^refs\/(?:heads|remotes)\//, "") }));
   // The pipelines folder root's tree at a list of commits, through one batch; a commit without it has none.
   const rootTrees = async (commits) => {
@@ -1164,7 +1166,7 @@ function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
 // The review lane's review base and review head built from the pipeline tip: their trees, and `mergeBase`, the commit
 // the review base sits on. The review base holds the merge-base's tree and the review head the tip's, each with the
 // pipelines folder root replaced by the lane's root: the tip's root without its pipeline folders, plus the lane's view,
-// the pipeline's `0-intent/` and the lane's own threads. `git diff` between them is the net change, the root's tooling
+// the pipeline's `0-intent/`, the lane's own threads, and its supporting folder. `git diff` between them is the net change, the root's tooling
 // stays, and the lane sees no pipeline but its own view. Built from commits alone; only tree objects are written.
 async function reviewBuildOf(root, folder, pipelinesRoot, tip, mergeBase, laneId) {
   const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
@@ -1453,7 +1455,8 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
 // turn commit, and a reviewer's review head; `woke`, the phases of the roles the last applied step woke; `complete`, the
 // phases complete when it was applied; and `reported`, the phases its landings reported. `start` creates it and `close`
 // removes it: while it exists, the pipeline is this machine's.
-const recordPath = (root, pipelineBranch) => join(realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])), "rp-turns", `${pipelineBranch}.json`);
+const recordsFolderOf = (root) => join(realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])), "rp-turns");
+const recordPath = (root, pipelineBranch) => join(recordsFolderOf(root), `${pipelineBranch}.json`);
 const NO_RECORD = { folder: null, turns: {}, woke: [], complete: [], reported: [] };
 // The turn record of `pipelineBranch`, or an empty one, its `folder` null, when it has none. One that cannot be read or
 // is malformed stops the command, naming it.
@@ -1501,6 +1504,23 @@ function recordedTurnOf(root, record, pipelineBranch, role) {
   if (!turn || turn.branch !== branch) return null;
   const tip = commitOf(root, `refs/heads/${branch}`);
   return { turn, branch, tip, holds: Boolean(tip && commitOf(root, turn.commit) && isAncestor(root, turn.commit, tip)) };
+}
+
+// The lane branches of the repository's pipelines: each branch a turn record holds a lane's turn on, as `recordedTurnOf`
+// takes it.
+function laneBranchesOf(root) {
+  const folder = recordsFolderOf(root), branches = new Set();
+  let names;
+  try { names = readdirSync(folder, { recursive: true }); }
+  catch (error) { if (error.code === "ENOENT") return branches; fail(`cannot read ${folder}: ${error.message}`); }
+  for (const name of names.map(posix).filter((each) => each.endsWith(".json") && lstatSync(join(folder, each)).isFile())) {
+    const pipelineBranch = name.slice(0, -".json".length), record = readRecord(root, pipelineBranch);
+    for (const turn of Object.keys(record.turns)) {
+      const { profile, lane } = parseRole(turn), recorded = lane && recordedTurnOf(root, record, pipelineBranch, roleFor(profile, lane));
+      if (recorded?.holds) branches.add(recorded.branch);
+    }
+  }
+  return branches;
 }
 
 // --- landing ------------------------------------------------------------------------
@@ -1885,19 +1905,20 @@ async function cmdStart(args) {
 // What `close` removes (README.md § `close`): nothing while the pipeline branch has no turn record, as this machine then
 // holds nothing `rp start` made for it. A lane is the pipeline's while its recorded turn is (§ recordedTurnOf). Closing
 // removes each lane's worktree, deletes each lane branch that holds no unlanded commits, and last removes the pipeline
-// worktree unless that is the main checkout.
+// worktree unless that is the main checkout. `gone` names each turn of a lane whose branch no longer exists.
 function closingOf(args) {
   const { root, rel } = locate(args._[0] ?? misused("close", "missing <pipeline folder>"));
   const { folder } = pipelineFolder(rel, "close");
   const pipelineBranch = args.branch ?? misused("close", "--branch <pipeline branch> is required");
   const main = mainOf(root, "close"), record = recordOf(root, pipelineBranch, folder, "close");
-  const plan = { removals: [], branches: [], creations: [], closing: [] };
-  if (record.folder === null) return { main, pipelineBranch, plan };
+  const plan = { removals: [], branches: [], creations: [], closing: [] }, gone = [];
+  if (record.folder === null) return { main, pipelineBranch, plan, record, gone };
   const tip = commitOf(root, `refs/heads/${pipelineBranch}`) ?? fail(`close: the pipeline branch ${pipelineBranch} does not exist`);
   const seat = worktreeOf(root, pipelineBranch);
   const registered = worktreesOf(root).map((each) => each.path).filter((path) => path && existsSync(path)).map((path) => realpathSync(path));
   for (const name of Object.keys(record.turns)) {
     const { profile, lane } = parseRole(name), role = roleFor(profile, lane), recorded = lane && recordedTurnOf(root, record, pipelineBranch, role);
+    if (recorded && !recorded.tip) gone.push(name);
     if (!recorded?.holds) continue;
     const worktree = worktreeOf(root, recorded.branch);
     if (worktree !== recorded.turn.worktree && registered.includes(recorded.turn.worktree)) fail(`close: ${recorded.turn.worktree} no longer has ${recorded.branch} checked out: check it out there, or remove that worktree`);
@@ -1905,17 +1926,20 @@ function closingOf(args) {
     if (!unlandedOf(root, tip, recorded.tip, role).length) plan.branches.push({ branch: recorded.branch, action: "delete" });
   }
   if (seat && seat !== main) plan.closing.push({ role: PIPELINE_SEAT, path: seat });
-  return { main, pipelineBranch, plan };
+  return { main, pipelineBranch, plan, record, gone };
 }
-// Prints what closing the pipeline removes; with `--apply`, also removes it, from the main checkout, then keeps in the
-// turn record only the turns of the lanes whose branches it keeps, and removes the record when none remain.
+// Prints what closing the pipeline removes; with `--apply`, first takes out of the turn record each turn of a lane
+// whose branch is gone, so no branch made later under its name is taken for the lane, then removes what it printed,
+// from the main checkout, and last keeps in the turn record only the turns of the lanes whose branches it keeps,
+// removing the record when none remain.
 async function cmdClose(args) {
-  const { main, pipelineBranch, plan } = closingOf(args);
+  const { main, pipelineBranch, plan, record, gone } = closingOf(args);
   refuseStrayRemovals("close", plan);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write([...before, ...actions, ...after].map((line) => `${line}\n`).join(""));
   if (!args.apply) return;
   const act = actOf("close"), recording = (what, action) => act(what, () => { try { action(); } catch (error) { if (error instanceof RpError) throw error; fail(error.message); } });
+  if (gone.length) await recording("write the turn record", () => writeRecord(main, pipelineBranch, { ...record, turns: Object.fromEntries(Object.entries(record.turns).filter(([name]) => !gone.includes(name))) }));
   await applyActions(main, plan, act, pipelineBranch);
   const left = readRecord(main, pipelineBranch);
   if (left.folder === null) return;

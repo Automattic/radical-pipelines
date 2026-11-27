@@ -24,7 +24,7 @@ It prints the path of your review thread. If you would merge the change as it st
 {{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread <that path> --status approved
 ```
 
-Put the material your review rests on — logs, command output, screenshots — in {{supporting-folder}}, cited by its path there, and commit it with your review: the author sees no other file of your worktree. Keep only what you cite, with secrets and personal data removed, and copy raw evidence that will change or rotate there before citing it.
+Put the material your review rests on — logs, command output, screenshots — in {{supporting-folder}} and commit it with your review, citing each file by its path from the pipeline folder, `4-review/{{lane}}/<file>`. Keep only what you cite, with secrets and personal data removed, and copy raw evidence that will change or rotate there before citing it.
 
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 

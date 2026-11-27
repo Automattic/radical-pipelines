@@ -433,6 +433,20 @@ describe("rp close on lanes", () => {
     assert.ok(branches().includes("demo-spec-a"));
   });
 
+  it("forgets a lane whose branch is gone before any action, so a retry leaves alone a branch made since under its name", () => {
+    pipeline(0, { lanes: SPEC_LANES });
+    apply();
+    git(root, "worktree", "remove", laneWorktree("demo-spec-a"));
+    git(root, "branch", "--quiet", "-D", "demo-spec-a");
+    writeFileSync(abs(".git/refs/heads/demo-spec-b.lock"), "");
+    assert.equal(run("close", abs(PIPELINE), "--branch", "demo", "--apply").status, 1);
+    seatAt("demo-spec-a");
+    rmSync(abs(".git/refs/heads/demo-spec-b.lock"));
+    assert.deepEqual(close("--apply"), ["delete-branch demo-spec-b"]);
+    assert.ok(branches().includes("demo-spec-a"));
+    assert.ok(existsSync(laneWorktree("demo-spec-a")));
+  });
+
   // A lane is the pipeline's by its recorded turn on the branch the pipeline branch gives it, never by a name alone.
   // [what holds the lane's name, the turn record, whether close removes it]
   const owned = [

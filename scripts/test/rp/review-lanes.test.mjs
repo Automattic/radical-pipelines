@@ -171,13 +171,15 @@ describe("review lanes", () => {
       const reviewThread = "threads/2-reviewer-a-implementer-implementation.md";
       commitIn(wt, { [reviewThread]: `${readFileSync(join(wt, PIPELINE, reviewThread), "utf8")}\n## reviewer-a — ${first}\n\nAnother point.\n` }, "review");
       landRole("reviewer-a");
-      write(reviewThread, `${read(reviewThread)}\n## implementer — ${head()}\n\nAnswered.\n`);
+      write(reviewThread, `${read(reviewThread)}\n## implementer — ${head()}\n\nAnswered, as 4-review/a/run.log shows.\n`);
+      write("4-review/a/run.log", "implementer's run\n");
       commitAll("answer");
       apply();
       const second = built("a").reviewHead;
       assert.notEqual(second, first);
       assert.equal(git(wt, "rev-parse", "HEAD").trim(), second);
-      assert.match(readFileSync(join(wt, PIPELINE, reviewThread), "utf8"), /Another point\.[\s\S]*## implementer — [0-9a-f]+\n\nAnswered\./);
+      assert.match(readFileSync(join(wt, PIPELINE, reviewThread), "utf8"), /Another point\.[\s\S]*## implementer — [0-9a-f]+\n\nAnswered, as 4-review\/a\/run\.log shows\./);
+      assert.equal(readFileSync(join(wt, PIPELINE, "4-review/a/run.log"), "utf8"), "implementer's run\n");
       assert.equal(git(wt, "status", "--porcelain"), "");
     });
   });

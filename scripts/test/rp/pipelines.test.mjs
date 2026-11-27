@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { RP, commitAll, git, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
+import { RP, apply, commitAll, git, lane, pipeline, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
 
 const CONFIG = '{"target-phase": 4, "base-branch": "main", "worktree-folder-root": ".worktrees"}\n';
 function recordPipeline(folder, issue, extra = "") {
@@ -45,6 +45,13 @@ describe("pipelines", () => {
       { state: "live", ref: "followup", folder: ".pipelines/merged", origins: ["issue 1", "starts-from main"] },
       { state: "merged", ref: "main", folder: ".pipelines/merged", origins: ["issue 1", "starts-from main"] },
     ]);
+  });
+
+  it("lists no lane branch a turn record holds a lane's turn on, and lists a branch that only bears a lane's name", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a"), lane("spec-producer", "b")] });
+    apply();
+    git(root, "branch", "--quiet", "demo-spec-c", "demo");
+    assert.deepEqual(discover().map(({ ref }) => ref), ["demo", "demo-spec-c"]);
   });
 
   it("filters by the issue the intent names, not by folder or branch name", () => {

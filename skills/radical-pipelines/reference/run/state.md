@@ -147,7 +147,7 @@ Below the frontier, `rp check` lists the threads awaiting each woken role and th
 
 Every live pipeline is a pipeline folder at some branch tip; every merged one is in the artifact base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue, reading only each pipeline's intent:
 
-1. Collect the tree id of every pipeline folder at each branch tip.
+1. Collect the tree id of every pipeline folder at each branch tip, but a lane branch's: one a turn record holds a lane's turn on.
 2. Keep the pipelines whose tree id differs from every id that folder ever had in the artifact base branch's history: those are the live ones.
 3. Read their `0-intent/intent.md` and the artifact base branch's. An intent that is missing, or that `rp check` would report malformed, stops the command, naming the intent and the reason.
 4. Keep those whose intent's `issue` names the issue.
