@@ -2132,7 +2132,7 @@ function evidenceOf(args, seat, command, rel, n) {
   const indexed = gitBytes(seat.root, ["ls-files", "-z", "--", ...[...ancestors, parts.join("/")].map((path) => `:(top,literal)${path}`)]).toString("utf8").split("\0").filter(Boolean);
   const file = indexed.find((path) => ancestors.includes(path));
   if (file) fail(`cannot write ${parts.join("/")}: the index holds a file at ${file}`);
-  if (lstatOf(join(seat.base, folder)) || indexed.some((path) => path.startsWith(`${parts.join("/")}/`)))
+  if (lstatOf(join(seat.base, folder)) || indexed.some((path) => path === parts.join("/") || path.startsWith(`${parts.join("/")}/`)))
     wrong(command, `${seat.folder}/${folder} exists`, "remove it, and run the command again");
   return { folder, items };
 }
@@ -2152,10 +2152,11 @@ function attach(seat, evidence) {
     for (const path of created.reverse())
       try { rmdirSync(path); } catch (error) { if (!["ENOTEMPTY", "EEXIST", "ENOENT"].includes(error.code)) throw error; }
     if (!staged) return "";
-    try { gitText(seat.root, ["rm", "--cached", "--quiet", "--ignore-unmatch", "--", ...pathspecs()]); return ""; }
+    try { own(["rm", "--cached", "--quiet", "--ignore-unmatch"]); return ""; }
     catch (error) { if (error instanceof RpError) return `; the index still holds files of ${seat.folder}/${evidence.folder}: unstage them with git rm --cached`; throw error; }
   };
-  const pathspecs = () => written.map((path) => `:(top,literal)${posix(relative(seat.root, path))}`);
+  // Git reads the paths this call wrote from standard input, NUL-delimited, however many they are.
+  const own = (args) => gitText(seat.root, [...args, "--pathspec-from-file=-", "--pathspec-file-nul"], written.map((path) => `:(top,literal)${posix(relative(seat.root, path))}\0`).join(""));
   // Creates each missing folder down to `path`, recording those this call created.
   const folderTo = (path) => {
     const missing = [];
@@ -2172,7 +2173,7 @@ function attach(seat, evidence) {
         catch (error) { if (error.code !== "EEXIST") rmSync(path, { force: true }); throw error; }
         written.push(path);
       }
-    gitText(seat.root, ["add", "--force", "--", ...pathspecs()]);
+    own(["add", "--force"]);
     staged = true;
   } catch (error) {
     const note = undo();
@@ -2188,8 +2189,9 @@ function publishThread(path, contents, exclusive) {
     catch (error) { if (error.code !== "EEXIST") rmSync(path, { force: true }); throw error; }
     return;
   }
-  const temporary = join(dirname(path), `.rp-${process.pid}.tmp`);
-  try { writeFileSync(temporary, contents, { flag: "wx" }); chmodSync(temporary, statSync(path).mode & 0o7777); renameSync(temporary, path); }
+  const temporary = join(dirname(path), `.rp-${process.pid}-${Math.random().toString(36).slice(2)}.tmp`), mode = statSync(path).mode & 0o7777;
+  writeFileSync(temporary, contents.subarray(0, 0), { flag: "wx", mode });
+  try { chmodSync(temporary, mode); writeFileSync(temporary, contents); renameSync(temporary, path); }
   finally { rmSync(temporary, { force: true }); }
 }
 function writeThread(seat, command, rel, contents, messages, message, exclusive, evidence = { items: [] }) {

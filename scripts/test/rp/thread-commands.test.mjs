@@ -333,6 +333,19 @@ describe("rp thread", () => {
       assert.deepEqual([snapshot(), git(root, "ls-files", "--", held).trim()], [before, held]);
     });
 
+    it("refuses a message's folder the index holds as a file, and keeps it staged", () => {
+      pipeline(3);
+      const opened = open("implementer", "spec", FINDINGS), held = P(`${opened.slice(0, -3)}/2`);
+      writeFile(held, "a file where the message's folder goes\n");
+      git(root, "add", "--", held);
+      rmSync(abs(held));
+      writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
+      const before = snapshot(), out = threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), "--evidence", join(EVIDENCE(), "run.log")], "Stands.\n");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, new RegExp(`${held.replaceAll(".", "\\.")} exists$`, "m"));
+      assert.deepEqual([snapshot(), git(root, "ls-files", "--", held).trim()], [before, held]);
+    });
+
     it("keeps a thread's permissions when it adds a message", () => {
       pipeline(3);
       const opened = open("implementer", "spec", FINDINGS);
