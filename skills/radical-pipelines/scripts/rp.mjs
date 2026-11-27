@@ -3,7 +3,7 @@
 // Commands: check, pipelines, start, next, land, close, thread, validate. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -2124,12 +2124,15 @@ function evidenceOf(args, seat, command, rel, n) {
     names.add(name);
     return { source, target: `${folder}/${name}`, files };
   });
-  const parts = `${seat.folder}/${folder}`.split("/");
-  for (let length = 1; length < parts.length; length++) {
-    const stat = lstatOf(join(seat.root, ...parts.slice(0, length)));
-    if (stat && !stat.isDirectory()) fail(`cannot write ${parts.slice(0, length).join("/")}: not a folder`);
+  const parts = `${seat.folder}/${folder}`.split("/"), ancestors = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join("/"));
+  for (const ancestor of ancestors) {
+    const stat = lstatOf(join(seat.root, ancestor));
+    if (stat && !stat.isDirectory()) fail(`cannot write ${ancestor}: not a folder`);
   }
-  if (lstatOf(join(seat.base, folder)) || gitText(seat.root, ["ls-files", "--", `:(top,literal)${seat.folder}/${folder}`]))
+  const indexed = gitBytes(seat.root, ["ls-files", "-z", "--", ...[...ancestors, parts.join("/")].map((path) => `:(top,literal)${path}`)]).toString("utf8").split("\0").filter(Boolean);
+  const file = indexed.find((path) => ancestors.includes(path));
+  if (file) fail(`cannot write ${parts.join("/")}: the index holds a file at ${file}`);
+  if (lstatOf(join(seat.base, folder)) || indexed.some((path) => path.startsWith(`${parts.join("/")}/`)))
     wrong(command, `${seat.folder}/${folder} exists`, "remove it, and run the command again");
   return { folder, items };
 }
@@ -2138,8 +2141,8 @@ const withEvidence = (body, evidence) => evidence.items.length
   ? Buffer.concat([body, Buffer.from(`${body.at(-1) === 0x0a ? "" : "\n"}\nEvidence:\n\n${evidence.items.map(({ target }) => `- \`${target}\``).join("\n")}\n`)]) : body;
 // Copies the files a message attaches into its folder, as regular files, and stages them, whatever the repository's
 // ignore rules, so the commit that carries the message carries them. Returns `undo`, which removes the files this call
-// wrote and each folder it created that is left empty, and unstages its folder, where the index held nothing before;
-// `undo` returns a note when the index still holds it. A failure undoes it.
+// wrote and each folder it created that is left empty, and unstages those files, where the index held nothing before;
+// `undo` returns a note when the index still holds them. A failure undoes it.
 function attach(seat, evidence) {
   if (!evidence.items.length) return () => "";
   const written = [], created = [];
@@ -2149,9 +2152,10 @@ function attach(seat, evidence) {
     for (const path of created.reverse())
       try { rmdirSync(path); } catch (error) { if (!["ENOTEMPTY", "EEXIST", "ENOENT"].includes(error.code)) throw error; }
     if (!staged) return "";
-    try { gitText(seat.root, ["rm", "-r", "--cached", "--quiet", "--ignore-unmatch", "--", `:(top,literal)${seat.folder}/${evidence.folder}`]); return ""; }
-    catch (error) { if (error instanceof RpError) return `; the index still holds ${seat.folder}/${evidence.folder}: unstage it with git rm -r --cached`; throw error; }
+    try { gitText(seat.root, ["rm", "--cached", "--quiet", "--ignore-unmatch", "--", ...pathspecs()]); return ""; }
+    catch (error) { if (error instanceof RpError) return `; the index still holds files of ${seat.folder}/${evidence.folder}: unstage them with git rm --cached`; throw error; }
   };
+  const pathspecs = () => written.map((path) => `:(top,literal)${posix(relative(seat.root, path))}`);
   // Creates each missing folder down to `path`, recording those this call created.
   const folderTo = (path) => {
     const missing = [];
@@ -2168,7 +2172,7 @@ function attach(seat, evidence) {
         catch (error) { if (error.code !== "EEXIST") rmSync(path, { force: true }); throw error; }
         written.push(path);
       }
-    gitText(seat.root, ["add", "--force", "--", `:(top,literal)${seat.folder}/${evidence.folder}`]);
+    gitText(seat.root, ["add", "--force", "--", ...pathspecs()]);
     staged = true;
   } catch (error) {
     const note = undo();
@@ -2177,15 +2181,15 @@ function attach(seat, evidence) {
   return undo;
 }
 // Writes a thread file whole or not at all: a new thread only where no file is, removed when its write fails; a thread
-// that exists replaced at once by a complete copy.
+// that exists replaced at once by a complete copy with its permissions.
 function publishThread(path, contents, exclusive) {
   if (exclusive) {
     try { writeFileSync(path, contents, { flag: "wx" }); }
     catch (error) { if (error.code !== "EEXIST") rmSync(path, { force: true }); throw error; }
     return;
   }
-  const temporary = join(dirname(path), `.rp-${process.pid}-${basename(path)}.tmp`);
-  try { writeFileSync(temporary, contents, { flag: "wx" }); renameSync(temporary, path); }
+  const temporary = join(dirname(path), `.rp-${process.pid}.tmp`);
+  try { writeFileSync(temporary, contents, { flag: "wx" }); chmodSync(temporary, statSync(path).mode & 0o7777); renameSync(temporary, path); }
   finally { rmSync(temporary, { force: true }); }
 }
 function writeThread(seat, command, rel, contents, messages, message, exclusive, evidence = { items: [] }) {
@@ -2230,11 +2234,15 @@ function openThread(seat, command, values, body, args) {
   const rel = `threads/${Math.max(0, ...numbers) + 1}-${values.opener}-${values.recipient}-${values.about}.md`;
   const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
   const evidence = evidenceOf(args, seat, command, rel, 1);
+  // The copy of the path `given` names when it is an attached source or a path inside one that the attachment carries.
   const copyOf = (given) => {
-    for (const { source, target } of evidence.items) {
+    for (const { source, target, files } of evidence.items) {
       const inner = relative(source, resolve(process.cwd(), given));
+      if (isAbsolute(inner) || inner.split(sep)[0] === "..") continue;
       if (!inner) return target;
-      if (!inner.startsWith("..") && !isAbsolute(inner)) return `${target}/${posix(inner)}`;
+      const at = posix(inner);
+      if (!files.some(([, each]) => each === at || each.startsWith(`${at}/`))) wrong(command, `--cites names ${given}, which the attachment does not carry`, "cite a file the message attaches, or a folder of them");
+      return `${target}/${at}`;
     }
     return given;
   };

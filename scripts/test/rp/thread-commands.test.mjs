@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { afterEach, describe, it } from "node:test";
@@ -320,6 +320,33 @@ describe("rp thread", () => {
         assert.deepEqual(snapshot(), before);
       });
 
+    it("writes nothing where the index holds a file on the way to the message's folder, and keeps it staged", () => {
+      pipeline(3);
+      const opened = open("implementer", "spec", FINDINGS), held = P(opened.slice(0, -3));
+      writeFile(held, "a file where the thread's folder goes\n");
+      git(root, "add", "--", held);
+      rmSync(abs(held));
+      writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
+      const before = snapshot(), out = threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), "--evidence", join(EVIDENCE(), "run.log")], "Stands.\n");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, new RegExp(`the index holds a file at ${held.replaceAll(".", "\\.")}$`, "m"));
+      assert.deepEqual([snapshot(), git(root, "ls-files", "--", held).trim()], [before, held]);
+    });
+
+    it("keeps a thread's permissions when it adds a message", () => {
+      pipeline(3);
+      const opened = open("implementer", "spec", FINDINGS);
+      chmodSync(abs(P(opened)), 0o600);
+      reply("spec-producer", opened, "Stands.\n");
+      assert.equal(statSync(abs(P(opened))).mode & 0o777, 0o600);
+    });
+
+    it("writes the thread of a lane whose name is long, its file name near the longest a folder holds", () => {
+      pipeline(3);
+      const role = `reviewer-${"a".repeat(200)}`, opened = open(role, "implementation", FINDINGS);
+      assert.equal(close(role, opened, "withdrawn"), opened);
+    });
+
     it("refuses a source named .git, writing nothing", () => {
       pipeline(3);
       const opened = open("implementer", "spec", FINDINGS), source = join(EVIDENCE(), "again", ".git");
@@ -350,6 +377,14 @@ describe("rp thread", () => {
       writeFileSync(join(EVIDENCE(), "again", "report.txt"), "report\n");
       const inside = written(threadAs("implementer", "escalate", ["--cites", join(EVIDENCE(), "again", "report.txt"), "--evidence", join(EVIDENCE(), "again")], "Every approach fails.\n"));
       assert.match(read(inside), new RegExp(`^cites: ${inside.slice(0, -3)}/1/again/report\\.txt$`, "m"));
+      writeFileSync(join(EVIDENCE(), "again", "..summary"), "summary\n");
+      const dotted = written(threadAs("implementer", "escalate", ["--cites", join(EVIDENCE(), "again", "..summary"), "--evidence", join(EVIDENCE(), "again")], "Every approach fails.\n"));
+      assert.match(read(dotted), new RegExp(`^cites: ${dotted.slice(0, -3)}/1/again/\\.\\.summary$`, "m"));
+      mkdirSync(join(EVIDENCE(), "again", "empty"));
+      const before = snapshot(), out = threadAs("implementer", "escalate", ["--cites", join(EVIDENCE(), "again", "empty"), "--evidence", join(EVIDENCE(), "again")], "Every approach fails.\n");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /--cites names .*again\/empty, which the attachment does not carry$/m);
+      assert.deepEqual(snapshot(), before);
     });
 
     it("on every command that writes a message, numbered as the message is in its thread", () => {
