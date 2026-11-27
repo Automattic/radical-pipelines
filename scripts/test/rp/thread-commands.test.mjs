@@ -263,7 +263,7 @@ describe("rp thread", () => {
     const failures = [
       ["copying an attachment", () => chmodSync(join(EVIDENCE(), "again", "run.log"), 0o000), () => chmodSync(join(EVIDENCE(), "again", "run.log"), 0o644)],
       ["staging the attachments", () => writeFile(".git/index.lock", ""), () => rmSync(abs(".git/index.lock"))],
-      ["writing the thread", () => chmodSync(abs(P(SPEC_THREAD)), 0o444), () => chmodSync(abs(P(SPEC_THREAD)), 0o644)],
+      ["writing the thread", () => { mkdirSync(abs(P(SPEC_THREAD.slice(0, -3)))); chmodSync(abs(P("threads")), 0o555); }, () => chmodSync(abs(P("threads")), 0o755)],
     ];
     const SPEC_THREAD = "threads/1-implementer-spec-producer-spec.md";
     for (const [what, fault, repair] of failures)
@@ -274,11 +274,17 @@ describe("rp thread", () => {
         writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
         writeFileSync(join(EVIDENCE(), "again", "run.log"), "nested\n");
         const args = ["--thread", abs(P(SPEC_THREAD)), "--evidence", join(EVIDENCE(), "run.log"), "--evidence", join(EVIDENCE(), "again")];
+        // A file the index holds in the thread's folder and the working tree no longer does.
+        const staged = P(`${SPEC_THREAD.slice(0, -3)}/kept.txt`);
+        writeFile(staged, "staged, then removed from the working tree\n");
+        git(root, "add", "--", staged);
+        rmSync(abs(staged));
+        rmSync(abs(P(SPEC_THREAD.slice(0, -3))), { recursive: true });
         fault();
         const before = snapshot(), out = threadAs("spec-producer", "reply", args, "Stands.\n");
         repair();
         assert.equal(out.status, 1);
-        assert.deepEqual([snapshot(), git(root, "diff", "--cached", "--name-only")], [before, ""]);
+        assert.deepEqual([snapshot(), git(root, "diff", "--cached", "--name-only")], [before, `${staged}\n`]);
         assert.equal(written(threadAs("spec-producer", "reply", args, "Stands.\n")), SPEC_THREAD);
         assert.equal(read(`${SPEC_THREAD.slice(0, -3)}/2/again/run.log`), "nested\n");
       });
@@ -314,6 +320,16 @@ describe("rp thread", () => {
         assert.deepEqual(snapshot(), before);
       });
 
+    it("refuses a source named .git, writing nothing", () => {
+      pipeline(3);
+      const opened = open("implementer", "spec", FINDINGS), source = join(EVIDENCE(), "again", ".git");
+      writeFileSync(source, "gitdir: elsewhere\n");
+      const before = snapshot(), out = threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), "--evidence", source], "Stands.\n");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /again\/\.git is a Git repository's folder$/m);
+      assert.deepEqual(snapshot(), before);
+    });
+
     it("writes nothing through a link on the way to the message's folder", () => {
       pipeline(3);
       const opened = open("implementer", "spec", FINDINGS), outside = mkdtempSync(join(tmpdir(), "rp-elsewhere-"));
@@ -331,6 +347,9 @@ describe("rp thread", () => {
       writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
       const escalated = written(threadAs("implementer", "escalate", ["--cites", join(EVIDENCE(), "run.log"), "--evidence", join(EVIDENCE(), "run.log")], "Every approach fails.\n"));
       assert.match(read(escalated), new RegExp(`^cites: ${escalated.slice(0, -3)}/1/run\\.log$`, "m"));
+      writeFileSync(join(EVIDENCE(), "again", "report.txt"), "report\n");
+      const inside = written(threadAs("implementer", "escalate", ["--cites", join(EVIDENCE(), "again", "report.txt"), "--evidence", join(EVIDENCE(), "again")], "Every approach fails.\n"));
+      assert.match(read(inside), new RegExp(`^cites: ${inside.slice(0, -3)}/1/again/report\\.txt$`, "m"));
     });
 
     it("on every command that writes a message, numbered as the message is in its thread", () => {
