@@ -3,7 +3,7 @@
 // Commands: check, pipelines, start, next, land, close, thread, validate. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -670,8 +670,11 @@ export const isReview = (thread) => parseRole(thread.opener).profile === "review
 const closingStatus = (thread) => isReview(thread) ? "approved" : "resolved";
 // An approval: an approved review thread.
 const isApproval = (thread) => isReview(thread) && thread.status === "approved";
-// A review lane's supporting folder, by its pipeline-relative path, which its reviewer and the implementer write.
-const reviewFolderOf = (laneId) => `4-review/${laneId}`;
+// A thread's folder, by its pipeline-relative path: the thread's path without `.md`. It holds the files its messages
+// attach, each message's in `<folder>/<its number>/`.
+const threadFolderOf = (thread) => thread.slice(0, -".md".length);
+// The thread whose folder holds the pipeline-relative path `rel`, or null.
+const threadHolding = (rel) => { const match = rel.match(/^(threads\/[^/]+)\//); return match ? `${match[1]}.md` : null; };
 // A review lane's thread, by its pipeline-relative path: `threads/<n>-reviewer-<lane>-implementer-implementation.md`, a
 // review thread, or `threads/<n>-reviewer-<lane>-owner-intent.md`. Its number and whether it is a review thread, or null.
 function laneThreadOf(rel, laneId) {
@@ -709,6 +712,7 @@ export function parseThread(name, contents) {
   if ((thread.recipient === "owner") !== OWNER_STATUSES.includes(thread.status))
     invalid(`${OWNER_STATUSES.join(" and ")} are the statuses of a thread to owner, and only of it`);
   if ([thread.opener, thread.recipient].some(isProductionLane)) invalid("production lanes open no threads");
+  if (parseRole(thread.opener).profile === "reviewer" && !["implementation", "intent"].includes(thread.about)) invalid("a review lane opens threads about implementation and intent alone");
   if (["approved", "resolved"].includes(thread.status) && thread.status !== closingStatus(thread))
     invalid(`${isReview(thread) ? "a review thread" : "a thread other than a review thread"} closes ${closingStatus(thread)}, not ${thread.status}`);
   if (name !== `${number}-${thread.opener}-${thread.recipient}-${thread.about}.md`) invalid(`thread file name must be ${number}-${thread.opener}-${thread.recipient}-${thread.about}.md`);
@@ -1166,11 +1170,13 @@ function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
 // The review lane's review base and review head built from the pipeline tip: their trees, and `mergeBase`, the commit
 // the review base sits on. The review base holds the merge-base's tree and the review head the tip's, each with the
 // pipelines folder root replaced by the lane's root: the tip's root without its pipeline folders, plus the lane's view,
-// the pipeline's `0-intent/`, the lane's own threads, and its supporting folder. `git diff` between them is the net change, the root's tooling
+// the pipeline's `0-intent/` and the lane's own threads with their folders. `git diff` between them is the net change, the root's tooling
 // stays, and the lane sees no pipeline but its own view. Built from commits alone; only tree objects are written.
 async function reviewBuildOf(root, folder, pipelinesRoot, tip, mergeBase, laneId) {
-  const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
-    && ([`${folder}/0-intent/`, `${folder}/${reviewFolderOf(laneId)}/`].some((prefix) => entry.path.startsWith(prefix)) || laneThreadOf(entry.path.slice(folder.length + 1), laneId)));
+  const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => {
+    const rel = entry.path.slice(folder.length + 1);
+    return entry.type === "blob" && (rel.startsWith("0-intent/") || laneThreadOf(rel, laneId) || laneThreadOf(threadHolding(rel) ?? "", laneId));
+  });
   const rootEntries = lsTree(root, tip, `${pipelinesRoot}/`, false).map((entry) => ({ ...entry, name: entry.path.slice(pipelinesRoot.length + 1) }));
   const pipelines = new Set((await pipelineFoldersIn(root, rootEntries)).map((entry) => `${entry.path}/`));
   const kept = [...lsTree(root, tip, `${pipelinesRoot}/`, true).filter((entry) => ![...pipelines].some((prefix) => entry.path.startsWith(prefix))), ...view];
@@ -1423,7 +1429,6 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
     // A review lane's review head sits on its review base; its turn commit is the review head, or above it on a repair in
     // place.
     values["review-base"] = requireCommit(root, `${reviewHead}^`, `the review base of ${reviewHead}`);
-    values["supporting-folder"] = `${at(reviewFolderOf(role.lane))}/`;
     const later = repair ? null : laterTurnOf(root, state, role);
     templateName = repair ? "reviewer-repair" : later ? "reviewer-later" : "reviewer-first";
     if (later) {
@@ -2086,7 +2091,39 @@ function notOpen(command, rel, thread) {
 // grammar accepts it and reads in it `messages`, the messages the command means. `message`, the role's message when the
 // command writes one, must leave the file open to a message after it. Otherwise `command` is refused and nothing is
 // written.
-function writeThread(seat, command, rel, contents, messages, message, flag) {
+// The files a message attaches, `--evidence` once per file or folder, against the process directory: each one's source
+// and its path in the thread's folder, `<folder>/<n>/<its name>`, `n` the message's number in the thread. Each is
+// validated before anything is written: it exists, its name is no other's and holds no backtick, and its path is free.
+function evidenceOf(args, seat, command, rel, n) {
+  if (args.evidence.length && args.body === null) misused(command, "--evidence attaches files to a message: give --body <file | ->");
+  const names = new Set();
+  return args.evidence.map((given) => {
+    const source = resolve(process.cwd(), given), name = basename(source);
+    let stat;
+    try { stat = statSync(source); } catch (error) { if (error.code !== "ENOENT" && error.code !== "ENOTDIR") fail(`cannot read ${given}: ${error.message}`); }
+    if (!stat?.isFile() && !stat?.isDirectory()) wrong(command, `--evidence names no file or folder: ${given}`, "attach a file or a folder");
+    if (names.has(name)) wrong(command, `two files attached as ${name}`, "give each file you attach a name of its own");
+    if (/[`\r\n]/.test(name)) wrong(command, `the name of ${given} holds a backtick or a line break`, "rename it, and attach it again");
+    names.add(name);
+    const target = `${threadFolderOf(rel)}/${n}/${name}`;
+    if (lstatOf(join(seat.base, target))) wrong(command, `${seat.folder}/${target} exists`, "remove it, and run the command again");
+    return { source, target };
+  });
+}
+// A message's body with the paths of the files it attaches listed after it, from the pipeline folder.
+const withEvidence = (body, evidence) => evidence.length
+  ? Buffer.concat([body, Buffer.from(`${body.at(-1) === 0x0a ? "" : "\n"}\nEvidence:\n\n${evidence.map(({ target }) => `- \`${target}\``).join("\n")}\n`)]) : body;
+// Copies each attached file into the thread's folder and stages it, whatever the repository's ignore rules, so the
+// commit that carries the message carries it.
+function attach(seat, evidence) {
+  for (const { source, target } of evidence) {
+    const path = join(seat.base, target);
+    try { mkdirSync(dirname(path), { recursive: true }); cpSync(source, path, { recursive: true, dereference: true, errorOnExist: true, force: false }); }
+    catch (error) { fail(`cannot write ${seat.folder}/${target}: ${error.message}`); }
+    gitText(seat.root, ["add", "--force", "--", `:(top,literal)${seat.folder}/${target}`]);
+  }
+}
+function writeThread(seat, command, rel, contents, messages, message, flag, evidence = []) {
   const read = (bytes) => {
     try { return parseFile(rel, kindOf(rel), bytes); }
     catch (error) {
@@ -2104,6 +2141,8 @@ function writeThread(seat, command, rel, contents, messages, message, flag) {
   if (message && read(withMessage(contents, message.author, message.commit, Buffer.alloc(0))).messages.length !== messages.length + 1)
     wrong(command, "the body leaves fenced code open, which hides every message heading after it", "close it, and run the command again");
   const path = join(seat.base, rel);
+  if (flag === "wx" && lstatOf(path)) wrong(command, `${rel} exists`, "run the command again, which takes the next number");
+  attach(seat, evidence);
   try {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, contents, { flag });
@@ -2116,14 +2155,15 @@ function writeThread(seat, command, rel, contents, messages, message, flag) {
 
 // Opens the thread whose header holds `values` with the seat's role's message, at `threads/<n>-<opener>-<recipient>-<about>.md`:
 // `<n>` is one past the highest number among the names `threads/<n>-….md` in the working tree, or 1 when there is none.
-function openThread(seat, command, values, body) {
+function openThread(seat, command, values, body, args) {
   const header = headerOf(values) ?? wrong(command, `--cites cannot be written as a frontmatter value: ${JSON.stringify(values.cites)}`, "cite the thread or the evidence by its path");
   const threads = join(seat.base, "threads"), stat = lstatOf(threads);
   if (stat && !stat.isDirectory()) fail(`cannot read ${seat.folder}/threads: a file where a folder belongs`);
   const numbers = stat ? readdirSync(threads).map((name) => Number(name.match(/^([1-9]\d*)-.+\.md$/)?.[1] ?? 0)) : [];
   const rel = `threads/${Math.max(0, ...numbers) + 1}-${values.opener}-${values.recipient}-${values.about}.md`;
   const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
-  writeThread(seat, command, rel, withMessage(header, message.author, message.commit, body), [message], message, "wx");
+  const evidence = evidenceOf(args, seat, command, rel, 1);
+  writeThread(seat, command, rel, withMessage(header, message.author, message.commit, withEvidence(body, evidence)), [message], message, "wx", evidence);
 }
 // What to run instead of a thread about the intent.
 const ESCALATION = "raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->";
@@ -2138,13 +2178,14 @@ function cmdThreadOpen(args) {
   if (isProductionLane(role.name)) laneOpensNone(command, role);
   if (about === "intent") wrong(command, "the intent is the owner's", ESCALATION);
   if (!artifacts.includes(about)) misused(command, `--about names spec, design-doc, or implementation: ${about}`);
+  if (role.profile === "reviewer" && about !== "implementation") wrong(command, `${role.name} opens its review about implementation`, "open it with --about implementation; take what the issue means or demands to the owner with rp thread escalate");
   if (OWNERS[about] === role.profile) {
     // The artifacts the role consumes besides the intent: its phase's upstream ones.
     const consumed = artifactOf(role).phase.upstream.filter((path) => path !== INTENT).map((path) => PHASES.find((phase) => phase.path === path).name);
     if (!consumed.length) wrong(command, `${role.name} owns ${about}, and consumes the intent alone`, ESCALATION);
     wrong(command, `${role.name} owns ${about}`, `open a thread about an artifact you consume: --about ${consumed.join(" or ")}`);
   }
-  openThread(seat, command, { status: "open", opener: role.name, recipient: OWNERS[about], about }, bodyOf(args, command, true));
+  openThread(seat, command, { status: "open", opener: role.name, recipient: OWNERS[about], about }, bodyOf(args, command, true), args);
 }
 
 // `thread escalate`: the role's thread to owner about the intent, citing what the disagreement comes from.
@@ -2152,7 +2193,7 @@ function cmdThreadEscalate(args) {
   const command = "thread escalate", seat = seatOf(args, command), { role } = seat;
   if (!args.cites?.trim()) misused(command, "--cites names the thread the disagreement comes from or the path of its evidence");
   if (isProductionLane(role.name)) laneOpensNone(command, role);
-  openThread(seat, command, { status: "escalated", opener: role.name, recipient: OWNERS.intent, about: "intent", cites: args.cites }, bodyOf(args, command, true));
+  openThread(seat, command, { status: "escalated", opener: role.name, recipient: OWNERS.intent, about: "intent", cites: args.cites }, bodyOf(args, command, true), args);
 }
 
 // Whether `thread`, at `rel`, is the approval the seat's role writes in again: its lane's review thread, approved.
@@ -2170,7 +2211,8 @@ function cmdThreadReply(args) {
   if (!approval && thread.status !== "open") notOpen(command, rel, thread);
   if (!approval && awaitedRole(thread) !== role.name) wrong(command, `${rel} awaits ${awaitedRole(thread)}`, `only ${awaitedRole(thread)} writes in it now: check --role and --thread`);
   const message = { author: role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
-  writeThread(seat, command, rel, withMessage(approval ? withStatus(contents, "open") : contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
+  const evidence = evidenceOf(args, seat, command, rel, thread.messages.length + 1);
+  writeThread(seat, command, rel, withMessage(approval ? withStatus(contents, "open") : contents, message.author, message.commit, withEvidence(body, evidence)), [...thread.messages, message], message, "w", evidence);
 }
 
 // `thread close`: an open thread the role opened, closed with its closing status (§ closingStatus) or `withdrawn`, with the
@@ -2193,7 +2235,8 @@ function cmdThreadClose(args) {
     wrong(command, `an approval names the commit it approves in its reviewer's last message, and the last message of ${rel} is ${last.author}'s at ${last.commit}`,
       "run the same command with --body <file | ->: your closing message names the commit you approve");
   const closed = withStatus(contents, status), message = body && { author: role.name, commit };
-  writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, body) : closed, message ? [...thread.messages, message] : thread.messages, message, "w");
+  const evidence = evidenceOf(args, seat, command, rel, thread.messages.length + 1);
+  writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, withEvidence(body, evidence)) : closed, message ? [...thread.messages, message] : thread.messages, message, "w", evidence);
 }
 
 // --- validate -----------------------------------------------------------------------
@@ -2224,30 +2267,31 @@ const COMMANDS = {
   next: { run: cmdNext, usage: "next <pipeline folder> [--apply]", options: { "--apply": "flag" } },
   land: { run: cmdLand, usage: "land <pipeline folder> --role <role>", options: { "--role": "value" } },
   close: { run: cmdClose, usage: "close <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
-  "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->",
-    options: { "--role": "value", "--about": "value", "--body": "value" } },
-  "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->",
-    options: { "--role": "value", "--thread": "value", "--body": "value" } },
-  "thread close": { run: cmdThreadClose, usage: "thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]",
-    options: { "--role": "value", "--thread": "value", "--status": "value", "--body": "value" } },
-  "thread escalate": { run: cmdThreadEscalate, usage: "thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->",
-    options: { "--role": "value", "--cites": "value", "--body": "value" } },
+  "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | -> [--evidence <file | folder>]...",
+    options: { "--role": "value", "--about": "value", "--body": "value", "--evidence": "list" } },
+  "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | -> [--evidence <file | folder>]...",
+    options: { "--role": "value", "--thread": "value", "--body": "value", "--evidence": "list" } },
+  "thread close": { run: cmdThreadClose, usage: "thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->] [--evidence <file | folder>]...",
+    options: { "--role": "value", "--thread": "value", "--status": "value", "--body": "value", "--evidence": "list" } },
+  "thread escalate": { run: cmdThreadEscalate, usage: "thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | -> [--evidence <file | folder>]...",
+    options: { "--role": "value", "--cites": "value", "--body": "value", "--evidence": "list" } },
   validate: { run: cmdValidate, usage: "validate <pipeline folder> --role <role> [--file <path>]", options: { "--role": "value", "--file": "value" } },
 };
 const THREAD_COMMANDS = Object.keys(COMMANDS).filter((name) => name.startsWith("thread "));
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null, about: null, body: null, thread: null, status: null, cites: null, file: null, branch: null, config: null };
+  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null, about: null, body: null, thread: null, status: null, cites: null, file: null, branch: null, config: null, evidence: [] };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith("--")) { args._.push(arg); continue; }
     const type = options[arg] ?? misused(command, `unknown option: ${arg}`);
-    if (used.has(arg)) misused(command, `${arg} may appear only once`);
+    if (used.has(arg) && type !== "list") misused(command, `${arg} may appear only once`);
     used.add(arg);
     const key = arg.slice(2);
     if (type === "flag") { args[key] = true; continue; }
+    if (type === "list") { args[key].push(i + 1 < argv.length ? argv[++i] : misused(command, `${arg} expects a value`)); continue; }
     args[key] = i + 1 < argv.length ? argv[++i] : misused(command, `${arg} expects a value`);
   }
   if (args._.length > 1) misused(command, `unexpected argument: ${args._[1]}`);

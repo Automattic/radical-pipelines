@@ -142,7 +142,7 @@ cites: <thread path | evidence path>
 ---
 ```
 
-- `<role>` is `<profile>[-<lane>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, or `reviewer-<lane>`, with `<lane>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `config.json`, so closed threads of a removed lane stay valid. Production lanes open no threads: a thread whose opener or recipient is `spec-producer-<lane>` or `design-doc-producer-<lane>` is `malformed <thread>: production lanes open no threads`. An `open` thread awaiting a review lane that `config.json` does not declare is `malformed <thread>: lane not configured; close the thread withdrawn`; `default` is declared while no `reviewer` lane is, or when a lane declares it.
+- `<role>` is `<profile>[-<lane>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, or `reviewer-<lane>`, with `<lane>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `config.json`, so closed threads of a removed lane stay valid. Production lanes open no threads: a thread whose opener or recipient is `spec-producer-<lane>` or `design-doc-producer-<lane>` is `malformed <thread>: production lanes open no threads`. A thread `reviewer-<lane>` opens about `spec` or `design-doc` is `malformed <thread>: a review lane opens threads about implementation and intent alone`. An `open` thread awaiting a review lane that `config.json` does not declare is `malformed <thread>: lane not configured; close the thread withdrawn`; `default` is declared while no `reviewer` lane is, or when a lane declares it.
 - `about` pairs with the recipient's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`.
 - The opener is any role but `owner`, and differs from the recipient.
 - A thread to `owner` has status `escalated` or `answered`, and `cites` with a non-empty value; no other thread has either status or the key. The value is not resolved.
@@ -343,7 +343,7 @@ It changes no other ref or worktree, leaves the pipeline branch where it is, cha
 
 ### Review lanes
 
-The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/` and under its supporting folder `<pipeline folder>/4-review/<lane>/`, and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md`. The review head built from the tip is the second of two commits, built through a temporary index from commits alone, so no worktree's index, `HEAD`, or files affect them:
+The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/`, and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md` with every file in its folder (§ `thread`). The review head built from the tip is the second of two commits, built through a temporary index from commits alone, so no worktree's index, `HEAD`, or files affect them:
 
 1. **Review base**: the merge-base's tree (§ Net change and approval) with the pipelines folder root replaced by the **lane's root**: the tip's root without its pipeline folders (§ Pipeline files), plus the lane's view; its parent is the merge-base; its message is `rp review base`.
 2. **Review head**: the tip's tree with the root replaced by the same lane's root; its parent is the review base; its message is `rp review head`.
@@ -389,10 +389,10 @@ With `--apply`, it removes the lanes' worktrees and deletes the branches as `nex
 ## `thread`
 
 ```text
-node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->
-node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
-node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]
-node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->
+node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->] [--evidence <file | folder>]...
+node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | -> [--evidence <file | folder>]...
 ```
 
 `thread` writes a thread (§ Threads) in the working tree of the worktree that holds `<pipeline folder>`, as `--role`, around each message's body: the bytes of the file `--body` names, or of standard input for `-`, written as given. It reads only the thread it writes and the names in `threads/`, never the pipeline configuration, so it works alike in a review lane's tree, a production lane's worktree, and the pipeline worktree.
@@ -400,14 +400,16 @@ node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path
 - `open` writes `threads/<n>-<role>-<recipient>-<about>.md`, `<recipient>` the owner of the artifact `--about` names, with status `open` and the role's message. `<n>` is one more than the highest number among the names `threads/<n>-….md` in the working tree, or 1 when it holds none; `threads/` is created when absent, and an existing file is never replaced.
 - `escalate` writes `threads/<n>-<role>-owner-intent.md`, numbered the same way, with status `escalated`, `cites` the text given, quoted when the frontmatter needs it (§ Frontmatter), and the role's message.
 - `reply` adds the role's message at the end of an `open` thread that awaits it, or of the role's **own approval**, its lane's review thread while that is an approval, which it sets `open`.
+- `--evidence`, once per file or folder, against the process directory, attaches each to the message the command writes: it copies it, following links, to `<n>/<its name>` in the thread's **folder**, the thread's path without `.md`, `<n>` the message's number in the thread; stages it with `git add --force`, whatever the repository's ignore rules; and ends the message's body with a blank line, `Evidence:`, a blank line, and a list item `` - `<path>` `` for each, its path from the pipeline folder.
 - `close` sets the status of an `open` thread the role opened to `approved` for a review thread or `resolved` for any other, or to `withdrawn`, and with `--body` adds the role's closing message at the end. A review thread is closed `approved` without `--body` only when its last message is the reviewer's and names the commit its worktree stands on, the commit `land` certifies the approval at. It closes the role's own approval `approved` again.
 
-A message is its heading `## <role> — <commit>` on a line of its own after a blank line, `<commit>` the full hash of the worktree's `HEAD`, then a blank line and the body. Every other byte of the file stays as it was, but for the status the command sets. The command writes the file only when the file grammar (§ `validate`) accepts it and reads in it the messages the command means, the role's last, and would read a message written after the role's; it then prints the file's absolute path. It writes nothing else: no certification, ref, or other file. Every other use is wrong, and writes nothing:
+A message is its heading `## <role> — <commit>` on a line of its own after a blank line, `<commit>` the full hash of the worktree's `HEAD`, then a blank line and the body. Every other byte of the file stays as it was, but for the status the command sets. The command writes the file only when the file grammar (§ `validate`) accepts it and reads in it the messages the command means, the role's last, and would read a message written after the role's; it then prints the file's absolute path. It writes nothing else but the files a message attaches: no certification, ref, or other file. Every other use is wrong, and writes nothing:
 
-- `open` or `escalate` by a production lane's role; `open` about the intent, or about the artifact the role owns; `escalate` whose `--cites` is empty;
+- `open` or `escalate` by a production lane's role; `open` about the intent, about the artifact the role owns, or by a review lane's role about anything but `implementation`; `escalate` whose `--cites` is empty;
 - a `--thread` that names no thread file of the pipeline folder, or a file the file grammar rejects;
 - `reply` to a thread that neither awaits the role nor is its own approval; `close` of a thread that is neither `open` nor the role's own approval, by a role other than its opener, or with another status, such as `approved` on a thread other than a review thread, or any but `approved` on its own approval; an approval without `--body` that the last message does not name;
-- a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it.
+- a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it;
+- `--evidence` without a message, naming no file or folder, attaching two of one name or one whose name holds a backtick or a line break, or whose path in the thread's folder exists.
 
 The owner's answer on a thread to `owner` is written by hand (`../reference/run/loop.md` § Owner escalation).
 

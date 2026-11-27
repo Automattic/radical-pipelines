@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 
 import { parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import {
   P, PIPELINE, REVIEW, RP, TO_OWNER, TO_SPEC,
-  abs, apply, check, commitAll, commitIn, frontier, git, landRole, laneWorktree, pipeline, plan, read, remove, root, thread, useRepo, wakeOf, write, writeFile,
+  abs, apply, check, commitAll, commitIn, frontier, git, ignore, landRole, laneWorktree, pipeline, plan, read, remove, root, thread, useRepo, wakeOf, write, writeFile,
 } from "./fixture.mjs";
 
 const head = (at = root) => git(at, "rev-parse", "HEAD").trim();
@@ -43,6 +43,10 @@ function snapshot() {
 const changed = (before, after) => [...new Set([...Object.keys(before.files), ...Object.keys(after.files)])].filter((path) => before.files[path] !== after.files[path]).sort();
 
 const FINDINGS = "### Finding 1: `spec-requirement-2` has no input\n\nObserved: `$HOME` is unset.\n";
+// A folder outside the repository for the files a message attaches, holding `again/`, made once per test.
+let evidence = null;
+const EVIDENCE = () => evidence ??= (() => { const at = mkdtempSync(join(tmpdir(), "rp-evidence-")); mkdirSync(join(at, "again")); return at; })();
+afterEach(() => { if (evidence) rmSync(evidence, { recursive: true, force: true }); evidence = null; });
 
 describe("rp thread", () => {
   useRepo();
@@ -161,7 +165,7 @@ describe("rp thread", () => {
       ["an unknown subcommand", () => ["thread", "shut", F(), "--role", "implementer"], /^rp: thread: unknown subcommand: shut$/m, /^ {2}node rp\.mjs thread close <pipeline folder>/m],
       ["no subcommand", () => ["thread"], /^rp: thread: missing subcommand$/m, /^ {2}node rp\.mjs thread open <pipeline folder>/m],
       ["an unknown option", () => ["thread", "open", F(), "--role", "implementer", "--about", "spec", "--owner", "spec-producer", "--body", "-"], /^rp: thread open: unknown option: --owner$/m,
-        /^usage: node rp\.mjs thread open <pipeline folder> --role <role> --about <spec \| design-doc \| implementation> --body <file \| ->$/m],
+        /^usage: node rp\.mjs thread open <pipeline folder> --role <role> --about <spec \| design-doc \| implementation> --body <file \| -> \[--evidence <file \| folder>\]\.\.\.$/m],
       ["a missing argument", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC)], /^rp: thread reply: missing --body <file \| ->$/m, /^usage: node rp\.mjs thread reply /m],
       ["a missing pipeline folder", () => ["validate", "--role", "implementer"], /^rp: validate: missing <pipeline folder>$/m, /^usage: node rp\.mjs validate <pipeline folder> --role <role> \[--file <path>\]$/m],
       ["a --role that names no role", () => ["thread", "open", F(), "--role", "reviewer", "--about", "implementation", "--body", "-"], /^rp: thread open: --role names a role, <profile>\[-<lane>\]: reviewer$/m, /^usage: /m],
@@ -184,6 +188,16 @@ describe("rp thread", () => {
         /^rp: thread open: design-doc-producer owns design-doc$/m, /^open a thread about an artifact you consume: --about spec$/m],
       ["an open about the artifact the spec-producer owns", () => ["thread", "open", F(), "--role", "spec-producer", "--about", "spec", "--body", "-"],
         /^rp: thread open: spec-producer owns spec, and consumes the intent alone$/m, /^raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path \| evidence path> --body <file \| ->$/m],
+      ["an open by a review lane about another artifact than the implementation", () => ["thread", "open", F(), "--role", "reviewer-default", "--about", "spec", "--body", "-"],
+        /^rp: thread open: reviewer-default opens its review about implementation$/m, /^open it with --about implementation; take what the issue means or demands to the owner with rp thread escalate$/m],
+      ["evidence without a message", () => ["thread", "close", F(), "--role", "design-doc-producer", "--thread", T(AWAITS_SPEC), "--status", "withdrawn", "--evidence", EVIDENCE()],
+        /^rp: thread close: --evidence attaches files to a message: give --body <file \| ->$/m, /^usage: node rp\.mjs thread close /m],
+      ["evidence naming no file or folder", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--body", "-", "--evidence", join(EVIDENCE(), "absent.log")],
+        /^rp: thread reply: --evidence names no file or folder: .*absent\.log$/m, /^attach a file or a folder$/m],
+      ["two attachments of one name", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--body", "-", "--evidence", join(EVIDENCE(), "run.log"), "--evidence", join(EVIDENCE(), "again", "run.log")],
+        /^rp: thread reply: two files attached as run\.log$/m, /^give each file you attach a name of its own$/m],
+      ["an attachment whose path in the thread's folder exists", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--body", "-", "--evidence", join(EVIDENCE(), "taken.log")],
+        new RegExp(`^rp: thread reply: \\.pipelines/demo/threads/${AWAITS_SPEC.slice(0, -3)}/2/taken\\.log exists$`, "m"), /^remove it, and run the command again$/m],
       ["an open about the intent", () => ["thread", "open", F(), "--role", "implementer", "--about", "intent", "--body", "-"],
         /^rp: thread open: the intent is the owner's$/m, /^raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path \| evidence path> --body <file \| ->$/m],
       ["a close with another status", () => ["thread", "close", F(), "--role", "design-doc-producer", "--thread", T(AWAITS_SPEC), "--status", "answered"],
@@ -218,6 +232,8 @@ describe("rp thread", () => {
         thread({ n: 3, opener: "implementer", recipient: "design-doc-producer", about: "design-doc", status: "resolved" });
         thread({ n: 4, ...TO_OWNER });
         thread({ n: 5, ...REVIEW(), status: "pending" });
+        write(`threads/${AWAITS_SPEC.slice(0, -3)}/2/taken.log`, "taken\n");
+        for (const name of ["run.log", "again/run.log", "taken.log"]) writeFileSync(join(EVIDENCE(), name), "evidence\n");
         commitAll("threads");
         const before = snapshot(), out = rpWith(args(), input);
         assert.deepEqual([out.status, out.stdout], [1, ""]);
@@ -225,6 +241,34 @@ describe("rp thread", () => {
         assert.match(out.stderr, instead);
         assert.deepEqual(snapshot(), before);
       });
+  });
+
+  describe("attaches evidence to a message", () => {
+    it("copying each file or folder --evidence names to <n>/ in the thread's folder, staging it whatever the ignore rules, and listing its path after the body", () => {
+      pipeline(3);
+      ignore("*.log");
+      const opened = open("implementer", "spec", FINDINGS), folder = opened.slice(0, -3);
+      writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
+      writeFileSync(join(EVIDENCE(), "again", "run.log"), "nested\n");
+      const before = snapshot();
+      const out = threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), "--evidence", join(EVIDENCE(), "run.log"), "--evidence", join(EVIDENCE(), "again")], "Stands.\n");
+      assert.equal(written(out), opened);
+      assert.deepEqual(changed(before, snapshot()), [P(opened), P(`${folder}/2/again/run.log`), P(`${folder}/2/run.log`)]);
+      assert.deepEqual([read(`${folder}/2/run.log`), read(`${folder}/2/again/run.log`)], ["run\n", "nested\n"]);
+      assert.ok(read(opened).endsWith(`## spec-producer — ${head()}\n\nStands.\n\nEvidence:\n\n- \`${folder}/2/run.log\`\n- \`${folder}/2/again\`\n`));
+      assert.deepEqual(git(root, "diff", "--cached", "--name-only").split("\n").filter(Boolean), [P(`${folder}/2/again/run.log`), P(`${folder}/2/run.log`)]);
+    });
+
+    it("on every command that writes a message, numbered as the message is in its thread", () => {
+      pipeline(3);
+      writeFileSync(join(EVIDENCE(), "run.log"), "run\n");
+      const attach = ["--evidence", join(EVIDENCE(), "run.log")];
+      const opened = written(threadAs("implementer", "open", ["--about", "spec", ...attach], FINDINGS)), escalated = written(threadAs("implementer", "escalate", ["--cites", opened, ...attach], "Which?\n"));
+      written(threadAs("spec-producer", "reply", ["--thread", abs(P(opened)), ...attach], "Stands.\n"));
+      written(threadAs("implementer", "close", ["--thread", abs(P(opened)), "--status", "resolved", ...attach], "Settled.\n"));
+      for (const path of [`${opened.slice(0, -3)}/1/run.log`, `${opened.slice(0, -3)}/2/run.log`, `${opened.slice(0, -3)}/3/run.log`, `${escalated.slice(0, -3)}/1/run.log`]) assert.equal(read(path), "run\n");
+      assert.deepEqual(check().frontier.map((entry) => entry.action), ["escalate"]);
+    });
   });
 
   describe("changes", () => {

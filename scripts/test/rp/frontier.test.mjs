@@ -229,8 +229,8 @@ describe("frontier", () => {
     it("responds on an artifact with threads awaiting its owner as their recipient, listing them", () => {
       pipeline(3);
       thread(TO_SPEC);
-      thread({ n: 2, ...REVIEW(), recipient: "spec-producer", about: "spec" });
-      assert.deepEqual(check().frontier, [{ action: "respond", target: "spec", threads: ["threads/1-design-doc-producer-spec-producer-spec.md", "threads/2-reviewer-default-spec-producer-spec.md"] }]);
+      thread({ n: 2, opener: "implementer", recipient: "spec-producer", about: "spec" });
+      assert.deepEqual(check().frontier, [{ action: "respond", target: "spec", threads: ["threads/1-design-doc-producer-spec-producer-spec.md", "threads/2-implementer-spec-producer-spec.md"] }]);
     });
 
     it("wakes the opener's role when the recipient wrote last", () => {
@@ -266,7 +266,7 @@ describe("frontier", () => {
     for (const [targetPhase, upTo, parties, expected] of [
       [1, 1, TO_DESIGN, `respond design-doc`],
       [2, 2, REVIEW(), `respond implementation`],
-      [3, 3, { ...REVIEW(), recipient: "spec-producer", about: "spec", replied: true }, "review default"],
+      [3, 3, { ...REVIEW(), replied: true }, "review default"],
     ])
       it(`a thread awaiting a role beyond target phase ${targetPhase} is still its work: ${expected}`, () => {
         pipeline(upTo, { targetPhase });
@@ -306,9 +306,9 @@ describe("frontier", () => {
 
     it("wakes an approved lane with a thread awaiting its reviewer", () => {
       pipeline(3);
-      approve();
-      replied({ ...REVIEW(), recipient: "spec-producer", about: "spec" }, 2);
-      assert.deepEqual(check().frontier, [{ action: "review", lane: "default", threads: ["threads/2-reviewer-default-spec-producer-spec.md"] }]);
+      approve("default", 2);
+      replied(REVIEW(), 1);
+      assert.deepEqual(check().frontier, [{ action: "review", lane: "default", threads: ["threads/1-reviewer-default-implementer-implementation.md"] }]);
     });
 
     it("an approval goes stale when the implementer commits code", () => {
@@ -402,12 +402,6 @@ describe("frontier", () => {
       assert.deepEqual(frontier(), ["review default"]);
       approve("default", 3);
       assert.deepEqual(frontier(), ["complete"]);
-    });
-
-    it("a reviewer's resolved thread to another recipient does not approve", () => {
-      pipeline(3);
-      replied({ status: "resolved", ...REVIEW(), recipient: "spec-producer", about: "spec" });
-      assert.deepEqual(frontier(), ["review default"]);
     });
 
     it("another lane's approval does not count", () => {
