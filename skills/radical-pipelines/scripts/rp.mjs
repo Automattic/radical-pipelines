@@ -1513,7 +1513,8 @@ function laneBranchesOf(root) {
   let names;
   try { names = readdirSync(folder, { recursive: true }); }
   catch (error) { if (error.code === "ENOENT") return branches; fail(`cannot read ${folder}: ${error.message}`); }
-  for (const name of names.map(posix).filter((each) => each.endsWith(".json") && lstatSync(join(folder, each)).isFile())) {
+  // A record is read as `readRecord` reads it, whatever its file type; a folder holds the records of branches under it.
+  for (const name of names.map(posix).filter((each) => each.endsWith(".json") && !lstatSync(join(folder, each)).isDirectory())) {
     const pipelineBranch = name.slice(0, -".json".length), record = readRecord(root, pipelineBranch);
     for (const turn of Object.keys(record.turns)) {
       const { profile, lane } = parseRole(turn), recorded = lane && recordedTurnOf(root, record, pipelineBranch, roleFor(profile, lane));

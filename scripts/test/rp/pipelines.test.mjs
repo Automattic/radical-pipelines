@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { RP, apply, commitAll, git, lane, pipeline, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
+import { RP, apply, commitAll, git, lane, pipeline, root, rp, run, turnRecord, useRepo, writeFile } from "./fixture.mjs";
 
 const CONFIG = '{"target-phase": 4, "base-branch": "main", "worktree-folder-root": ".worktrees"}\n';
 function recordPipeline(folder, issue, extra = "") {
@@ -52,6 +52,21 @@ describe("pipelines", () => {
     apply();
     git(root, "branch", "--quiet", "demo-spec-c", "demo");
     assert.deepEqual(discover().map(({ ref }) => ref), ["demo", "demo-spec-c"]);
+  });
+
+  it("reads a turn record as rp close reads it: through a symbolic link, and stopping on one that is malformed", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    const target = `${turnRecord()}.target`;
+    renameSync(turnRecord(), target);
+    symlinkSync(target, turnRecord());
+    assert.deepEqual(discover().map(({ ref }) => ref), ["demo"]);
+    writeFileSync(target, "{");
+    for (const args of [["pipelines", `${root}/.pipelines`, "--base", "main"], ["close", `${root}/.pipelines/demo`, "--branch", "demo"]]) {
+      const out = run(...args);
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /rp-turns\/demo\.json: not valid JSON/);
+    }
   });
 
   it("filters by the issue the intent names, not by folder or branch name", () => {
