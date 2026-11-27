@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
-// Commands: check, pipelines, start, next, land, stop, close, thread, validate. README.md beside this file is the contract.
+// Commands: check, pipelines, start, next, land, close, thread, validate. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
@@ -670,6 +670,8 @@ export const isReview = (thread) => parseRole(thread.opener).profile === "review
 const closingStatus = (thread) => isReview(thread) ? "approved" : "resolved";
 // An approval: an approved review thread.
 const isApproval = (thread) => isReview(thread) && thread.status === "approved";
+// A review lane's supporting folder, by its pipeline-relative path, which its reviewer and the implementer write.
+const reviewFolderOf = (laneId) => `4-review/${laneId}`;
 // A review lane's thread, by its pipeline-relative path: `threads/<n>-reviewer-<lane>-implementer-implementation.md`, a
 // review thread, or `threads/<n>-reviewer-<lane>-owner-intent.md`. Its number and whether it is a review thread, or null.
 function laneThreadOf(rel, laneId) {
@@ -1166,7 +1168,7 @@ function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
 // stays, and the lane sees no pipeline but its own view. Built from commits alone; only tree objects are written.
 async function reviewBuildOf(root, folder, pipelinesRoot, tip, mergeBase, laneId) {
   const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
-    && (entry.path.startsWith(`${folder}/0-intent/`) || laneThreadOf(entry.path.slice(folder.length + 1), laneId)));
+    && ([`${folder}/0-intent/`, `${folder}/${reviewFolderOf(laneId)}/`].some((prefix) => entry.path.startsWith(prefix)) || laneThreadOf(entry.path.slice(folder.length + 1), laneId)));
   const rootEntries = lsTree(root, tip, `${pipelinesRoot}/`, false).map((entry) => ({ ...entry, name: entry.path.slice(pipelinesRoot.length + 1) }));
   const pipelines = new Set((await pipelineFoldersIn(root, rootEntries)).map((entry) => `${entry.path}/`));
   const kept = [...lsTree(root, tip, `${pipelinesRoot}/`, true).filter((entry) => ![...pipelines].some((prefix) => entry.path.startsWith(prefix))), ...view];
@@ -1419,6 +1421,7 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
     // A review lane's review head sits on its review base; its turn commit is the review head, or above it on a repair in
     // place.
     values["review-base"] = requireCommit(root, `${reviewHead}^`, `the review base of ${reviewHead}`);
+    values["supporting-folder"] = `${at(reviewFolderOf(role.lane))}/`;
     const later = repair ? null : laterTurnOf(root, state, role);
     templateName = repair ? "reviewer-repair" : later ? "reviewer-later" : "reviewer-first";
     if (later) {
@@ -1793,7 +1796,7 @@ async function cmdNext(args) {
   if (args.apply && !plan.land.length) await applyPlan(ctx, plan);
 }
 
-// --- start, stop, and close -----------------------------------------------------------
+// --- start and close -----------------------------------------------------------------
 
 // The bytes of the file `--config` names, against the process directory, or of standard input for `-`.
 function configBytesOf(args) {
@@ -1879,53 +1882,47 @@ async function cmdStart(args) {
   });
 }
 
-// What `stop` and `close` remove (README.md § `stop` and `close`): nothing while the pipeline branch has no turn record,
-// as this machine then holds nothing `rp start` made for it. A lane is the pipeline's while its recorded turn is
-// (§ recordedTurnOf). A lane holds work that has not landed while its branch holds unlanded commits or its worktree
-// holds stray files. Stopping removes the worktree and branch of each lane that holds none. Closing removes each lane's
-// worktree, deletes each lane branch that holds no unlanded commits, and last removes the pipeline worktree unless that
-// is the main checkout.
-function removalsOf(args, command, closing) {
-  const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
-  const { folder } = pipelineFolder(rel, command);
-  const pipelineBranch = args.branch ?? misused(command, "--branch <pipeline branch> is required");
-  const main = mainOf(root, command), record = recordOf(root, pipelineBranch, folder, command);
-  const plan = { removals: [], branches: [], creations: [], closing: [] }, gone = [];
-  if (record.folder === null) return { main, pipelineBranch, plan, record: null };
-  const tip = commitOf(root, `refs/heads/${pipelineBranch}`) ?? fail(`${command}: the pipeline branch ${pipelineBranch} does not exist`);
+// What `close` removes (README.md § `close`): nothing while the pipeline branch has no turn record, as this machine then
+// holds nothing `rp start` made for it. A lane is the pipeline's while its recorded turn is (§ recordedTurnOf). Closing
+// removes each lane's worktree, deletes each lane branch that holds no unlanded commits, and last removes the pipeline
+// worktree unless that is the main checkout.
+function closingOf(args) {
+  const { root, rel } = locate(args._[0] ?? misused("close", "missing <pipeline folder>"));
+  const { folder } = pipelineFolder(rel, "close");
+  const pipelineBranch = args.branch ?? misused("close", "--branch <pipeline branch> is required");
+  const main = mainOf(root, "close"), record = recordOf(root, pipelineBranch, folder, "close");
+  const plan = { removals: [], branches: [], creations: [], closing: [] };
+  if (record.folder === null) return { main, pipelineBranch, plan };
+  const tip = commitOf(root, `refs/heads/${pipelineBranch}`) ?? fail(`close: the pipeline branch ${pipelineBranch} does not exist`);
   const seat = worktreeOf(root, pipelineBranch);
   const registered = worktreesOf(root).map((each) => each.path).filter((path) => path && existsSync(path)).map((path) => realpathSync(path));
   for (const name of Object.keys(record.turns)) {
     const { profile, lane } = parseRole(name), role = roleFor(profile, lane), recorded = lane && recordedTurnOf(root, record, pipelineBranch, role);
-    if (recorded && !recorded.tip) gone.push(name);
     if (!recorded?.holds) continue;
     const worktree = worktreeOf(root, recorded.branch);
-    if (worktree !== recorded.turn.worktree && registered.includes(recorded.turn.worktree)) fail(`${command}: ${recorded.turn.worktree} no longer has ${recorded.branch} checked out: check it out there, or remove that worktree`);
-    const unlanded = unlandedOf(root, tip, recorded.tip, role).length > 0, held = unlanded || Boolean(worktree && strayFilesOf(worktree).length);
-    if (worktree && (closing || !held)) plan.removals.push({ role, path: worktree });
-    if (closing ? !unlanded : !held) plan.branches.push({ branch: recorded.branch, action: "delete" });
+    if (worktree !== recorded.turn.worktree && registered.includes(recorded.turn.worktree)) fail(`close: ${recorded.turn.worktree} no longer has ${recorded.branch} checked out: check it out there, or remove that worktree`);
+    if (worktree) plan.removals.push({ role, path: worktree });
+    if (!unlandedOf(root, tip, recorded.tip, role).length) plan.branches.push({ branch: recorded.branch, action: "delete" });
   }
-  if (closing && seat && seat !== main) plan.closing.push({ role: PIPELINE_SEAT, path: seat });
-  return { main, pipelineBranch, plan, record: gone.length ? { ...record, turns: Object.fromEntries(Object.entries(record.turns).filter(([name]) => !gone.includes(name))) } : null };
+  if (seat && seat !== main) plan.closing.push({ role: PIPELINE_SEAT, path: seat });
+  return { main, pipelineBranch, plan };
 }
-// Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout,
-// first taking out of the turn record each turn of the pipeline's lanes whose branch is gone. Closing last keeps in the
-// turn record only the turns of the lanes whose branches it keeps, and removes it when none remain.
-const cmdRemove = (command, closing) => async (args) => {
-  const { main, pipelineBranch, plan, record } = removalsOf(args, command, closing);
-  refuseStrayRemovals(command, plan);
+// Prints what closing the pipeline removes; with `--apply`, also removes it, from the main checkout, then keeps in the
+// turn record only the turns of the lanes whose branches it keeps, and removes the record when none remain.
+async function cmdClose(args) {
+  const { main, pipelineBranch, plan } = closingOf(args);
+  refuseStrayRemovals("close", plan);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write([...before, ...actions, ...after].map((line) => `${line}\n`).join(""));
   if (!args.apply) return;
-  const act = actOf(command), recording = (what, action) => act(what, () => { try { action(); } catch (error) { if (error instanceof RpError) throw error; fail(error.message); } });
-  if (record) await recording("write the turn record", () => writeRecord(main, pipelineBranch, record));
+  const act = actOf("close"), recording = (what, action) => act(what, () => { try { action(); } catch (error) { if (error instanceof RpError) throw error; fail(error.message); } });
   await applyActions(main, plan, act, pipelineBranch);
   const left = readRecord(main, pipelineBranch);
-  if (!closing || left.folder === null) return;
+  if (left.folder === null) return;
   const kept = Object.entries(left.turns).filter(([name]) => { const role = parseRole(name); return role.lane && recordedTurnOf(main, left, pipelineBranch, roleFor(role.profile, role.lane))?.holds; });
   if (kept.length) await recording("write the turn record", () => writeRecord(main, pipelineBranch, { ...left, turns: Object.fromEntries(kept) }));
   else await recording("remove the turn record", () => rmSync(recordPath(main, pipelineBranch), { force: true }));
-};
+}
 
 // Lands a role's recorded turn (README.md § `land`): verifies it, brings its commits onto the pipeline branch, certifies
 // what it landed, and commits, then prints the phases its landing made complete. Every check comes before the pipeline
@@ -2201,8 +2198,7 @@ const COMMANDS = {
   start: { run: cmdStart, usage: "start <pipeline folder> --branch <pipeline branch> --config <file | -> [--apply]", options: { "--branch": "value", "--config": "value", "--apply": "flag" } },
   next: { run: cmdNext, usage: "next <pipeline folder> [--apply]", options: { "--apply": "flag" } },
   land: { run: cmdLand, usage: "land <pipeline folder> --role <role>", options: { "--role": "value" } },
-  stop: { run: cmdRemove("stop", false), usage: "stop <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
-  close: { run: cmdRemove("close", true), usage: "close <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
+  close: { run: cmdClose, usage: "close <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
   "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->",
     options: { "--role": "value", "--about": "value", "--body": "value" } },
   "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->",

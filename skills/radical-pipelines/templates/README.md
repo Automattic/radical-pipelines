@@ -24,12 +24,13 @@ Every template may use:
 - `malformed-files`: a list of the frontier's `malformed` lines naming a file the role writes, as `rp check` prints them.
 - `guardrails`, `resources`: a list of the entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
 - `commit-format`: the commit format, its placeholders expanded, or `An imperative subject line.` when the project sets none.
+- `supporting-folder`: the role's supporting folder, in its worktree.
 - `facts`: when a carried text keeps a placeholder, a list of each pipeline fact as `` - `{<name>}`: <value> ``; otherwise no item.
 
 A producer's and the implementer's templates also use:
 
 - `mode`: `Produce`, `Respond`, `Consolidate`, or `Implement`; and the flags `produce`, `respond`, `consolidate`, and `implement`, true for the turn's mode.
-- `supporting-folder`, `write-to`: the role's supporting folder and artifact, in its worktree.
+- `write-to`: the role's artifact, in its worktree.
 - `changed-inputs`: a list of each changed input as `<path> — changed since <commit>`, `<commit>` the latest one on the role's branch at which the input is as its artifact's certification pins it, or absent when it pins none.
 - `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree, followed by `, written after <lanes>` for a lane that comes after others.
 - `previous-candidates`: a list of the paths of a lane's previous candidates, in its worktree.

@@ -25,7 +25,7 @@ You are the orchestrator. A pipeline is a set of artifacts, each owned by one ro
 | 1   | Spec           | `1-spec`           | `spec.md`; production-lane candidates in `lanes/<lane>/`              | `spec-producer`       |
 | 2   | Design doc     | `2-design-doc`     | `design-doc.md`; production-lane candidates in `lanes/<lane>/`        | `design-doc-producer` |
 | 3   | Implementation | `3-implementation` | `notes.md`; the code, tests, and documentation on the pipeline branch | `implementer`         |
-| 4   | Review         | —                  | One review thread per review lane, in `threads/`, closed `approved`   | `reviewer`            |
+| 4   | Review         | `4-review`         | One review thread per review lane, in `threads/`, closed `approved`   | `reviewer`            |
 
 Threads between roles live in `threads/` at the pipeline folder root; `config.json` there holds the pipeline configuration. The run follows `reference/run/loop.md`.
 

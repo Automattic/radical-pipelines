@@ -40,6 +40,7 @@ function scenario() {
   thread({ n: 3, opener: "reviewer-a", recipient: "owner", about: "intent", status: "answered" });
   answered(2, "a-b");
   write("1-spec/spec/evidence.txt", "x\n");
+  for (const id of ["a", "a-b"]) write(`4-review/${id}/run.log`, `${id}\n`);
   return commitAll("work");
 }
 
@@ -47,12 +48,13 @@ describe("review lanes", () => {
   useRepo();
 
   describe("are built from the pipeline tip", () => {
-    it("as a review head whose tree holds the code, the intent, later inputs, and the lane's own threads only", () => {
+    it("as a review head whose tree holds the code, the intent, later inputs, and the lane's own threads and supporting folder only", () => {
       scenario();
       apply();
       assert.deepEqual(files(built("a").reviewHead), [
         `${PIPELINE}/0-intent/constraint-1.md`,
         `${PIPELINE}/0-intent/intent.md`,
+        `${PIPELINE}/4-review/a/run.log`,
         `${PIPELINE}/threads/2-reviewer-a-implementer-implementation.md`,
         `${PIPELINE}/threads/3-reviewer-a-owner-intent.md`,
         "src/app.js",

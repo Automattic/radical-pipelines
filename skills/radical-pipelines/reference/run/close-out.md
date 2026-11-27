@@ -3,7 +3,7 @@
 The run stops: the frontier is `complete`, an owner escalation is pending, the owner cancelled, or something failed.
 
 1. Cancel health monitoring (`../conventions/health-monitoring.md`); stop every role of the run.
-2. Make sure every commit, certifications included, is on the pipeline branch and pushed; apply the plan of `rp stop <pipeline folder> --branch <pipeline branch>` (`../conventions/lifecycle-hooks.md` § Applying a plan).
+2. Make sure every commit, certifications included, is on the pipeline branch and pushed.
 3. Fire `run-ended` with the cause.
 4. Complete through the target phase: tell the owner the pipeline is ready for the closure actions below.
 5. Any other cause: report to the owner what stopped the run, the frontier as `rp check` shows it, and — for an escalation — the dossier (`loop.md` § Owner escalation). Leave the tree exactly as it is; a later triage continues from it.

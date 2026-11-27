@@ -41,6 +41,8 @@ EOF
 
 When you and the author disagree on what the issue means or demands, say so, quoting the issue's words it turns on: the author takes the question to the person who wrote the issue. When the author answers a second time that a finding you held stands, drop it unless the code does something wrong on an input someone would actually give it, or the issue's words demand the change.
 
+Put the material your review rests on — logs, command output, screenshots — in {{supporting-folder}}, cited by its path there, and commit it with your review: the author sees no other file of your worktree. Keep only what you cite, with secrets and personal data removed, and copy raw evidence that will change or rotate there before citing it.
+
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}
