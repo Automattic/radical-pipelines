@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
-// Commands: check, pipelines, start, next, land, stop, close, thread, validate. README.md beside this file is the contract.
+// Commands: check, pipelines, start, next, land, close, thread, validate. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -670,6 +670,11 @@ export const isReview = (thread) => parseRole(thread.opener).profile === "review
 const closingStatus = (thread) => isReview(thread) ? "approved" : "resolved";
 // An approval: an approved review thread.
 const isApproval = (thread) => isReview(thread) && thread.status === "approved";
+// A thread's folder, by its pipeline-relative path: the thread's path without `.md`. It holds the files its messages
+// attach, each message's in `<folder>/<its number>/`.
+const threadFolderOf = (thread) => thread.slice(0, -".md".length);
+// The thread whose folder holds the pipeline-relative path `rel`, or null.
+const threadHolding = (rel) => { const match = rel.match(/^(threads\/[^/]+)\//); return match ? `${match[1]}.md` : null; };
 // A review lane's thread, by its pipeline-relative path: `threads/<n>-reviewer-<lane>-implementer-implementation.md`, a
 // review thread, or `threads/<n>-reviewer-<lane>-owner-intent.md`. Its number and whether it is a review thread, or null.
 function laneThreadOf(rel, laneId) {
@@ -707,6 +712,7 @@ export function parseThread(name, contents) {
   if ((thread.recipient === "owner") !== OWNER_STATUSES.includes(thread.status))
     invalid(`${OWNER_STATUSES.join(" and ")} are the statuses of a thread to owner, and only of it`);
   if ([thread.opener, thread.recipient].some(isProductionLane)) invalid("production lanes open no threads");
+  if (parseRole(thread.opener).profile === "reviewer" && !["implementation", "intent"].includes(thread.about)) invalid("a review lane opens threads about implementation and intent alone");
   if (["approved", "resolved"].includes(thread.status) && thread.status !== closingStatus(thread))
     invalid(`${isReview(thread) ? "a review thread" : "a thread other than a review thread"} closes ${closingStatus(thread)}, not ${thread.status}`);
   if (name !== `${number}-${thread.opener}-${thread.recipient}-${thread.about}.md`) invalid(`thread file name must be ${number}-${thread.opener}-${thread.recipient}-${thread.about}.md`);
@@ -1102,8 +1108,10 @@ async function cmdPipelines(args) {
   if (!pipelinesRoot) fail(`pipelines: the pipelines folder root is a folder inside the repository, not its root: ${given}`);
   if (existsSync(join(root, pipelinesRoot)) && !statSync(join(root, pipelinesRoot)).isDirectory()) fail(`pipelines: not a folder: ${given}`);
   const baseCommit = requireCommit(root, args.base ?? misused("pipelines", "--base <artifact base branch> is required"), "--base");
+  // Every branch tip but a lane branch's.
+  const lanes = laneBranchesOf(root);
   const refs = gitText(root, ["for-each-ref", "--format=%(objectname) %(objecttype) %(symref) %(refname)", "refs/heads", "refs/remotes"])
-    .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref]) => type === "commit" && !symref)
+    .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref, refname]) => type === "commit" && !symref && !(refname.startsWith("refs/heads/") && lanes.has(refname.slice("refs/heads/".length))))
     .map(([commit, , , refname]) => ({ commit, name: refname.replace(/^refs\/(?:heads|remotes)\//, "") }));
   // The pipelines folder root's tree at a list of commits, through one batch; a commit without it has none.
   const rootTrees = async (commits) => {
@@ -1147,26 +1155,29 @@ function gitWithIndex(root, index, args, input) {
   try { return execFileSync("git", args, { cwd: root, input, encoding: "utf8", env: { ...process.env, GIT_INDEX_FILE: index }, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] }).trim(); }
   catch (error) { fail(`git ${args.join(" ")}: ${error.stderr?.toString().trim() || error.message}`); }
 }
-// `update-index --index-info` lines: each entry at its path, or removed with mode 0.
-const indexInfo = (entries, remove = false) => entries.map((entry) => `${remove ? "0" : entry.mode} ${remove ? "0".repeat(entry.oid.length) : entry.oid}\t${entry.path}\n`).join("");
+// `update-index -z --index-info` records: each entry at its path, or removed with mode 0, each ended by NUL so a path
+// may hold any character.
+const indexInfo = (entries, remove = false) => entries.map((entry) => `${remove ? "0" : entry.mode} ${remove ? "0".repeat(entry.oid.length) : entry.oid}\t${entry.path}\0`).join("");
 
 // The tree of `commit` with the pipelines folder root replaced by `rootEntries`, every file it holds.
 function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
   gitWithIndex(root, index, ["read-tree", commit]);
   const removed = lsTree(root, commit, `${pipelinesRoot}/`, true);
   const input = indexInfo(removed, true) + indexInfo(rootEntries);
-  if (input) gitWithIndex(root, index, ["update-index", "--index-info"], input);
+  if (input) gitWithIndex(root, index, ["update-index", "-z", "--index-info"], input);
   return gitWithIndex(root, index, ["write-tree"]);
 }
 
 // The review lane's review base and review head built from the pipeline tip: their trees, and `mergeBase`, the commit
 // the review base sits on. The review base holds the merge-base's tree and the review head the tip's, each with the
 // pipelines folder root replaced by the lane's root: the tip's root without its pipeline folders, plus the lane's view,
-// the pipeline's `0-intent/` and the lane's own threads. `git diff` between them is the net change, the root's tooling
+// the pipeline's `0-intent/` and the lane's own threads with their folders. `git diff` between them is the net change, the root's tooling
 // stays, and the lane sees no pipeline but its own view. Built from commits alone; only tree objects are written.
 async function reviewBuildOf(root, folder, pipelinesRoot, tip, mergeBase, laneId) {
-  const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
-    && (entry.path.startsWith(`${folder}/0-intent/`) || laneThreadOf(entry.path.slice(folder.length + 1), laneId)));
+  const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => {
+    const rel = entry.path.slice(folder.length + 1);
+    return entry.type === "blob" && (rel.startsWith("0-intent/") || laneThreadOf(rel, laneId) || laneThreadOf(threadHolding(rel) ?? "", laneId));
+  });
   const rootEntries = lsTree(root, tip, `${pipelinesRoot}/`, false).map((entry) => ({ ...entry, name: entry.path.slice(pipelinesRoot.length + 1) }));
   const pipelines = new Set((await pipelineFoldersIn(root, rootEntries)).map((entry) => `${entry.path}/`));
   const kept = [...lsTree(root, tip, `${pipelinesRoot}/`, true).filter((entry) => ![...pipelines].some((prefix) => entry.path.startsWith(prefix))), ...view];
@@ -1450,15 +1461,16 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
 // turn commit, and a reviewer's review head; `woke`, the phases of the roles the last applied step woke; `complete`, the
 // phases complete when it was applied; and `reported`, the phases its landings reported. `start` creates it and `close`
 // removes it: while it exists, the pipeline is this machine's.
-const recordPath = (root, pipelineBranch) => join(realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])), "rp-turns", `${pipelineBranch}.json`);
+const recordsFolderOf = (root) => join(realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])), "rp-turns");
+const recordPath = (root, pipelineBranch) => join(recordsFolderOf(root), `${pipelineBranch}.json`);
 const NO_RECORD = { folder: null, turns: {}, woke: [], complete: [], reported: [] };
-// The turn record of `pipelineBranch`, or an empty one, its `folder` null, when it has none. One that cannot be read or
+// The turn record of `pipelineBranch`, or an empty one, its `folder` null, when no file is at its path. One that cannot be read or
 // is malformed stops the command, naming it.
 function readRecord(root, pipelineBranch) {
   const path = recordPath(root, pipelineBranch);
   let bytes;
   try { bytes = readFileSync(path); }
-  catch (error) { if (error.code === "ENOENT") return structuredClone(NO_RECORD); fail(`cannot read ${path}: ${error.message}`); }
+  catch (error) { if (error.code === "ENOENT" && !lstatOf(path)) return structuredClone(NO_RECORD); fail(`cannot read ${path}: ${error.message}`); }
   const malformed = (reason) => fail(`${path}: ${reason}`);
   let data;
   try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }
@@ -1500,6 +1512,24 @@ function recordedTurnOf(root, record, pipelineBranch, role) {
   return { turn, branch, tip, holds: Boolean(tip && commitOf(root, turn.commit) && isAncestor(root, turn.commit, tip)) };
 }
 
+// The lane branches of the repository's pipelines: each branch a turn record holds a lane's turn on, as `recordedTurnOf`
+// takes it.
+function laneBranchesOf(root) {
+  const folder = recordsFolderOf(root), branches = new Set();
+  let names;
+  try { names = readdirSync(folder, { recursive: true }); }
+  catch (error) { if (error.code === "ENOENT") return branches; fail(`cannot read ${folder}: ${error.message}`); }
+  // A record is read as `readRecord` reads it, whatever its file type; a folder holds the records of branches under it.
+  for (const name of names.map(posix).filter((each) => each.endsWith(".json") && !lstatSync(join(folder, each)).isDirectory())) {
+    const pipelineBranch = name.slice(0, -".json".length), record = readRecord(root, pipelineBranch);
+    for (const turn of Object.keys(record.turns)) {
+      const { profile, lane } = parseRole(turn), recorded = lane && recordedTurnOf(root, record, pipelineBranch, roleFor(profile, lane));
+      if (recorded?.holds) branches.add(recorded.branch);
+    }
+  }
+  return branches;
+}
+
 // --- landing ------------------------------------------------------------------------
 
 // The message of a commit `rp land` makes: its subject in the landing commit format of the pipeline configuration
@@ -1535,8 +1565,8 @@ function commitFiles(root, parent, files, message) {
   try {
     const index = join(directory, "index");
     gitWithIndex(root, index, ["read-tree", parent]);
-    gitWithIndex(root, index, ["update-index", "--index-info"], files.map(([path, bytes]) => bytes === null ? `0 ${"0".repeat(parent.length)}\t${path}\n`
-      : `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\n`).join(""));
+    gitWithIndex(root, index, ["update-index", "-z", "--index-info"], files.map(([path, bytes]) => bytes === null ? `0 ${"0".repeat(parent.length)}\t${path}\0`
+      : `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\0`).join(""));
     return gitText(root, ["commit-tree", gitWithIndex(root, index, ["write-tree"]), "-p", parent, "-m", message]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
@@ -1793,7 +1823,7 @@ async function cmdNext(args) {
   if (args.apply && !plan.land.length) await applyPlan(ctx, plan);
 }
 
-// --- start, stop, and close -----------------------------------------------------------
+// --- start and close -----------------------------------------------------------------
 
 // The bytes of the file `--config` names, against the process directory, or of standard input for `-`.
 function configBytesOf(args) {
@@ -1879,20 +1909,18 @@ async function cmdStart(args) {
   });
 }
 
-// What `stop` and `close` remove (README.md § `stop` and `close`): nothing while the pipeline branch has no turn record,
-// as this machine then holds nothing `rp start` made for it. A lane is the pipeline's while its recorded turn is
-// (§ recordedTurnOf). A lane holds work that has not landed while its branch holds unlanded commits or its worktree
-// holds stray files. Stopping removes the worktree and branch of each lane that holds none. Closing removes each lane's
-// worktree, deletes each lane branch that holds no unlanded commits, and last removes the pipeline worktree unless that
-// is the main checkout.
-function removalsOf(args, command, closing) {
-  const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
-  const { folder } = pipelineFolder(rel, command);
-  const pipelineBranch = args.branch ?? misused(command, "--branch <pipeline branch> is required");
-  const main = mainOf(root, command), record = recordOf(root, pipelineBranch, folder, command);
+// What `close` removes (README.md § `close`): nothing while the pipeline branch has no turn record, as this machine then
+// holds nothing `rp start` made for it. A lane is the pipeline's while its recorded turn is (§ recordedTurnOf). Closing
+// removes each lane's worktree, deletes each lane branch that holds no unlanded commits, and last removes the pipeline
+// worktree unless that is the main checkout. `gone` names each turn of a lane whose branch no longer exists.
+function closingOf(args) {
+  const { root, rel } = locate(args._[0] ?? misused("close", "missing <pipeline folder>"));
+  const { folder } = pipelineFolder(rel, "close");
+  const pipelineBranch = args.branch ?? misused("close", "--branch <pipeline branch> is required");
+  const main = mainOf(root, "close"), record = recordOf(root, pipelineBranch, folder, "close");
   const plan = { removals: [], branches: [], creations: [], closing: [] }, gone = [];
-  if (record.folder === null) return { main, pipelineBranch, plan, record: null };
-  const tip = commitOf(root, `refs/heads/${pipelineBranch}`) ?? fail(`${command}: the pipeline branch ${pipelineBranch} does not exist`);
+  if (record.folder === null) return { main, pipelineBranch, plan, record, gone };
+  const tip = commitOf(root, `refs/heads/${pipelineBranch}`) ?? fail(`close: the pipeline branch ${pipelineBranch} does not exist`);
   const seat = worktreeOf(root, pipelineBranch);
   const registered = worktreesOf(root).map((each) => each.path).filter((path) => path && existsSync(path)).map((path) => realpathSync(path));
   for (const name of Object.keys(record.turns)) {
@@ -1900,32 +1928,32 @@ function removalsOf(args, command, closing) {
     if (recorded && !recorded.tip) gone.push(name);
     if (!recorded?.holds) continue;
     const worktree = worktreeOf(root, recorded.branch);
-    if (worktree !== recorded.turn.worktree && registered.includes(recorded.turn.worktree)) fail(`${command}: ${recorded.turn.worktree} no longer has ${recorded.branch} checked out: check it out there, or remove that worktree`);
-    const unlanded = unlandedOf(root, tip, recorded.tip, role).length > 0, held = unlanded || Boolean(worktree && strayFilesOf(worktree).length);
-    if (worktree && (closing || !held)) plan.removals.push({ role, path: worktree });
-    if (closing ? !unlanded : !held) plan.branches.push({ branch: recorded.branch, action: "delete" });
+    if (worktree !== recorded.turn.worktree && registered.includes(recorded.turn.worktree)) fail(`close: ${recorded.turn.worktree} no longer has ${recorded.branch} checked out: check it out there, or remove that worktree`);
+    if (worktree) plan.removals.push({ role, path: worktree });
+    if (!unlandedOf(root, tip, recorded.tip, role).length) plan.branches.push({ branch: recorded.branch, action: "delete" });
   }
-  if (closing && seat && seat !== main) plan.closing.push({ role: PIPELINE_SEAT, path: seat });
-  return { main, pipelineBranch, plan, record: gone.length ? { ...record, turns: Object.fromEntries(Object.entries(record.turns).filter(([name]) => !gone.includes(name))) } : null };
+  if (seat && seat !== main) plan.closing.push({ role: PIPELINE_SEAT, path: seat });
+  return { main, pipelineBranch, plan, record, gone };
 }
-// Prints what stopping a run, or closing the pipeline, removes; with `--apply`, also removes it, from the main checkout,
-// first taking out of the turn record each turn of the pipeline's lanes whose branch is gone. Closing last keeps in the
-// turn record only the turns of the lanes whose branches it keeps, and removes it when none remain.
-const cmdRemove = (command, closing) => async (args) => {
-  const { main, pipelineBranch, plan, record } = removalsOf(args, command, closing);
-  refuseStrayRemovals(command, plan);
+// Prints what closing the pipeline removes; with `--apply`, first takes out of the turn record each turn of a lane
+// whose branch is gone, so no branch made later under its name is taken for the lane, then removes what it printed,
+// from the main checkout, and last keeps in the turn record only the turns of the lanes whose branches it keeps,
+// removing the record when none remain.
+async function cmdClose(args) {
+  const { main, pipelineBranch, plan, record, gone } = closingOf(args);
+  refuseStrayRemovals("close", plan);
   const { before, actions, after } = actionLines(plan);
   process.stdout.write([...before, ...actions, ...after].map((line) => `${line}\n`).join(""));
   if (!args.apply) return;
-  const act = actOf(command), recording = (what, action) => act(what, () => { try { action(); } catch (error) { if (error instanceof RpError) throw error; fail(error.message); } });
-  if (record) await recording("write the turn record", () => writeRecord(main, pipelineBranch, record));
+  const act = actOf("close"), recording = (what, action) => act(what, () => { try { action(); } catch (error) { if (error instanceof RpError) throw error; fail(error.message); } });
+  if (gone.length) await recording("write the turn record", () => writeRecord(main, pipelineBranch, { ...record, turns: Object.fromEntries(Object.entries(record.turns).filter(([name]) => !gone.includes(name))) }));
   await applyActions(main, plan, act, pipelineBranch);
   const left = readRecord(main, pipelineBranch);
-  if (!closing || left.folder === null) return;
+  if (left.folder === null) return;
   const kept = Object.entries(left.turns).filter(([name]) => { const role = parseRole(name); return role.lane && recordedTurnOf(main, left, pipelineBranch, roleFor(role.profile, role.lane))?.holds; });
   if (kept.length) await recording("write the turn record", () => writeRecord(main, pipelineBranch, { ...left, turns: Object.fromEntries(kept) }));
   else await recording("remove the turn record", () => rmSync(recordPath(main, pipelineBranch), { force: true }));
-};
+}
 
 // Lands a role's recorded turn (README.md § `land`): verifies it, brings its commits onto the pipeline branch, certifies
 // what it landed, and commits, then prints the phases its landing made complete. Every check comes before the pipeline
@@ -2064,7 +2092,109 @@ function notOpen(command, rel, thread) {
 // grammar accepts it and reads in it `messages`, the messages the command means. `message`, the role's message when the
 // command writes one, must leave the file open to a message after it. Otherwise `command` is refused and nothing is
 // written.
-function writeThread(seat, command, rel, contents, messages, message, flag) {
+// What a message attaches, `--evidence` once per file or folder, against the process directory: `folder`, the message's
+// folder in the thread's folder, `<thread folder>/<n>`, `n` the message's number in the thread; and each attachment's
+// source, its path there, `<folder>/<its name>`, and the files it copies, each regular file it reaches through links as
+// [source, path inside the attachment]. Everything is validated before anything is written: every source reaches files
+// alone, a folder holds at least one, no repository, and no link back into itself; names are unique and hold no backtick
+// or line break; the message's folder is free, and every folder on the way to it from the worktree is a real folder.
+function evidenceOf(args, seat, command, rel, n) {
+  if (args.evidence.length && args.body === null) misused(command, "--evidence attaches files to a message: give --body <file | ->");
+  const folder = `${threadFolderOf(rel)}/${n}`, names = new Set();
+  if (!args.evidence.length) return { folder, items: [] };
+  const items = args.evidence.map((given) => {
+    const source = resolve(process.cwd(), given), name = basename(source), files = [], open = new Set();
+    const statOf = (path) => { try { return statSync(path); } catch (error) { if (error.code === "ENOENT" || error.code === "ENOTDIR") return null; fail(`cannot read ${path}: ${error.message}`); } };
+    const walk = (path, inner) => {
+      if (/^\.git$/i.test(basename(path))) wrong(command, `${given} ${inner ? `holds a Git repository at ${inner}` : "is a Git repository's folder"}`, "attach the files you cite from it");
+      const stat = statOf(path);
+      if (!stat?.isFile() && !stat?.isDirectory())
+        return inner ? wrong(command, `${given} holds ${inner}, which is no file or folder`, "attach the files you cite without it") : wrong(command, `--evidence names no file or folder: ${given}`, "attach a file or a folder");
+      if (stat.isFile()) return files.push([path, inner]);
+      const real = realpathSync(path);
+      if (open.has(real)) wrong(command, `${given} links back into itself at ${inner}`, "attach the files you cite without that link");
+      open.add(real);
+      for (const entry of readdirSync(path).sort()) walk(join(path, entry), inner ? `${inner}/${entry}` : entry);
+      open.delete(real);
+    };
+    walk(source, "");
+    if (!files.length) wrong(command, `${given} holds no file`, "attach the files you cite");
+    if (names.has(name)) wrong(command, `two files attached as ${name}`, "give each file you attach a name of its own");
+    if (/[`\r\n]/.test(name)) wrong(command, `the name of ${given} holds a backtick or a line break`, "rename it, and attach it again");
+    names.add(name);
+    return { source, target: `${folder}/${name}`, files };
+  });
+  const parts = `${seat.folder}/${folder}`.split("/"), ancestors = parts.slice(0, -1).map((_, i) => parts.slice(0, i + 1).join("/"));
+  for (const ancestor of ancestors) {
+    const stat = lstatOf(join(seat.root, ancestor));
+    if (stat && !stat.isDirectory()) fail(`cannot write ${ancestor}: not a folder`);
+  }
+  const indexed = gitBytes(seat.root, ["ls-files", "-z", "--", ...[...ancestors, parts.join("/")].map((path) => `:(top,literal)${path}`)]).toString("utf8").split("\0").filter(Boolean);
+  const file = indexed.find((path) => ancestors.includes(path));
+  if (file) fail(`cannot write ${parts.join("/")}: the index holds a file at ${file}`);
+  if (lstatOf(join(seat.base, folder)) || indexed.some((path) => path === parts.join("/") || path.startsWith(`${parts.join("/")}/`)))
+    wrong(command, `${seat.folder}/${folder} exists`, "remove it, and run the command again");
+  return { folder, items };
+}
+// A message's body with the paths of what it attaches listed after it, from the pipeline folder.
+const withEvidence = (body, evidence) => evidence.items.length
+  ? Buffer.concat([body, Buffer.from(`${body.at(-1) === 0x0a ? "" : "\n"}\nEvidence:\n\n${evidence.items.map(({ target }) => `- \`${target}\``).join("\n")}\n`)]) : body;
+// Copies the files a message attaches into its folder, as regular files, and stages them, whatever the repository's
+// ignore rules, so the commit that carries the message carries them. Returns `undo`, which removes the files this call
+// wrote and each folder it created that is left empty, and unstages those files, where the index held nothing before;
+// `undo` returns a note when the index still holds them. A failure undoes it.
+function attach(seat, evidence) {
+  if (!evidence.items.length) return () => "";
+  const written = [], created = [];
+  let staged = false;
+  const undo = () => {
+    for (const path of written) rmSync(path, { force: true });
+    for (const path of created.reverse())
+      try { rmdirSync(path); } catch (error) { if (!["ENOTEMPTY", "EEXIST", "ENOENT"].includes(error.code)) throw error; }
+    if (!staged) return "";
+    try { own(["rm", "--cached", "--quiet", "--ignore-unmatch"]); return ""; }
+    catch (error) { if (error instanceof RpError) return `; the index still holds files of ${seat.folder}/${evidence.folder}: unstage them with git rm --cached`; throw error; }
+  };
+  // Git reads the paths this call wrote from standard input, NUL-delimited, however many they are.
+  const own = (args) => gitText(seat.root, [...args, "--pathspec-from-file=-", "--pathspec-file-nul"], written.map((path) => `:(top,literal)${posix(relative(seat.root, path))}\0`).join(""));
+  // Creates each missing folder down to `path`, recording those this call created.
+  const folderTo = (path) => {
+    const missing = [];
+    for (let at = path; !lstatOf(at); at = dirname(at)) missing.unshift(at);
+    for (const at of missing)
+      try { mkdirSync(at); created.push(at); } catch (error) { if (error.code !== "EEXIST") throw error; }
+  };
+  try {
+    for (const { target, files } of evidence.items)
+      for (const [source, inner] of files) {
+        const path = join(seat.base, target, ...(inner ? inner.split("/") : []));
+        folderTo(dirname(path));
+        try { copyFileSync(source, path, fsConstants.COPYFILE_EXCL); }
+        catch (error) { if (error.code !== "EEXIST") rmSync(path, { force: true }); throw error; }
+        written.push(path);
+      }
+    own(["add", "--force"]);
+    staged = true;
+  } catch (error) {
+    const note = undo();
+    fail(`cannot attach ${seat.folder}/${evidence.folder}: ${error.message}${note}`);
+  }
+  return undo;
+}
+// Writes a thread file whole or not at all: a new thread only where no file is, removed when its write fails; a thread
+// that exists replaced at once by a complete copy with its permissions.
+function publishThread(path, contents, exclusive) {
+  if (exclusive) {
+    try { writeFileSync(path, contents, { flag: "wx" }); }
+    catch (error) { if (error.code !== "EEXIST") rmSync(path, { force: true }); throw error; }
+    return;
+  }
+  const temporary = join(dirname(path), `.rp-${process.pid}-${Math.random().toString(36).slice(2)}.tmp`), mode = statSync(path).mode & 0o7777;
+  writeFileSync(temporary, contents.subarray(0, 0), { flag: "wx", mode });
+  try { chmodSync(temporary, mode); writeFileSync(temporary, contents); renameSync(temporary, path); }
+  finally { rmSync(temporary, { force: true }); }
+}
+function writeThread(seat, command, rel, contents, messages, message, exclusive, evidence = { items: [] }) {
   const read = (bytes) => {
     try { return parseFile(rel, kindOf(rel), bytes); }
     catch (error) {
@@ -2082,26 +2212,45 @@ function writeThread(seat, command, rel, contents, messages, message, flag) {
   if (message && read(withMessage(contents, message.author, message.commit, Buffer.alloc(0))).messages.length !== messages.length + 1)
     wrong(command, "the body leaves fenced code open, which hides every message heading after it", "close it, and run the command again");
   const path = join(seat.base, rel);
+  if (exclusive && lstatOf(path)) wrong(command, `${rel} exists`, "run the command again, which takes the next number");
+  const undo = attach(seat, evidence);
   try {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, contents, { flag });
+    publishThread(path, contents, exclusive);
   } catch (error) {
-    if (error.code === "EEXIST") wrong(command, `${rel} exists`, "run the command again, which takes the next number");
-    fail(`cannot write ${seat.folder}/${rel}: ${error.message}`);
+    const note = undo();
+    if (exclusive && error.code === "EEXIST") wrong(command, `${rel} exists`, "run the command again, which takes the next number");
+    fail(`cannot write ${seat.folder}/${rel}: ${error.message}${note}`);
   }
   process.stdout.write(`${path}\n`);
 }
 
 // Opens the thread whose header holds `values` with the seat's role's message, at `threads/<n>-<opener>-<recipient>-<about>.md`:
 // `<n>` is one past the highest number among the names `threads/<n>-….md` in the working tree, or 1 when there is none.
-function openThread(seat, command, values, body) {
-  const header = headerOf(values) ?? wrong(command, `--cites cannot be written as a frontmatter value: ${JSON.stringify(values.cites)}`, "cite the thread or the evidence by its path");
+// Opens a thread with `values` as its header and the role's message. An escalation whose `cites` names a source the
+// message attaches, or a path inside one, cites its copy's path instead.
+function openThread(seat, command, values, body, args) {
   const threads = join(seat.base, "threads"), stat = lstatOf(threads);
   if (stat && !stat.isDirectory()) fail(`cannot read ${seat.folder}/threads: a file where a folder belongs`);
   const numbers = stat ? readdirSync(threads).map((name) => Number(name.match(/^([1-9]\d*)-.+\.md$/)?.[1] ?? 0)) : [];
   const rel = `threads/${Math.max(0, ...numbers) + 1}-${values.opener}-${values.recipient}-${values.about}.md`;
   const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
-  writeThread(seat, command, rel, withMessage(header, message.author, message.commit, body), [message], message, "wx");
+  const evidence = evidenceOf(args, seat, command, rel, 1);
+  // The copy of the path `given` names when it is an attached source or a path inside one that the attachment carries.
+  const copyOf = (given) => {
+    for (const { source, target, files } of evidence.items) {
+      const inner = relative(source, resolve(process.cwd(), given));
+      if (isAbsolute(inner) || inner.split(sep)[0] === "..") continue;
+      if (!inner) return target;
+      const at = posix(inner);
+      if (!files.some(([, each]) => each === at || each.startsWith(`${at}/`))) wrong(command, `--cites names ${given}, which the attachment does not carry`, "cite a file the message attaches, or a folder of them");
+      return `${target}/${at}`;
+    }
+    return given;
+  };
+  const header = headerOf(values.cites === undefined ? values : { ...values, cites: copyOf(values.cites) })
+    ?? wrong(command, `--cites cannot be written as a frontmatter value: ${JSON.stringify(values.cites)}`, "cite the thread or the evidence by its path");
+  writeThread(seat, command, rel, withMessage(header, message.author, message.commit, withEvidence(body, evidence)), [message], message, true, evidence);
 }
 // What to run instead of a thread about the intent.
 const ESCALATION = "raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->";
@@ -2116,13 +2265,14 @@ function cmdThreadOpen(args) {
   if (isProductionLane(role.name)) laneOpensNone(command, role);
   if (about === "intent") wrong(command, "the intent is the owner's", ESCALATION);
   if (!artifacts.includes(about)) misused(command, `--about names spec, design-doc, or implementation: ${about}`);
+  if (role.profile === "reviewer" && about !== "implementation") wrong(command, `${role.name} opens its review about implementation`, "open it with --about implementation; take what the issue means or demands to the owner with rp thread escalate");
   if (OWNERS[about] === role.profile) {
     // The artifacts the role consumes besides the intent: its phase's upstream ones.
     const consumed = artifactOf(role).phase.upstream.filter((path) => path !== INTENT).map((path) => PHASES.find((phase) => phase.path === path).name);
     if (!consumed.length) wrong(command, `${role.name} owns ${about}, and consumes the intent alone`, ESCALATION);
     wrong(command, `${role.name} owns ${about}`, `open a thread about an artifact you consume: --about ${consumed.join(" or ")}`);
   }
-  openThread(seat, command, { status: "open", opener: role.name, recipient: OWNERS[about], about }, bodyOf(args, command, true));
+  openThread(seat, command, { status: "open", opener: role.name, recipient: OWNERS[about], about }, bodyOf(args, command, true), args);
 }
 
 // `thread escalate`: the role's thread to owner about the intent, citing what the disagreement comes from.
@@ -2130,7 +2280,7 @@ function cmdThreadEscalate(args) {
   const command = "thread escalate", seat = seatOf(args, command), { role } = seat;
   if (!args.cites?.trim()) misused(command, "--cites names the thread the disagreement comes from or the path of its evidence");
   if (isProductionLane(role.name)) laneOpensNone(command, role);
-  openThread(seat, command, { status: "escalated", opener: role.name, recipient: OWNERS.intent, about: "intent", cites: args.cites }, bodyOf(args, command, true));
+  openThread(seat, command, { status: "escalated", opener: role.name, recipient: OWNERS.intent, about: "intent", cites: args.cites }, bodyOf(args, command, true), args);
 }
 
 // Whether `thread`, at `rel`, is the approval the seat's role writes in again: its lane's review thread, approved.
@@ -2148,7 +2298,8 @@ function cmdThreadReply(args) {
   if (!approval && thread.status !== "open") notOpen(command, rel, thread);
   if (!approval && awaitedRole(thread) !== role.name) wrong(command, `${rel} awaits ${awaitedRole(thread)}`, `only ${awaitedRole(thread)} writes in it now: check --role and --thread`);
   const message = { author: role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
-  writeThread(seat, command, rel, withMessage(approval ? withStatus(contents, "open") : contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
+  const evidence = evidenceOf(args, seat, command, rel, thread.messages.length + 1);
+  writeThread(seat, command, rel, withMessage(approval ? withStatus(contents, "open") : contents, message.author, message.commit, withEvidence(body, evidence)), [...thread.messages, message], message, false, evidence);
 }
 
 // `thread close`: an open thread the role opened, closed with its closing status (§ closingStatus) or `withdrawn`, with the
@@ -2171,7 +2322,8 @@ function cmdThreadClose(args) {
     wrong(command, `an approval names the commit it approves in its reviewer's last message, and the last message of ${rel} is ${last.author}'s at ${last.commit}`,
       "run the same command with --body <file | ->: your closing message names the commit you approve");
   const closed = withStatus(contents, status), message = body && { author: role.name, commit };
-  writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, body) : closed, message ? [...thread.messages, message] : thread.messages, message, "w");
+  const evidence = evidenceOf(args, seat, command, rel, thread.messages.length + 1);
+  writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, withEvidence(body, evidence)) : closed, message ? [...thread.messages, message] : thread.messages, message, false, evidence);
 }
 
 // --- validate -----------------------------------------------------------------------
@@ -2201,32 +2353,32 @@ const COMMANDS = {
   start: { run: cmdStart, usage: "start <pipeline folder> --branch <pipeline branch> --config <file | -> [--apply]", options: { "--branch": "value", "--config": "value", "--apply": "flag" } },
   next: { run: cmdNext, usage: "next <pipeline folder> [--apply]", options: { "--apply": "flag" } },
   land: { run: cmdLand, usage: "land <pipeline folder> --role <role>", options: { "--role": "value" } },
-  stop: { run: cmdRemove("stop", false), usage: "stop <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
-  close: { run: cmdRemove("close", true), usage: "close <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
-  "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->",
-    options: { "--role": "value", "--about": "value", "--body": "value" } },
-  "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->",
-    options: { "--role": "value", "--thread": "value", "--body": "value" } },
-  "thread close": { run: cmdThreadClose, usage: "thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]",
-    options: { "--role": "value", "--thread": "value", "--status": "value", "--body": "value" } },
-  "thread escalate": { run: cmdThreadEscalate, usage: "thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->",
-    options: { "--role": "value", "--cites": "value", "--body": "value" } },
+  close: { run: cmdClose, usage: "close <pipeline folder> --branch <pipeline branch> [--apply]", options: { "--branch": "value", "--apply": "flag" } },
+  "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | -> [--evidence <file | folder>]...",
+    options: { "--role": "value", "--about": "value", "--body": "value", "--evidence": "list" } },
+  "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | -> [--evidence <file | folder>]...",
+    options: { "--role": "value", "--thread": "value", "--body": "value", "--evidence": "list" } },
+  "thread close": { run: cmdThreadClose, usage: "thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->] [--evidence <file | folder>]...",
+    options: { "--role": "value", "--thread": "value", "--status": "value", "--body": "value", "--evidence": "list" } },
+  "thread escalate": { run: cmdThreadEscalate, usage: "thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | -> [--evidence <file | folder>]...",
+    options: { "--role": "value", "--cites": "value", "--body": "value", "--evidence": "list" } },
   validate: { run: cmdValidate, usage: "validate <pipeline folder> --role <role> [--file <path>]", options: { "--role": "value", "--file": "value" } },
 };
 const THREAD_COMMANDS = Object.keys(COMMANDS).filter((name) => name.startsWith("thread "));
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null, about: null, body: null, thread: null, status: null, cites: null, file: null, branch: null, config: null };
+  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null, about: null, body: null, thread: null, status: null, cites: null, file: null, branch: null, config: null, evidence: [] };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith("--")) { args._.push(arg); continue; }
     const type = options[arg] ?? misused(command, `unknown option: ${arg}`);
-    if (used.has(arg)) misused(command, `${arg} may appear only once`);
+    if (used.has(arg) && type !== "list") misused(command, `${arg} may appear only once`);
     used.add(arg);
     const key = arg.slice(2);
     if (type === "flag") { args[key] = true; continue; }
+    if (type === "list") { args[key].push(i + 1 < argv.length ? argv[++i] : misused(command, `${arg} expects a value`)); continue; }
     args[key] = i + 1 < argv.length ? argv[++i] : misused(command, `${arg} expects a value`);
   }
   if (args._.length > 1) misused(command, `unexpected argument: ${args._[1]}`);

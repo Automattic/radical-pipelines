@@ -228,7 +228,7 @@ describe("production lanes", () => {
     it("a removed lane's closed threads stay valid history", () => {
       pipeline(3, { targetPhase: 3 });
       thread({ status: "withdrawn", opener: "reviewer-gone", recipient: "implementer", about: "implementation" });
-      thread({ status: "resolved", opener: "reviewer-gone", recipient: "spec-producer", about: "spec" });
+      thread({ n: 2, status: "answered", opener: "reviewer-gone", recipient: "owner", about: "intent", cites: "threads/1-reviewer-gone-implementer-implementation.md" });
       assert.deepEqual(frontier(), ["complete"]);
     });
   });

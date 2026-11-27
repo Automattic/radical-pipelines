@@ -23,8 +23,8 @@ describe("complete phases", () => {
     ["one of two review lanes approved", () => { pipeline(3, { lanes: [lane("reviewer", "a"), lane("reviewer", "b")] }); approve("a"); }, [1, 2, 3]],
     ["every review lane approved, a thread awaiting a reviewer", () => {
       pipeline(3);
-      approve();
-      thread({ n: 2, opener: "reviewer-default", recipient: "spec-producer", about: "spec", messages: [["reviewer-default", "aaaaaaa"], ["spec-producer", "bbbbbbb"]] });
+      approve("default", 2);
+      thread({ n: 1, ...REVIEW(), messages: [["reviewer-default", "aaaaaaa"], ["implementer", "bbbbbbb"]] });
     }, [1, 2, 3]],
     ["phases beyond the target", () => pipeline(3, { targetPhase: 2 }), [1, 2]],
     ["the spec missing below a fresh design doc", () => { pipeline(2); remove(SPEC); commitAll("spec removed"); }, []],

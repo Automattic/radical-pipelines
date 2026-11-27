@@ -40,6 +40,7 @@ function scenario() {
   thread({ n: 3, opener: "reviewer-a", recipient: "owner", about: "intent", status: "answered" });
   answered(2, "a-b");
   write("1-spec/spec/evidence.txt", "x\n");
+  for (const folder of ["2-reviewer-a-implementer-implementation", "2-reviewer-a-b-implementer-implementation", "1-design-doc-producer-spec-producer-spec"]) write(`threads/${folder}/1/run.log`, `${folder}\n`);
   return commitAll("work");
 }
 
@@ -47,13 +48,14 @@ describe("review lanes", () => {
   useRepo();
 
   describe("are built from the pipeline tip", () => {
-    it("as a review head whose tree holds the code, the intent, later inputs, and the lane's own threads only", () => {
+    it("as a review head whose tree holds the code, the intent, later inputs, and the lane's own threads with their folders only", () => {
       scenario();
       apply();
       assert.deepEqual(files(built("a").reviewHead), [
         `${PIPELINE}/0-intent/constraint-1.md`,
         `${PIPELINE}/0-intent/intent.md`,
         `${PIPELINE}/threads/2-reviewer-a-implementer-implementation.md`,
+        `${PIPELINE}/threads/2-reviewer-a-implementer-implementation/1/run.log`,
         `${PIPELINE}/threads/3-reviewer-a-owner-intent.md`,
         "src/app.js",
       ]);
@@ -148,10 +150,19 @@ describe("review lanes", () => {
       assert.equal(git(root, "rev-parse", `${base}^{tree}`).trim(), git(root, "rev-parse", `${change}^{tree}`).trim());
     });
 
+    it("holding every file of a thread's folder, whatever characters its name holds", () => {
+      scenario();
+      write("threads/2-reviewer-a-implementer-implementation/2/report/line\nbreak.txt", "x\n");
+      commitAll("an attachment whose file name holds a line break");
+      apply();
+      assert.ok(files(built("a").reviewHead).includes(`"${PIPELINE}/threads/2-reviewer-a-implementer-implementation/2/report/line\\nbreak.txt"`));
+    });
+
     it("keeping a lane's threads apart from a lane whose id extends it", () => {
       scenario();
       apply();
-      assert.deepEqual(files(built("a-b").reviewHead).filter((path) => path.includes("/threads/")), [`${PIPELINE}/threads/2-reviewer-a-b-implementer-implementation.md`]);
+      assert.deepEqual(files(built("a-b").reviewHead).filter((path) => path.includes("/threads/")),
+        [`${PIPELINE}/threads/2-reviewer-a-b-implementer-implementation.md`, `${PIPELINE}/threads/2-reviewer-a-b-implementer-implementation/1/run.log`]);
     });
 
     it("giving a lane with no threads yet only the intent", () => {
@@ -169,13 +180,15 @@ describe("review lanes", () => {
       const reviewThread = "threads/2-reviewer-a-implementer-implementation.md";
       commitIn(wt, { [reviewThread]: `${readFileSync(join(wt, PIPELINE, reviewThread), "utf8")}\n## reviewer-a — ${first}\n\nAnother point.\n` }, "review");
       landRole("reviewer-a");
-      write(reviewThread, `${read(reviewThread)}\n## implementer — ${head()}\n\nAnswered.\n`);
+      write(reviewThread, `${read(reviewThread)}\n## implementer — ${head()}\n\nAnswered, as threads/2-reviewer-a-implementer-implementation/4/run.log shows.\n`);
+      write("threads/2-reviewer-a-implementer-implementation/4/run.log", "implementer's run\n");
       commitAll("answer");
       apply();
       const second = built("a").reviewHead;
       assert.notEqual(second, first);
       assert.equal(git(wt, "rev-parse", "HEAD").trim(), second);
-      assert.match(readFileSync(join(wt, PIPELINE, reviewThread), "utf8"), /Another point\.[\s\S]*## implementer — [0-9a-f]+\n\nAnswered\./);
+      assert.match(readFileSync(join(wt, PIPELINE, reviewThread), "utf8"), /Another point\.[\s\S]*## implementer — [0-9a-f]+\n\nAnswered, as threads\/2-reviewer-a-implementer-implementation\/4\/run\.log shows\./);
+      assert.equal(readFileSync(join(wt, PIPELINE, "threads/2-reviewer-a-implementer-implementation/4/run.log"), "utf8"), "implementer's run\n");
       assert.equal(git(wt, "status", "--porcelain"), "");
     });
   });

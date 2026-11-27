@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { RP, commitAll, git, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
+import { RP, apply, commitAll, git, lane, pipeline, root, rp, run, turnRecord, useRepo, writeFile } from "./fixture.mjs";
 
 const CONFIG = '{"target-phase": 4, "base-branch": "main", "worktree-folder-root": ".worktrees"}\n';
 function recordPipeline(folder, issue, extra = "") {
@@ -45,6 +45,31 @@ describe("pipelines", () => {
       { state: "live", ref: "followup", folder: ".pipelines/merged", origins: ["issue 1", "starts-from main"] },
       { state: "merged", ref: "main", folder: ".pipelines/merged", origins: ["issue 1", "starts-from main"] },
     ]);
+  });
+
+  it("lists no lane branch a turn record holds a lane's turn on, and lists a branch that only bears a lane's name", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a"), lane("spec-producer", "b")] });
+    apply();
+    git(root, "branch", "--quiet", "demo-spec-c", "demo");
+    assert.deepEqual(discover().map(({ ref }) => ref), ["demo", "demo-spec-c"]);
+  });
+
+  it("reads a turn record as rp close reads it: through a symbolic link, and stopping on one that is malformed or a link to nothing", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    apply();
+    const target = `${turnRecord()}.target`;
+    renameSync(turnRecord(), target);
+    symlinkSync(target, turnRecord());
+    assert.deepEqual(discover().map(({ ref }) => ref), ["demo"]);
+    // [what the link leads to, the reason both commands stop with]
+    for (const [what, reason] of [[() => writeFileSync(target, "{"), /rp-turns\/demo\.json: not valid JSON/], [() => rmSync(target), /cannot read .*rp-turns\/demo\.json: ENOENT/]]) {
+      what();
+      for (const args of [["pipelines", `${root}/.pipelines`, "--base", "main"], ["close", `${root}/.pipelines/demo`, "--branch", "demo"]]) {
+        const out = run(...args);
+        assert.equal(out.status, 1);
+        assert.match(out.stderr, reason);
+      }
+    }
   });
 
   it("filters by the issue the intent names, not by folder or branch name", () => {

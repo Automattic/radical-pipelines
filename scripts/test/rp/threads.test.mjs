@@ -28,10 +28,10 @@ describe("thread parsing", () => {
 
   for (const [recipient, about] of [["owner", "intent"], ["spec-producer", "spec"], ["design-doc-producer", "design-doc"], ["implementer", "implementation"]])
     it(`pairs ${recipient} with ${about}`, () => {
-      const status = recipient === "owner" ? "escalated" : "open";
-      const name = `1-reviewer-default-${recipient}-${about}.md`;
+      const status = recipient === "owner" ? "escalated" : "open", opener = ["spec", "design-doc"].includes(about) ? "implementer" : "reviewer-default";
+      const name = `1-${opener}-${recipient}-${about}.md`;
       const cites = recipient === "owner" ? "cites: threads/1-reviewer-default-implementer-implementation.md\n" : "";
-      const contents = thread(`status: ${status}\nopener: reviewer-default\nrecipient: ${recipient}\nabout: ${about}\n${cites}`, "## reviewer-default — abc1234\n");
+      const contents = thread(`status: ${status}\nopener: ${opener}\nrecipient: ${recipient}\nabout: ${about}\n${cites}`, `## ${opener} — abc1234\n`);
       assert.equal(parse(name, contents).about, about);
     });
 
@@ -66,6 +66,9 @@ describe("thread parsing", () => {
     ["a malformed lane", "1-reviewer-A-spec-producer-spec.md", valid.replace(/implementer/g, "reviewer-A"), /opener must be a role/],
     ["an unknown recipient", NAME.replace("spec-producer", "spec-writer"), valid.replace("recipient: spec-producer", "recipient: spec-writer"), /recipient must be a role/],
     ["a lane of another profile as recipient", "1-implementer-design-doc-producer-a-spec.md", valid.replace("recipient: spec-producer", "recipient: design-doc-producer-a"), /a thread about spec is to spec-producer\[-<lane>\]/],
+    ["a review lane's thread about the spec", "1-reviewer-a-spec-producer-spec.md", valid.replace(/implementer/g, "reviewer-a"), /a review lane opens threads about implementation and intent alone/],
+    ["a review lane's thread about the design doc", "1-reviewer-a-design-doc-producer-design-doc.md",
+      thread("status: open\nopener: reviewer-a\nrecipient: design-doc-producer\nabout: design-doc\n", "## reviewer-a — abc1234\n"), /a review lane opens threads about implementation and intent alone/],
     ["owner as opener", "1-owner-spec-producer-spec.md", valid.replace(/implementer/g, "owner"), /owner opens no thread/],
     ["opener equal to recipient", "1-spec-producer-spec-producer-spec.md", valid.replace(/implementer/g, "spec-producer"), /must differ/],
     ["escalated on a thread to a role", NAME, valid.replace("open", "escalated"), /statuses of a thread to owner/],
@@ -146,7 +149,8 @@ describe("threads in a pipeline", () => {
   it("accepts threads that share a number with different openers", () => {
     pipeline(3);
     writeThread(TO_SPEC);
-    writeThread({ ...REVIEW(), recipient: "spec-producer", about: "spec" });
+    writeThread({ opener: "implementer", recipient: "spec-producer", about: "spec" });
+    writeThread(REVIEW());
     assert.deepEqual(invalidPaths(), []);
   });
 

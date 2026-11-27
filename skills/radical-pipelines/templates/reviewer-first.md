@@ -24,6 +24,8 @@ It prints the path of your review thread. If you would merge the change as it st
 {{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread <that path> --status approved
 ```
 
+Attach the files your review rests on — logs, command output, screenshots — with `--evidence <file | folder>` on the command that writes it, once per file or folder: it copies each beside your thread and lists its path in your message. Keep only what you cite, with secrets and personal data removed.
+
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}

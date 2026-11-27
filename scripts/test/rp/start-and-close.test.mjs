@@ -99,9 +99,8 @@ describe("rp start", () => {
     assert.deepEqual(snapshot(), before);
   });
 
-  it("makes a pipeline that stop keeps and close removes before its configuration is committed", () => {
+  it("makes a pipeline that close removes before its configuration is committed", () => {
     start("demo", "--apply");
-    assert.deepEqual(lines("stop", abs(PIPELINE), "--branch", "demo", "--apply"), []);
     rmSync(join(folder("demo"), "config.json"));
     lines("close", abs(PIPELINE), "--branch", "demo", "--apply");
     assert.deepEqual(worktrees(), [at()]);
@@ -286,9 +285,10 @@ describe("rp start", () => {
     });
 });
 
-describe("rp stop", () => {
+// The pipeline worktree is the main checkout, which `close` keeps: it removes the lanes alone.
+describe("rp close on lanes", () => {
   useRepo();
-  const stop = (...args) => lines("stop", abs(PIPELINE), "--branch", "demo", ...args);
+  const close = (...args) => lines("close", abs(PIPELINE), "--branch", "demo", ...args);
   const candidate = (id) => ({ [`1-spec/lanes/${id}/spec.md`]: `# Candidate ${id}\n` });
   const removes = (role, branch) => [`hook before-removing-worktree ${role} ${laneWorktree(branch)}`, `remove-worktree ${role} ${laneWorktree(branch)}`, `delete-branch ${branch}`, `hook after-removing-worktree ${role} ${laneWorktree(branch)}`];
   const sameLines = (actual, expected) => assert.deepEqual([...actual].sort(), [...expected].sort());
@@ -297,25 +297,25 @@ describe("rp stop", () => {
     pipeline(0, { lanes: SPEC_LANES });
     apply();
     const before = snapshot();
-    sameLines(stop(), [...removes("spec-producer-a", "demo-spec-a"), ...removes("spec-producer-b", "demo-spec-b")]);
+    sameLines(close(), [...removes("spec-producer-a", "demo-spec-a"), ...removes("spec-producer-b", "demo-spec-b")]);
     assert.deepEqual(snapshot(), before);
   });
 
   it("orders the hooks around the actions, worktrees before branches", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
-    assert.deepEqual(stop(), removes("spec-producer-a", "demo-spec-a"));
+    assert.deepEqual(close(), removes("spec-producer-a", "demo-spec-a"));
   });
 
   it("reads the pipeline from its branch, from any worktree", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
     git(root, "checkout", "--quiet", "main");
-    assert.deepEqual(stop(), removes("spec-producer-a", "demo-spec-a"));
+    assert.deepEqual(close(), removes("spec-producer-a", "demo-spec-a"));
   });
 
-  // A lane holds work that has not landed while its branch holds unlanded commits or its worktree holds stray files.
-  // [the lane's state, how it is reached, whether stop removes its worktree and branch]
+  // A lane's worktree is removed; its branch is deleted unless it holds unlanded commits.
+  // [the lane's state, how it is reached, whether close deletes its branch]
   const states = [
     ["at the tip", () => {}, true],
     ["holding unlanded commits", () => commitIn(laneWorktree("demo-spec-a"), candidate("a")), false],
@@ -327,25 +327,19 @@ describe("rp stop", () => {
       git(wt, "checkout", "--quiet", "demo-spec-a");
       git(wt, "merge", "--quiet", "--no-ff", "-m", "merge side", "side");
     }, false],
-    ["holding an untracked file", () => writeFileSync(join(laneWorktree("demo-spec-a"), "scratch.txt"), "kept\n"), false],
-    ["holding a modified file", () => writeFileSync(join(laneWorktree("demo-spec-a"), "src/app.js"), "export const a = 9;\n"), false],
-    ["holding an untracked file the status configuration hides", () => {
-      git(root, "config", "status.showUntrackedFiles", "no");
-      writeFileSync(join(laneWorktree("demo-spec-a"), "scratch.txt"), "kept\n");
-    }, false],
   ];
-  for (const [state, reach, removed] of states)
-    it(`${removed ? "removes" : "keeps"} the worktree and branch of a production lane ${state}`, () => {
+  for (const [state, reach, deleted] of states)
+    it(`removes the worktree of a production lane ${state} and ${deleted ? "deletes" : "keeps"} its branch`, () => {
       pipeline(0, { lanes: SPEC_LANES });
       apply();
       reach();
       const tip = commit("demo");
-      stop("--apply");
-      assert.equal(branches().includes("demo-spec-a"), !removed);
-      assert.equal(existsSync(laneWorktree("demo-spec-a")), !removed);
+      close("--apply");
+      assert.equal(branches().includes("demo-spec-a"), !deleted);
+      assert.equal(existsSync(laneWorktree("demo-spec-a")), false);
       assert.equal(branches().includes("demo-spec-b"), false);
       assert.equal(commit("demo"), tip);
-      assert.deepEqual(stop(), []);
+      assert.deepEqual(close(), []);
     });
 
   it("removes a review lane's worktree and branch, whose review base and review head are not unlanded commits", () => {
@@ -354,12 +348,12 @@ describe("rp stop", () => {
     commitAll("code");
     apply();
     assert.ok(existsSync(laneWorktree("demo-review-a")));
-    stop("--apply");
+    close("--apply");
     assert.deepEqual(branches(), ["demo", "main"]);
     assert.deepEqual(worktrees(), [at()]);
   });
 
-  it("keeps a review lane holding a merge commit, which git cherry leaves out", () => {
+  it("keeps the branch of a review lane holding a merge commit, which git cherry leaves out", () => {
     pipeline(3, { lanes: [lane("reviewer", "a")] });
     writeFile("src/app.js", "export const a = 2;\n");
     commitAll("code");
@@ -376,7 +370,7 @@ describe("rp stop", () => {
     git(wt, "commit", "--quiet", "-m", "merge side");
     git(wt, "branch", "--quiet", "-D", "side");
     git(root, "cherry-pick", "--quiet", git(root, "rev-parse", "demo-review-a^2").trim());
-    assert.deepEqual(stop(), []);
+    assert.ok(!close().includes("delete-branch demo-review-a"));
   });
 
   it("removes the worktree and branch of a lane the configuration no longer declares", () => {
@@ -384,7 +378,7 @@ describe("rp stop", () => {
     apply();
     configure({ lanes: [lane("spec-producer", "a")] });
     commitAll("drop lane b");
-    sameLines(stop(), [...removes("spec-producer-a", "demo-spec-a"), ...removes("spec-producer-b", "demo-spec-b")]);
+    sameLines(close(), [...removes("spec-producer-a", "demo-spec-a"), ...removes("spec-producer-b", "demo-spec-b")]);
   });
 
   it("removes nothing of a pipeline branch with no turn record, which rp start did not make on this machine", () => {
@@ -392,7 +386,7 @@ describe("rp stop", () => {
     apply();
     git(root, "worktree", "add", "--quiet", "-b", "unrelated", join(at(), ".worktrees", "unrelated"), "main");
     const before = snapshot();
-    for (const command of ["stop", "close"]) assert.deepEqual(lines(command, abs(PIPELINE), "--branch", "unrelated", "--apply"), []);
+    assert.deepEqual(lines("close", abs(PIPELINE), "--branch", "unrelated", "--apply"), []);
     assert.deepEqual(snapshot(), before);
   });
 
@@ -411,34 +405,50 @@ describe("rp stop", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
     const before = snapshot();
-    for (const command of ["stop", "close"]) {
-      const out = run(command, abs(".pipelines/tooling"), "--branch", "demo", "--apply");
-      assert.equal(out.status, 1);
-      assert.match(out.stderr, new RegExp(`^rp: ${command}: demo is the pipeline branch of \\.pipelines/demo, not \\.pipelines/tooling$`, "m"));
-    }
+    const out = run("close", abs(".pipelines/tooling"), "--branch", "demo", "--apply");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /^rp: close: demo is the pipeline branch of \.pipelines\/demo, not \.pipelines\/tooling$/m);
     assert.deepEqual(snapshot(), before);
   });
 
   it("requires --branch", () => {
-    const out = run("stop", abs(PIPELINE));
+    const out = run("close", abs(PIPELINE));
     assert.equal(out.status, 1);
-    assert.match(out.stderr, /--branch <pipeline branch> is required\nusage: node rp.mjs stop/);
+    assert.match(out.stderr, /--branch <pipeline branch> is required\nusage: node rp.mjs close/);
+  });
+
+  it("has no stop command", () => {
+    assert.match(run("stop", abs(PIPELINE)).stderr, /^rp: unknown command: stop$/m);
   });
 
   it("takes each deleted lane out of the turn record as its branch goes, before a later action stops it", () => {
     pipeline(0, { lanes: SPEC_LANES });
     apply();
     writeFileSync(abs(".git/refs/heads/demo-spec-b.lock"), "");
-    assert.equal(run("stop", abs(PIPELINE), "--branch", "demo", "--apply").status, 1);
+    assert.equal(run("close", abs(PIPELINE), "--branch", "demo", "--apply").status, 1);
     assert.deepEqual(branches(), ["demo", "demo-spec-b", "main"]);
     rmSync(abs(".git/refs/heads/demo-spec-b.lock"));
     seatAt("demo-spec-a");
-    assert.deepEqual(stop("--apply"), ["delete-branch demo-spec-b"]);
+    assert.deepEqual(close("--apply"), ["delete-branch demo-spec-b"]);
     assert.ok(branches().includes("demo-spec-a"));
   });
 
+  it("forgets a lane whose branch is gone before any action, so a retry leaves alone a branch made since under its name", () => {
+    pipeline(0, { lanes: SPEC_LANES });
+    apply();
+    git(root, "worktree", "remove", laneWorktree("demo-spec-a"));
+    git(root, "branch", "--quiet", "-D", "demo-spec-a");
+    writeFileSync(abs(".git/refs/heads/demo-spec-b.lock"), "");
+    assert.equal(run("close", abs(PIPELINE), "--branch", "demo", "--apply").status, 1);
+    seatAt("demo-spec-a");
+    rmSync(abs(".git/refs/heads/demo-spec-b.lock"));
+    assert.deepEqual(close("--apply"), ["delete-branch demo-spec-b"]);
+    assert.ok(branches().includes("demo-spec-a"));
+    assert.ok(existsSync(laneWorktree("demo-spec-a")));
+  });
+
   // A lane is the pipeline's by its recorded turn on the branch the pipeline branch gives it, never by a name alone.
-  // [what holds the lane's name, the turn record, whether stop removes it]
+  // [what holds the lane's name, the turn record, whether close removes it]
   const owned = [
     ["a branch and worktree no turn is recorded on", () => seatAt("demo-spec-a"), false],
     ["a branch and worktree another role's turn is recorded on", () => { seatAt("demo-spec-a"); record({ "spec-producer-b": { branch: "demo-spec-b", worktree: join(at(), ".worktrees", "demo-spec-b") } }); }, false],
@@ -455,32 +465,38 @@ describe("rp stop", () => {
       pipeline(0, { lanes: SPEC_LANES });
       build();
       const before = snapshot();
-      stop("--apply");
+      close("--apply");
       assert.equal(snapshot().refs !== before.refs, removed);
       assert.equal(worktrees().length, removed ? 1 : 2);
     });
 
+  // Lane b holds unlanded commits, so the turn record outlives the close.
+  const keepB = () => commitIn(laneWorktree("demo-spec-b"), candidate("b"));
+
   it("leaves alone a branch and worktree created under the name of a lane it removed", () => {
-    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    pipeline(0, { lanes: SPEC_LANES });
     apply();
-    stop("--apply");
+    keepB();
+    close("--apply");
     seatAt("demo-spec-a");
-    assert.deepEqual(stop(), []);
-    assert.deepEqual(lines("close", abs(PIPELINE), "--branch", "demo"), []);
+    assert.deepEqual(close(), []);
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(recordOf(), "utf8")).turns), ["spec-producer-b"]);
   });
 
   it("takes out of the turn record, when applied again, a turn whose branch went while the record could not be written", () => {
-    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    pipeline(0, { lanes: SPEC_LANES });
     apply();
+    keepB();
     chmodSync(recordOf(), 0o444);
-    const out = run("stop", abs(PIPELINE), "--branch", "demo", "--apply");
+    const out = run("close", abs(PIPELINE), "--branch", "demo", "--apply");
     chmodSync(recordOf(), 0o644);
     assert.equal(out.status, 1);
     assert.match(out.stderr, /its turn stays in the turn record/);
-    assert.deepEqual(branches(), ["demo", "main"]);
-    stop("--apply");
+    assert.ok(!branches().includes("demo-spec-a"));
+    close("--apply");
     seatAt("demo-spec-a");
-    assert.deepEqual(stop(), []);
+    assert.deepEqual(close(), []);
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(recordOf(), "utf8")).turns), ["spec-producer-b"]);
   });
 
   it("stops on a recorded worktree left detached while another has the lane's branch checked out", () => {
@@ -489,7 +505,7 @@ describe("rp stop", () => {
     git(laneWorktree("demo-spec-a"), "checkout", "--quiet", "--detach");
     git(root, "worktree", "add", "--quiet", join(at(), ".worktrees", "elsewhere"), "demo-spec-a");
     const before = snapshot();
-    const out = run("stop", abs(PIPELINE), "--branch", "demo", "--apply");
+    const out = run("close", abs(PIPELINE), "--branch", "demo", "--apply");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /no longer has demo-spec-a checked out/);
     assert.deepEqual(snapshot(), before);
@@ -499,7 +515,7 @@ describe("rp stop", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
     git(laneWorktree("demo-spec-a"), "checkout", "--quiet", "--detach");
-    const out = run("stop", abs(PIPELINE), "--branch", "demo", "--apply");
+    const out = run("close", abs(PIPELINE), "--branch", "demo", "--apply");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /no longer has demo-spec-a checked out/);
     assert.ok(branches().includes("demo-spec-a"));
@@ -509,7 +525,7 @@ describe("rp stop", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
     rmSync(laneWorktree("demo-spec-a"), { recursive: true, force: true });
-    const out = run("stop", abs(PIPELINE), "--branch", "demo", "--apply");
+    const out = run("close", abs(PIPELINE), "--branch", "demo", "--apply");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /the worktree of demo-spec-a is missing/);
     assert.ok(branches().includes("demo-spec-a"));
@@ -519,7 +535,7 @@ describe("rp stop", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
     git(root, "tag", "demo");
-    assert.deepEqual(stop(), removes("spec-producer-a", "demo-spec-a"));
+    assert.deepEqual(close(), removes("spec-producer-a", "demo-spec-a"));
   });
 });
 

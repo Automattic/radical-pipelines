@@ -1,6 +1,6 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, discovers pipelines, starts each run — the pipeline branch, its worktree, and the pipeline configuration — plans and applies each step of the loop — its lane branches and worktrees and each woken role's assignment — lands each turn, certifying what it landed, and removes the worktrees a stopped run or a closed pipeline leaves. A role writes its threads and checks its own files with it. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory, against which every relative path resolves. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, discovers pipelines, starts each run — the pipeline branch, its worktree, and the pipeline configuration — plans and applies each step of the loop — its lane branches and worktrees and each woken role's assignment — lands each turn, certifying what it landed, and removes the worktrees of a closed pipeline. A role writes its threads and checks its own files with it. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory, against which every relative path resolves. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
@@ -8,12 +8,11 @@ node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--i
 node rp.mjs start <pipeline folder> --branch <pipeline branch> --config <file | -> [--apply]
 node rp.mjs next <pipeline folder> [--apply]
 node rp.mjs land <pipeline folder> --role <role>
-node rp.mjs stop <pipeline folder> --branch <pipeline branch> [--apply]
 node rp.mjs close <pipeline folder> --branch <pipeline branch> [--apply]
-node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->
-node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
-node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]
-node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->
+node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->] [--evidence <file | folder>]...
+node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | -> [--evidence <file | folder>]...
 node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 ```
 
@@ -143,7 +142,7 @@ cites: <thread path | evidence path>
 ---
 ```
 
-- `<role>` is `<profile>[-<lane>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, or `reviewer-<lane>`, with `<lane>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `config.json`, so closed threads of a removed lane stay valid. Production lanes open no threads: a thread whose opener or recipient is `spec-producer-<lane>` or `design-doc-producer-<lane>` is `malformed <thread>: production lanes open no threads`. An `open` thread awaiting a review lane that `config.json` does not declare is `malformed <thread>: lane not configured; close the thread withdrawn`; `default` is declared while no `reviewer` lane is, or when a lane declares it.
+- `<role>` is `<profile>[-<lane>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, or `reviewer-<lane>`, with `<lane>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `config.json`, so closed threads of a removed lane stay valid. Production lanes open no threads: a thread whose opener or recipient is `spec-producer-<lane>` or `design-doc-producer-<lane>` is `malformed <thread>: production lanes open no threads`. A thread `reviewer-<lane>` opens about `spec` or `design-doc` is `malformed <thread>: a review lane opens threads about implementation and intent alone`. An `open` thread awaiting a review lane that `config.json` does not declare is `malformed <thread>: lane not configured; close the thread withdrawn`; `default` is declared while no `reviewer` lane is, or when a lane declares it.
 - `about` pairs with the recipient's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`.
 - The opener is any role but `owner`, and differs from the recipient.
 - A thread to `owner` has status `escalated` or `answered`, and `cites` with a non-empty value; no other thread has either status or the key. The value is not resolved.
@@ -226,14 +225,14 @@ thread <thread> <status>[ awaits <role>]
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
-Fetching is the caller's job. The pipelines folder root, absolute or relative to the process directory, selects the repository and names the folder of every pipeline, as a path inside it; it need not exist in the working tree. A path that is a file, the repository's root, or outside any repository stops the command. `pipelines` reads every local branch and remote-tracking branch tip:
+Fetching is the caller's job. The pipelines folder root, absolute or relative to the process directory, selects the repository and names the folder of every pipeline, as a path inside it; it need not exist in the working tree. A path that is a file, the repository's root, or outside any repository stops the command. `pipelines` reads every local branch tip but a lane branch's, one a turn record (§ Turn record) holds a lane's turn on as `land` verifies it, and every remote-tracking branch tip:
 
 1. Collect each pipeline folder (§ Pipeline files) of the pipelines folder root at each tip, with its tree id.
 2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.
 3. Every pipeline folder in the tree of `--base` is **merged**, reported once from `--base`.
 4. With `--issue`, keep those whose intent names `issue <ref>` among its origins.
 
-Of each pipeline folder, discovery reads only `0-intent/intent.md`, through the file grammar (§ `validate`): its origins are its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written. A pipeline whose intent is missing, not a regular file, or rejected by the file grammar stops the command, naming the intent and the reason, with or without `--issue`; no other file of a pipeline is read or validated. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+Of each pipeline folder, discovery reads only `0-intent/intent.md`, through the file grammar (§ `validate`): its origins are its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written. A pipeline whose intent is missing, not a regular file, or rejected by the file grammar stops the command, naming the intent and the reason, with or without `--issue`; no other file of a pipeline is read or validated. A missing or unresolving `--base`, a turn record that cannot be read or is malformed, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <ref> <pipeline folder>`. `--json` prints a list of `{state, ref, commit, folder, origins}`.
 
@@ -308,7 +307,7 @@ hook phase-started <phase>
 | `wake` | A role to wake, one line per fact: its profile; its lane, for a lane's role; its model name, when `config.json` gives it one; its phase; its worktree; the assignment applying writes for it; each resource its assignment carries; and `new` when its turn needs a new instance |
 | `hook` | A lifecycle hook the step fires: a branch's with what the branch is for, a worktree's with what the worktree is for and its path, a spawning or landing one's with its role, `phase-started` with its phase. No hook line holds a branch's name |
 
-No plan removes a worktree that holds a file Git does not ignore that its branch lacks, modified or untracked: such a worktree stops the command while it plans, before any hook fires, with `rp: <command>: worktrees to remove hold files their branches lack: commit or delete them, then plan again:` and a line `<path>: <files>` for each. `stop` keeps such a lane instead (§ `stop` and `close`).
+No plan removes a worktree that holds a file Git does not ignore that its branch lacks, modified or untracked: such a worktree stops the command while it plans, before any hook fires, with `rp: <command>: worktrees to remove hold files their branches lack: commit or delete them, then plan again:` and a line `<path>: <files>` for each.
 
 The lines come in the order the orchestrator acts on them. A plan that names a turn to land holds only the frontier and each turn to land between `before-landing-lane` and `after-landing-lane`. Any other plan lists the frontier; the files to fix and to repair; the `before-removing-worktree` and `before-creating-worktree` hooks; the actions; the matching `after-` hooks and each `phase-started`; and each role to wake between `before-spawning-agent` and `after-spawning-agent`, which fire only when the orchestrator spawns the role. A lane's role is followed by `before-landing-lane` and `after-landing-lane`, which fire around its landing, once its turn ends.
 
@@ -344,7 +343,7 @@ It changes no other ref or worktree, leaves the pipeline branch where it is, cha
 
 ### Review lanes
 
-The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/` and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md`. The review head built from the tip is the second of two commits, built through a temporary index from commits alone, so no worktree's index, `HEAD`, or files affect them:
+The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/`, and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md` with every file in its folder (§ `thread`). The review head built from the tip is the second of two commits, built through a temporary index from commits alone, so no worktree's index, `HEAD`, or files affect them:
 
 1. **Review base**: the merge-base's tree (§ Net change and approval) with the pipelines folder root replaced by the **lane's root**: the tip's root without its pipeline folders (§ Pipeline files), plus the lane's view; its parent is the merge-base; its message is `rp review base`.
 2. **Review head**: the tip's tree with the root replaced by the same lane's root; its parent is the review base; its message is `rp review head`.
@@ -375,33 +374,25 @@ node rp.mjs land <pipeline folder> --role <role>
 
 Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, a detached pipeline worktree, a turn record that cannot be read or is malformed, and a git failure also stop `land`.
 
-## `stop` and `close`
+## `close`
 
 ```text
-node rp.mjs stop <pipeline folder> --branch <pipeline branch> [--apply]
 node rp.mjs close <pipeline folder> --branch <pipeline branch> [--apply]
 ```
 
-`<pipeline folder>` and `--branch` are as for `start`: the pipeline is read from its branch and its turn record, whichever worktree, if any, has the branch checked out. A pipeline branch with no turn record has nothing `start` made on this machine, so both print nothing. `stop` prints what a stopped run leaves to remove, and `close` what a pipeline that is merged or closed without merging does, in the lines of § Plan: the `before-removing-worktree` hooks, each lane's `remove-worktree`, each `delete-branch`, the pipeline worktree's `remove-worktree`, and the `after-removing-worktree` hooks. Neither changes anything without `--apply`, and a pipeline with nothing to remove prints nothing.
+`<pipeline folder>` and `--branch` are as for `start`: the pipeline is read from its branch and its turn record, whichever worktree, if any, has the branch checked out. A pipeline branch with no turn record has nothing `start` made on this machine, so `close` prints nothing. Otherwise it prints what a pipeline that is merged or closed without merging leaves to remove, in the lines of § Plan: the `before-removing-worktree` hooks; each lane's `remove-worktree`; a `delete-branch` for each lane branch that holds no unlanded commits (§ `next`); the pipeline worktree's `remove-worktree`, named with `pipeline` where a lane's line names its role, unless it is the main checkout; and the `after-removing-worktree` hooks. It changes nothing without `--apply`, and with nothing to remove prints nothing.
 
-A lane is the pipeline's here while the turn record holds its turn as `land` verifies it, whether or not `config.json` still declares the lane; a branch or worktree that only bears a lane's name is left alone. A lane **holds work that has not landed** while its branch holds unlanded commits (§ `next`) or its worktree holds a file Git does not ignore that its branch lacks, modified or untracked.
+A lane is the pipeline's here while the turn record holds its turn as `land` verifies it, whether or not `config.json` still declares the lane; a branch or worktree that only bears a lane's name is left alone.
 
-| | `stop` | `close` |
-| --- | --- | --- |
-| A lane's worktree | Removed unless the lane holds work that has not landed | Removed |
-| A lane's branch | Deleted unless the lane holds work that has not landed | Deleted unless it holds unlanded commits |
-| The pipeline worktree | Kept | Removed, named with `pipeline` where a lane's line names its role, unless it is the main checkout |
-| The pipeline branch | Kept | Kept |
-
-With `--apply`, each first takes out of the turn record each turn of the pipeline's lanes whose branch is gone, then removes the lanes' worktrees and deletes the branches as `next --apply` does (§ Applying), and last removes the pipeline worktree. `close` then keeps in the turn record only the turns of the lanes whose branches it keeps, and removes the record when none remain. Neither changes another ref, worktree, or remote. A failed action stops it with `rp: <command> --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains, so a closed pipeline closed again prints nothing. A turn record whose pipeline branch does not exist, one that cannot be read, is malformed, or names another pipeline folder, a worktree Git records whose folder is missing, a lane's recorded worktree that Git still records and no longer has its branch checked out, and a git failure stop both; a worktree to remove that holds a file its branch lacks stops `close` (§ Plan).
+With `--apply`, it removes the lanes' worktrees and deletes the branches as `next --apply` does (§ Applying), and last removes the pipeline worktree. It then keeps in the turn record only the turns of the lanes whose branches it keeps, and removes the record when none remain. It changes no other ref, worktree, or remote. A failed action stops it with `rp: close --apply: <action>: <reason>`; the actions before it stay done, and applying again plans and applies only what remains, so a closed pipeline closed again prints nothing. A turn record whose pipeline branch does not exist, one that cannot be read, is malformed, or names another pipeline folder, a worktree Git records whose folder is missing, a lane's recorded worktree that Git still records and no longer has its branch checked out, a worktree to remove that holds a file its branch lacks (§ Plan), and a git failure stop `close`.
 
 ## `thread`
 
 ```text
-node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | ->
-node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
-node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->]
-node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->
+node rp.mjs thread open <pipeline folder> --role <role> --about <spec | design-doc | implementation> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | -> [--evidence <file | folder>]...
+node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | resolved | withdrawn> [--body <file | ->] [--evidence <file | folder>]...
+node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | -> [--evidence <file | folder>]...
 ```
 
 `thread` writes a thread (§ Threads) in the working tree of the worktree that holds `<pipeline folder>`, as `--role`, around each message's body: the bytes of the file `--body` names, or of standard input for `-`, written as given. It reads only the thread it writes and the names in `threads/`, never the pipeline configuration, so it works alike in a review lane's tree, a production lane's worktree, and the pipeline worktree.
@@ -409,14 +400,16 @@ node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path
 - `open` writes `threads/<n>-<role>-<recipient>-<about>.md`, `<recipient>` the owner of the artifact `--about` names, with status `open` and the role's message. `<n>` is one more than the highest number among the names `threads/<n>-….md` in the working tree, or 1 when it holds none; `threads/` is created when absent, and an existing file is never replaced.
 - `escalate` writes `threads/<n>-<role>-owner-intent.md`, numbered the same way, with status `escalated`, `cites` the text given, quoted when the frontmatter needs it (§ Frontmatter), and the role's message.
 - `reply` adds the role's message at the end of an `open` thread that awaits it, or of the role's **own approval**, its lane's review thread while that is an approval, which it sets `open`.
+- `--evidence`, once per file or folder, against the process directory, attaches each to the message the command writes, in the message's folder `<n>/`, `<n>` its number in the thread, inside the thread's **folder**, the thread's path without `.md`. It copies each as `<n>/<its name>`: a file's contents, or a folder's files at their paths inside it, each as a regular file, following every link. It stages them with `git add --force`, whatever the repository's ignore rules, and ends the message's body with a blank line, `Evidence:`, a blank line, and a list item `` - `<path>` `` for each, its path from the pipeline folder. An escalation whose `--cites` names an attached source, or a path inside one that the attachment carries, cites its copy's path instead. The copies, the staging, and the thread are written together: when one fails, the command removes the files it wrote and each folder it created that is left empty, and unstages the files it staged. A thread is written whole: a new one only where no file is, and one that exists replaced at once by its complete new contents, with its permissions. A path on the way to the message's folder that is a link or no folder, or that the index holds as a file, stops the command before it writes.
 - `close` sets the status of an `open` thread the role opened to `approved` for a review thread or `resolved` for any other, or to `withdrawn`, and with `--body` adds the role's closing message at the end. A review thread is closed `approved` without `--body` only when its last message is the reviewer's and names the commit its worktree stands on, the commit `land` certifies the approval at. It closes the role's own approval `approved` again.
 
-A message is its heading `## <role> — <commit>` on a line of its own after a blank line, `<commit>` the full hash of the worktree's `HEAD`, then a blank line and the body. Every other byte of the file stays as it was, but for the status the command sets. The command writes the file only when the file grammar (§ `validate`) accepts it and reads in it the messages the command means, the role's last, and would read a message written after the role's; it then prints the file's absolute path. It writes nothing else: no certification, ref, or other file. Every other use is wrong, and writes nothing:
+A message is its heading `## <role> — <commit>` on a line of its own after a blank line, `<commit>` the full hash of the worktree's `HEAD`, then a blank line and the body. Every other byte of the file stays as it was, but for the status the command sets. The command writes the file only when the file grammar (§ `validate`) accepts it and reads in it the messages the command means, the role's last, and would read a message written after the role's; it then prints the file's absolute path. It writes nothing else but the files a message attaches: no certification, ref, or other file. Every other use is wrong, and writes nothing:
 
-- `open` or `escalate` by a production lane's role; `open` about the intent, or about the artifact the role owns; `escalate` whose `--cites` is empty;
+- `open` or `escalate` by a production lane's role; `open` about the intent, about the artifact the role owns, or by a review lane's role about anything but `implementation`; `escalate` whose `--cites` is empty;
 - a `--thread` that names no thread file of the pipeline folder, or a file the file grammar rejects;
 - `reply` to a thread that neither awaits the role nor is its own approval; `close` of a thread that is neither `open` nor the role's own approval, by a role other than its opener, or with another status, such as `approved` on a thread other than a review thread, or any but `approved` on its own approval; an approval without `--body` that the last message does not name;
-- a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it.
+- a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it;
+- `--evidence` without a message; naming no file or folder; a source named `.git`, or a folder holding no file, a `.git`, a link back into itself, or anything that is no file or folder; two attachments of one name, or one whose name holds a backtick or a line break; a message's folder that the working tree or the index holds; an escalation's `--cites` naming a path inside an attachment that carries nothing there.
 
 The owner's answer on a thread to `owner` is written by hand (`../reference/run/loop.md` § Owner escalation).
 

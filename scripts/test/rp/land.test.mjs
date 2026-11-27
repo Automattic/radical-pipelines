@@ -43,13 +43,14 @@ describe("rp land", () => {
       apply();
       const wt = laneWorktree("demo-review-default"), change = head(wt);
       const path = "threads/1-reviewer-default-implementer-implementation.md";
-      commitIn(wt, { [path]: withFrontmatter({ status: "approved", ...REVIEW() }, `\n## reviewer-default — ${change}\n\nMerge it.\n`) }, "Approve");
+      commitIn(wt, { [path]: withFrontmatter({ status: "approved", ...REVIEW() }, `\n## reviewer-default — ${change}\n\nMerge it.\n\nEvidence:\n\n- \`threads/1-reviewer-default-implementer-implementation/1/run.log\`\n`), "threads/1-reviewer-default-implementer-implementation/1/run.log": "passed\n" }, "Approve");
       const before = head();
       assert.equal(landRole("reviewer-default"), "hook phase-completed 4\n");
       assert.deepEqual(subjects(`${before}..HEAD`), ["Certify review lane default approval", "Approve"]);
       assert.deepEqual(certification(path), { inputs: [pin(INTENT, change)], "approved-commit": git(root, "rev-parse", "HEAD^").trim() });
       assert.deepEqual(subjects(`${before}..HEAD`).filter((subject) => subject.startsWith("rp review")), []);
       assert.deepEqual(check().reviews, [{ lane: "default", approved: true }]);
+      assert.equal(read("threads/1-reviewer-default-implementer-implementation/1/run.log"), "passed\n");
     });
 
     it("of a consolidation in the pipeline worktree: certifies the artifact at the turn commit, pinning the intent and the later inputs targeting it there", () => {
