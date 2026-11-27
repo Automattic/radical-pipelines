@@ -2219,7 +2219,7 @@ function writeThread(seat, command, rel, contents, messages, message, exclusive,
     publishThread(path, contents, exclusive);
   } catch (error) {
     const note = undo();
-    if (error.code === "EEXIST") wrong(command, `${rel} exists`, "run the command again, which takes the next number");
+    if (exclusive && error.code === "EEXIST") wrong(command, `${rel} exists`, "run the command again, which takes the next number");
     fail(`cannot write ${seat.folder}/${rel}: ${error.message}${note}`);
   }
   process.stdout.write(`${path}\n`);
