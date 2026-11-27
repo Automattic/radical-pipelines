@@ -1458,13 +1458,13 @@ function assignmentOf(ctx, wake, tip, reviewHead) {
 const recordsFolderOf = (root) => join(realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"])), "rp-turns");
 const recordPath = (root, pipelineBranch) => join(recordsFolderOf(root), `${pipelineBranch}.json`);
 const NO_RECORD = { folder: null, turns: {}, woke: [], complete: [], reported: [] };
-// The turn record of `pipelineBranch`, or an empty one, its `folder` null, when it has none. One that cannot be read or
+// The turn record of `pipelineBranch`, or an empty one, its `folder` null, when no file is at its path. One that cannot be read or
 // is malformed stops the command, naming it.
 function readRecord(root, pipelineBranch) {
   const path = recordPath(root, pipelineBranch);
   let bytes;
   try { bytes = readFileSync(path); }
-  catch (error) { if (error.code === "ENOENT") return structuredClone(NO_RECORD); fail(`cannot read ${path}: ${error.message}`); }
+  catch (error) { if (error.code === "ENOENT" && !lstatOf(path)) return structuredClone(NO_RECORD); fail(`cannot read ${path}: ${error.message}`); }
   const malformed = (reason) => fail(`${path}: ${reason}`);
   let data;
   try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }

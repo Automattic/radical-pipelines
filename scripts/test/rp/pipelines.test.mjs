@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,18 +54,21 @@ describe("pipelines", () => {
     assert.deepEqual(discover().map(({ ref }) => ref), ["demo", "demo-spec-c"]);
   });
 
-  it("reads a turn record as rp close reads it: through a symbolic link, and stopping on one that is malformed", () => {
+  it("reads a turn record as rp close reads it: through a symbolic link, and stopping on one that is malformed or a link to nothing", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a")] });
     apply();
     const target = `${turnRecord()}.target`;
     renameSync(turnRecord(), target);
     symlinkSync(target, turnRecord());
     assert.deepEqual(discover().map(({ ref }) => ref), ["demo"]);
-    writeFileSync(target, "{");
-    for (const args of [["pipelines", `${root}/.pipelines`, "--base", "main"], ["close", `${root}/.pipelines/demo`, "--branch", "demo"]]) {
-      const out = run(...args);
-      assert.equal(out.status, 1);
-      assert.match(out.stderr, /rp-turns\/demo\.json: not valid JSON/);
+    // [what the link leads to, the reason both commands stop with]
+    for (const [what, reason] of [[() => writeFileSync(target, "{"), /rp-turns\/demo\.json: not valid JSON/], [() => rmSync(target), /cannot read .*rp-turns\/demo\.json: ENOENT/]]) {
+      what();
+      for (const args of [["pipelines", `${root}/.pipelines`, "--base", "main"], ["close", `${root}/.pipelines/demo`, "--branch", "demo"]]) {
+        const out = run(...args);
+        assert.equal(out.status, 1);
+        assert.match(out.stderr, reason);
+      }
     }
   });
 
